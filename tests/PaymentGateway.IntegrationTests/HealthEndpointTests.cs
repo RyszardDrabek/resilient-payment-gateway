@@ -47,19 +47,25 @@ public sealed class HealthEndpointTests : IAsyncLifetime
     {
         if (!_dockerAvailable || _postgres is null)
         {
-            // Docker Desktop not running — CI with Docker / compose profile exercises this path.
+            // Docker Desktop not running — CI with Docker exercises the path below.
             return;
         }
+
+        var connectionString = _postgres.GetConnectionString();
 
         await using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseSetting("ConnectionStrings:PaymentDb", connectionString);
+                builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
+                builder.UseSetting("RabbitMq:UseInMemory", "true");
+                builder.UseSetting("Auth:JwtSigningKey", "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!");
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        ["ConnectionStrings:PaymentDb"] = _postgres.GetConnectionString(),
-                        ["ConnectionStrings:RiskDb"] = _postgres.GetConnectionString(),
+                        ["ConnectionStrings:PaymentDb"] = connectionString,
+                        ["ConnectionStrings:RiskDb"] = connectionString,
                         ["RabbitMq:UseInMemory"] = "true",
                         ["Auth:JwtSigningKey"] = "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!"
                     });
@@ -69,7 +75,7 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         var client = factory.CreateClient();
         var response = await client.GetAsync("/health");
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, because: await response.Content.ReadAsStringAsync());
         (await response.Content.ReadAsStringAsync()).Should().Contain("Healthy");
     }
 }

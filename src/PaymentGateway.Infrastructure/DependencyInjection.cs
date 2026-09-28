@@ -10,15 +10,27 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var paymentConnection = configuration.GetConnectionString("PaymentDb")
+        // Resolve connection strings from IConfiguration at DbContext creation time so tests/compose
+        // can override ConnectionStrings without re-registering EF.
+        _ = configuration.GetConnectionString("PaymentDb")
             ?? throw new InvalidOperationException("Connection string 'PaymentDb' is required.");
-        var riskConnection = configuration.GetConnectionString("RiskDb") ?? paymentConnection;
 
-        services.AddDbContext<PaymentDbContext>(options =>
-            options.UseNpgsql(paymentConnection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "pay")));
+        services.AddDbContext<PaymentDbContext>((sp, options) =>
+        {
+            var cs = sp.GetRequiredService<IConfiguration>().GetConnectionString("PaymentDb")
+                ?? throw new InvalidOperationException("Connection string 'PaymentDb' is required.");
+            options.UseNpgsql(cs, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "pay"));
+        });
 
-        services.AddDbContext<RiskDbContext>(options =>
-            options.UseNpgsql(riskConnection, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "risk")));
+        services.AddDbContext<RiskDbContext>((sp, options) =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var cs = config.GetConnectionString("RiskDb")
+                ?? config.GetConnectionString("PaymentDb")
+                ?? throw new InvalidOperationException("Connection string 'RiskDb' or 'PaymentDb' is required.");
+            options.UseNpgsql(cs, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "risk"));
+        });
+
 
         var useInMemory = configuration.GetValue("RabbitMq:UseInMemory", true);
         var rabbitHost = configuration["RabbitMq:Host"] ?? "localhost";
