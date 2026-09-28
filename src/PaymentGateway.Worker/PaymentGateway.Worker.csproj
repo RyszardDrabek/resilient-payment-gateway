@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <RootNamespace>PaymentGateway.Worker</RootNamespace>
+    <AssemblyName>PaymentGateway.Worker</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PaymentGateway.Application\PaymentGateway.Application.csproj" />
+    <ProjectReference Include="..\PaymentGateway.Domain\PaymentGateway.Domain.csproj" />
+    <ProjectReference Include="..\PaymentGateway.Infrastructure\PaymentGateway.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

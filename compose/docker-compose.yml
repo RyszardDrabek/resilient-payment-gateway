@@ -1,0 +1,101 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: payment_gateway
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  jaeger:
+    # 1.62 does not exist on Docker Hub; 1.76.0 is the final v1 all-in-one tag.
+    image: jaegertracing/all-in-one:1.76.0
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+
+  api:
+    build:
+      context: ..
+      dockerfile: compose/Dockerfile.api
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__PaymentDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
+      ConnectionStrings__RiskDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
+      RabbitMq__UseInMemory: "false"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: guest
+      RabbitMq__Password: guest
+      Auth__JwtSigningKey: DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+    ports:
+      - "5080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: compose/Dockerfile.worker
+    environment:
+      ConnectionStrings__PaymentDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
+      ConnectionStrings__RiskDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
+      RabbitMq__UseInMemory: "false"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: guest
+      RabbitMq__Password: guest
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  anvil:
+    profiles: ["web3"]
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545"]
+    ports:
+      - "8545:8545"
+
+networks:
+  default:
+    name: payment-gateway

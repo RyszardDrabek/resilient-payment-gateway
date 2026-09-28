@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PaymentGateway.Api/PaymentGateway.Api.csproj" />
+    <Project Path="src/PaymentGateway.Application/PaymentGateway.Application.csproj" />
+    <Project Path="src/PaymentGateway.Domain/PaymentGateway.Domain.csproj" />
+    <Project Path="src/PaymentGateway.Edge/PaymentGateway.Edge.csproj" />
+    <Project Path="src/PaymentGateway.Infrastructure/PaymentGateway.Infrastructure.csproj" />
+    <Project Path="src/PaymentGateway.Worker/PaymentGateway.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PaymentGateway.ArchitectureTests/PaymentGateway.ArchitectureTests.csproj" />
+    <Project Path="tests/PaymentGateway.IntegrationTests/PaymentGateway.IntegrationTests.csproj" />
+    <Project Path="tests/PaymentGateway.UnitTests/PaymentGateway.UnitTests.csproj" />
+  </Folder>
+</Solution>

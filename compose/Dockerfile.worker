@@ -1,0 +1,12 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY PaymentGateway.slnx ./
+COPY src/ ./src/
+RUN dotnet restore src/PaymentGateway.Worker/PaymentGateway.Worker.csproj
+RUN dotnet publish src/PaymentGateway.Worker/PaymentGateway.Worker.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "PaymentGateway.Worker.dll"]

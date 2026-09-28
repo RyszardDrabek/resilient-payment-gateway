@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>PaymentGateway.Api</RootNamespace>
+    <AssemblyName>PaymentGateway.Api</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PaymentGateway.Application\PaymentGateway.Application.csproj" />
+    <ProjectReference Include="..\PaymentGateway.Domain\PaymentGateway.Domain.csproj" />
+    <ProjectReference Include="..\PaymentGateway.Edge\PaymentGateway.Edge.csproj" />
+    <ProjectReference Include="..\PaymentGateway.Infrastructure\PaymentGateway.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
