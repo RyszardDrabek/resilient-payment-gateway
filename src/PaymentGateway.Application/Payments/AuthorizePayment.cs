@@ -29,6 +29,6 @@ public sealed class AuthorizePaymentCommandHandler(
 
         await repository.AddAsync(payment, ct);
 
-        return PaymentDto.FromDomain(payment);
+        return PaymentMapper.ToDto(payment);
     }
 }

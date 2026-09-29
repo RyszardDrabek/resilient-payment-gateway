@@ -10,15 +10,4 @@ public record PaymentDto(
     string SettlementChannel,
     string State,
     string? ChannelReference,
-    DateTimeOffset CreatedAt)
-{
-    public static PaymentDto FromDomain(Payment p) => new(
-        p.Id,
-        p.PartyId,
-        p.Amount,
-        p.Currency,
-        p.SettlementChannel,
-        p.State.ToString(),
-        p.ChannelReference,
-        p.CreatedAt);
-}
+    DateTimeOffset CreatedAt);

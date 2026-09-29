@@ -11,6 +11,6 @@ public sealed class GetPaymentByIdQueryHandler(IPaymentRepository repository)
     public async Task<PaymentDto?> Handle(GetPaymentByIdQuery request, CancellationToken ct)
     {
         var payment = await repository.GetByIdAsync(request.PaymentId, ct);
-        return payment is null ? null : PaymentDto.FromDomain(payment);
+        return payment is null ? null : PaymentMapper.ToDto(payment);
     }
 }
