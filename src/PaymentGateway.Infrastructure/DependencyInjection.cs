@@ -30,7 +30,8 @@ public static class DependencyInjection
                 ?? throw new InvalidOperationException("Connection string 'RiskDb' or 'PaymentDb' is required.");
             options.UseNpgsql(cs, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "risk"));
         });
-
+        services.AddScoped<PaymentGateway.Domain.Ports.IPaymentRepository, PaymentGateway.Infrastructure.Repositories.PaymentRepository>();
+        services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort, PaymentGateway.Infrastructure.Services.MockSettlementPort>();
 
         var useInMemory = configuration.GetValue("RabbitMq:UseInMemory", true);
         var rabbitHost = configuration["RabbitMq:Host"] ?? "localhost";
