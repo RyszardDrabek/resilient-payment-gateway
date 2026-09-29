@@ -30,9 +30,3 @@ public static class PaymentEndpoints
         return app;
     }
 }
-
-public record AuthorizePaymentRequest(
-    string PartyId,
-    long Amount,
-    string Currency,
-    string SettlementChannel);

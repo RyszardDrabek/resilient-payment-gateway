@@ -1,11 +1,5 @@
 namespace PaymentGateway.Domain.Entities;
 
-public enum PaymentState
-{
-    Authorized,
-    Declined
-}
-
 public sealed class Payment
 {
     public string Id { get; private set; } = string.Empty;

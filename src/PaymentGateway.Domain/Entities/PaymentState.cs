@@ -1,0 +1,7 @@
+namespace PaymentGateway.Domain.Entities;
+
+public enum PaymentState
+{
+    Authorized,
+    Declined
+}
