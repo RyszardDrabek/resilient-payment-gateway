@@ -1,31 +1,30 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace PaymentGateway.Infrastructure.Persistence.Migrations
+namespace PaymentGateway.Infrastructure.Persistence.Migrations;
+
+/// <inheritdoc />
+public partial class AddDeclineReasonToPayment : Migration
 {
     /// <inheritdoc />
-    public partial class AddDeclineReasonToPayment : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.AddColumn<string>(
-                name: "DeclineReason",
-                schema: "pay",
-                table: "Payments",
-                type: "character varying(256)",
-                maxLength: 256,
-                nullable: true);
-        }
+        migrationBuilder.AddColumn<string>(
+            name: "DeclineReason",
+            schema: "pay",
+            table: "Payments",
+            type: "character varying(256)",
+            maxLength: 256,
+            nullable: true);
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropColumn(
-                name: "DeclineReason",
-                schema: "pay",
-                table: "Payments");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(
+            name: "DeclineReason",
+            schema: "pay",
+            table: "Payments");
     }
 }
