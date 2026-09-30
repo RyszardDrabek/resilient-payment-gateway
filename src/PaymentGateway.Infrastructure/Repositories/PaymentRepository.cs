@@ -9,7 +9,7 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
 {
     public async Task AddAsync(Payment payment, CancellationToken ct = default)
     {
-        await dbContext.Payments.AddAsync(payment, ct);
+        dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync(ct);
     }
 

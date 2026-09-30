@@ -4,12 +4,6 @@ using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Application.Payments;
 
-public record AuthorizePaymentCommand(
-    string PartyId,
-    long Amount,
-    string Currency,
-    string? SettlementChannel = null) : IRequest<PaymentDto>;
-
 public sealed class AuthorizePaymentCommandHandler(
     ISettlementPort settlementPort,
     IPaymentRepository repository) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>

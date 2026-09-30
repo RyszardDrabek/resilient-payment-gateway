@@ -3,8 +3,6 @@ using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Application.Payments;
 
-public record GetPaymentByIdQuery(string PaymentId) : IRequest<PaymentDto?>;
-
 public sealed class GetPaymentByIdQueryHandler(IPaymentRepository repository)
     : IRequestHandler<GetPaymentByIdQuery, PaymentDto?>
 {

@@ -7,7 +7,9 @@ public static class PaymentEndpoints
 {
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/payments").WithTags("Payments");
+        var group = app.MapGroup("/payments")
+            .WithTags("Payments")
+            .RequireAuthorization();
 
         group.MapPost("/", async (AuthorizePaymentRequest request, ISender mediator, CancellationToken ct) =>
         {
