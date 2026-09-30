@@ -149,4 +149,84 @@ public sealed class PaymentPersistenceTests : IAsyncLifetime
 
         result.Should().BeNull();
     }
+
+    [Fact]
+    public async Task IdempotencyRepository_AddAndFind_PersistsAndLoadsCorrectly()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        var record = IdempotencyRecord.CreateInFlight(
+            key: "idem_persist_1",
+            commandType: "Authorize",
+            payloadHash: "hash_persist_123");
+
+        await using (var dbContext = new PaymentDbContext(options))
+        {
+            var repository = new IdempotencyRepository(dbContext);
+            await repository.AddAsync(record, CancellationToken.None);
+        }
+
+        await using (var readDbContext = new PaymentDbContext(options))
+        {
+            var readRepository = new IdempotencyRepository(readDbContext);
+            var loaded = await readRepository.FindAsync("idem_persist_1", "Authorize", null, CancellationToken.None);
+
+            loaded.Should().NotBeNull();
+            loaded!.Key.Should().Be("idem_persist_1");
+            loaded.CommandType.Should().Be("Authorize");
+            loaded.PayloadHash.Should().Be("hash_persist_123");
+            loaded.Status.Should().Be(PaymentGateway.Domain.Enums.IdempotencyStatus.InFlight);
+
+            loaded.Complete(201, "{\"paymentId\":\"pay_100\"}");
+            await readRepository.UpdateAsync(loaded, CancellationToken.None);
+        }
+
+        await using (var verifyDbContext = new PaymentDbContext(options))
+        {
+            var verifyRepository = new IdempotencyRepository(verifyDbContext);
+            var completed = await verifyRepository.FindAsync("idem_persist_1", "Authorize", null, CancellationToken.None);
+
+            completed.Should().NotBeNull();
+            completed!.Status.Should().Be(PaymentGateway.Domain.Enums.IdempotencyStatus.Completed);
+            completed.ResponseStatusCode.Should().Be(201);
+            completed.ResponsePayload.Should().Be("{\"paymentId\":\"pay_100\"}");
+            completed.PaymentId.Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public async Task IdempotencyRepository_DuplicateKey_ThrowsDbUpdateException()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        var record1 = IdempotencyRecord.CreateInFlight("idem_dup_key", "Authorize", "hash_1");
+        var record2 = IdempotencyRecord.CreateInFlight("idem_dup_key", "Authorize", "hash_2");
+
+        await using (var dbContext = new PaymentDbContext(options))
+        {
+            var repository = new IdempotencyRepository(dbContext);
+            await repository.AddAsync(record1, CancellationToken.None);
+        }
+
+        await using (var duplicateDbContext = new PaymentDbContext(options))
+        {
+            var repository = new IdempotencyRepository(duplicateDbContext);
+            var act = () => repository.AddAsync(record2, CancellationToken.None);
+            await act.Should().ThrowAsync<PaymentGateway.Domain.Exceptions.IdempotencyInFlightException>();
+        }
+    }
 }
