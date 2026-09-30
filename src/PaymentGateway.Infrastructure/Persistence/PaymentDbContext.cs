@@ -40,11 +40,11 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(r => r.LockedUntil);
 
             b.HasIndex(r => new { r.CommandType, r.Key })
-                .HasFilter("\"PaymentId\" IS NULL")
+                .HasFilter("\"CommandType\" = 'Authorize'")
                 .IsUnique();
 
             b.HasIndex(r => new { r.PaymentId, r.CommandType, r.Key })
-                .HasFilter("\"PaymentId\" IS NOT NULL")
+                .HasFilter("\"CommandType\" != 'Authorize'")
                 .IsUnique();
         });
     }

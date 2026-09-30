@@ -16,6 +16,7 @@ public class IdempotencyPayloadHasherTests
         var hashDifferentParty = IdempotencyPayloadHasher.ComputeHash("Authorize", null, "party_2", 1000, "EUR");
         var hashDifferentCurrency = IdempotencyPayloadHasher.ComputeHash("Authorize", null, "party_1", 1000, "USD");
         var hashDifferentCommand = IdempotencyPayloadHasher.ComputeHash("Capture", null, "party_1", 1000, "EUR");
+        var hashDifferentChannel = IdempotencyPayloadHasher.ComputeHash("Authorize", null, "party_1", 1000, "EUR", "ADYEN");
 
         // Assert
         hash1.Should().NotBeNullOrWhiteSpace();
@@ -24,5 +25,6 @@ public class IdempotencyPayloadHasherTests
         hash1.Should().NotBe(hashDifferentParty);
         hash1.Should().NotBe(hashDifferentCurrency);
         hash1.Should().NotBe(hashDifferentCommand);
+        hash1.Should().NotBe(hashDifferentChannel);
     }
 }

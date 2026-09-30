@@ -25,9 +25,12 @@ public sealed class AuthorizePaymentCommandHandler(
             null,
             request.PartyId,
             request.Amount,
-            request.Currency);
+            request.Currency,
+            request.SettlementChannel);
 
         var existing = await idempotencyRepository.FindAsync(request.IdempotencyKey, "Authorize", null, ct);
+        IdempotencyRecord record;
+
         if (existing is not null && !existing.IsExpired(DateTimeOffset.UtcNow))
         {
             if (!existing.MatchesPayload(payloadHash))
@@ -60,10 +63,17 @@ public sealed class AuthorizePaymentCommandHandler(
                     }
                 }
             }
-        }
 
-        var record = IdempotencyRecord.CreateInFlight(request.IdempotencyKey, "Authorize", payloadHash);
-        await idempotencyRepository.AddAsync(record, ct);
+            // InFlight with expired lease or retryable state: re-acquire lease
+            existing.RenewLease(DateTimeOffset.UtcNow);
+            await idempotencyRepository.UpdateAsync(existing, ct);
+            record = existing;
+        }
+        else
+        {
+            record = IdempotencyRecord.CreateInFlight(request.IdempotencyKey, "Authorize", payloadHash);
+            await idempotencyRepository.AddAsync(record, ct);
+        }
 
         SettlementResult settlement;
         try
@@ -95,7 +105,7 @@ public sealed class AuthorizePaymentCommandHandler(
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);
 
-        record.Complete(201, serializedDto);
+        record.Complete(201, serializedDto, payment.Id);
         await idempotencyRepository.UpdateAsync(record, ct);
 
         return dto;

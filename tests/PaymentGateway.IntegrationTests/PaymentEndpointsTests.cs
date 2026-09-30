@@ -254,4 +254,26 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         var secondResponse = await client.PostAsJsonAsync("/payments", secondRequest);
         secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
+
+    [Fact]
+    public async Task Post_Payments_DuplicateKey_DifferentSettlementChannel_Returns_409_Conflict()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_conflict_channel_key");
+
+        var firstRequest = new AuthorizePaymentRequest("party_channel", 1000, "EUR", SettlementChannel: "MOCK");
+        var firstResponse = await client.PostAsJsonAsync("/payments", firstRequest);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var secondRequest = new AuthorizePaymentRequest("party_channel", 1000, "EUR", SettlementChannel: "ADYEN");
+        var secondResponse = await client.PostAsJsonAsync("/payments", secondRequest);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
 }

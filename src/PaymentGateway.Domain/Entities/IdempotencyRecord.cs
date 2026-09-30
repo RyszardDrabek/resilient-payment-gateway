@@ -54,11 +54,23 @@ public sealed class IdempotencyRecord
         };
     }
 
-    public void Complete(int statusCode, string responsePayload)
+    public void RenewLease(DateTimeOffset utcNow, TimeSpan? leaseDuration = null)
+    {
+        var effectiveLease = leaseDuration ?? TimeSpan.FromMinutes(2);
+        Status = IdempotencyStatus.InFlight;
+        LockedUntil = utcNow.Add(effectiveLease);
+    }
+
+    public void Complete(int statusCode, string responsePayload, string? paymentId = null)
     {
         Status = IdempotencyStatus.Completed;
         ResponseStatusCode = statusCode;
         ResponsePayload = responsePayload;
+        if (!string.IsNullOrWhiteSpace(paymentId))
+        {
+            PaymentId = paymentId;
+        }
+
         LockedUntil = null;
     }
 

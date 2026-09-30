@@ -10,6 +10,12 @@ public sealed class IdempotencyRepository(PaymentDbContext dbContext) : IIdempot
 {
     public async Task<IdempotencyRecord?> FindAsync(string key, string commandType, string? paymentId, CancellationToken ct)
     {
+        if (string.Equals(commandType, "Authorize", StringComparison.OrdinalIgnoreCase))
+        {
+            return await dbContext.IdempotencyRecords
+                .FirstOrDefaultAsync(r => r.Key == key && r.CommandType == commandType, ct);
+        }
+
         return await dbContext.IdempotencyRecords
             .FirstOrDefaultAsync(r => r.Key == key && r.CommandType == commandType && r.PaymentId == paymentId, ct);
     }

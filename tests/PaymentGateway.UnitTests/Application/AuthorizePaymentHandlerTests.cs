@@ -65,6 +65,12 @@ public class AuthorizePaymentHandlerTests
 
         public Task<IdempotencyRecord?> FindAsync(string key, string commandType, string? paymentId, CancellationToken ct)
         {
+            if (string.Equals(commandType, "Authorize", StringComparison.OrdinalIgnoreCase))
+            {
+                var match = Records.FirstOrDefault(x => x.Key == key && x.CommandType == commandType);
+                return Task.FromResult(match);
+            }
+
             var r = Records.FirstOrDefault(x => x.Key == key && x.CommandType == commandType && x.PaymentId == paymentId);
             return Task.FromResult(r);
         }
@@ -192,6 +198,86 @@ public class AuthorizePaymentHandlerTests
 
         // Assert
         await act.Should().ThrowAsync<IdempotencyInFlightException>();
+        settlementPort.AuthorizeCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AuthorizePayment_DuplicateKey_DifferentSettlementChannel_ThrowsConflictException()
+    {
+        // Arrange
+        var settlementPort = new StubSettlementPort();
+        var paymentRepo = new InMemoryPaymentRepository();
+        var idemRepo = new InMemoryIdempotencyRepository();
+        var handler = new AuthorizePaymentCommandHandler(settlementPort, paymentRepo, idemRepo);
+
+        var command1 = new AuthorizePaymentCommand("idem_key_chan", "party_1", 1000, "EUR", "MOCK");
+        var command2 = new AuthorizePaymentCommand("idem_key_chan", "party_1", 1000, "EUR", "ADYEN");
+
+        // Act
+        await handler.Handle(command1, CancellationToken.None);
+        var act = () => handler.Handle(command2, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<IdempotencyConflictException>();
+    }
+
+    [Fact]
+    public async Task AuthorizePayment_ExpiredLease_RecoversAndCompletesSuccessfully()
+    {
+        // Arrange
+        var settlementPort = new StubSettlementPort { ChannelRef = "ref_recovered_1" };
+        var paymentRepo = new InMemoryPaymentRepository();
+        var idemRepo = new InMemoryIdempotencyRepository();
+
+        var hash = PaymentGateway.Domain.Services.IdempotencyPayloadHasher.ComputeHash("Authorize", null, "party_1", 1000, "EUR");
+        var expiredRecord = IdempotencyRecord.CreateInFlight(
+            "idem_expired_key",
+            "Authorize",
+            hash,
+            now: DateTimeOffset.UtcNow.AddMinutes(-10));
+        idemRepo.Records.Add(expiredRecord);
+
+        var handler = new AuthorizePaymentCommandHandler(settlementPort, paymentRepo, idemRepo);
+        var command = new AuthorizePaymentCommand("idem_expired_key", "party_1", 1000, "EUR");
+
+        // Act
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.ChannelReference.Should().Be("ref_recovered_1");
+        settlementPort.AuthorizeCallCount.Should().Be(1);
+        paymentRepo.SavedPayments.Should().HaveCount(1);
+        expiredRecord.Status.Should().Be(PaymentGateway.Domain.Enums.IdempotencyStatus.Completed);
+        expiredRecord.PaymentId.Should().Be(result.PaymentId);
+    }
+
+    [Fact]
+    public async Task AuthorizePayment_CompletedWithoutResponsePayload_RecoversFromPaymentId()
+    {
+        // Arrange
+        var settlementPort = new StubSettlementPort();
+        var paymentRepo = new InMemoryPaymentRepository();
+        var idemRepo = new InMemoryIdempotencyRepository();
+
+        var existingPayment = Payment.Authorize("party_1", 1000, "EUR", "MOCK", "ref_fallback_1");
+        await paymentRepo.AddAsync(existingPayment);
+
+        var hash = PaymentGateway.Domain.Services.IdempotencyPayloadHasher.ComputeHash("Authorize", null, "party_1", 1000, "EUR");
+        var completedRecord = IdempotencyRecord.CreateInFlight("idem_fallback_key", "Authorize", hash);
+        completedRecord.Complete(201, string.Empty, existingPayment.Id);
+        idemRepo.Records.Add(completedRecord);
+
+        var handler = new AuthorizePaymentCommandHandler(settlementPort, paymentRepo, idemRepo);
+        var command = new AuthorizePaymentCommand("idem_fallback_key", "party_1", 1000, "EUR");
+
+        // Act
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.PaymentId.Should().Be(existingPayment.Id);
+        result.ChannelReference.Should().Be("ref_fallback_1");
         settlementPort.AuthorizeCallCount.Should().Be(0);
     }
 

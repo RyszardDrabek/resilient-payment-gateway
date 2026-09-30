@@ -47,14 +47,32 @@ public class IdempotencyRecordTests
         var record = IdempotencyRecord.CreateInFlight("idem_key_1", "Authorize", "hash_123");
 
         // Act
-        record.Complete(201, "{\"paymentId\":\"pay_1\"}");
+        record.Complete(201, "{\"paymentId\":\"pay_1\"}", "pay_1");
 
         // Assert
         record.Status.Should().Be(IdempotencyStatus.Completed);
         record.ResponseStatusCode.Should().Be(201);
         record.ResponsePayload.Should().Be("{\"paymentId\":\"pay_1\"}");
+        record.PaymentId.Should().Be("pay_1");
         record.LockedUntil.Should().BeNull();
         record.IsLeaseActive(DateTimeOffset.UtcNow).Should().BeFalse();
+    }
+
+    [Fact]
+    public void RenewLease_ShouldExtendLockAndResetStatusToInFlight()
+    {
+        // Arrange
+        var now = DateTimeOffset.UtcNow;
+        var record = IdempotencyRecord.CreateInFlight("idem_key_1", "Authorize", "hash_123", now: now.AddMinutes(-10));
+        record.IsLeaseActive(now).Should().BeFalse();
+
+        // Act
+        record.RenewLease(now, TimeSpan.FromMinutes(3));
+
+        // Assert
+        record.Status.Should().Be(IdempotencyStatus.InFlight);
+        record.LockedUntil.Should().Be(now.AddMinutes(3));
+        record.IsLeaseActive(now.AddMinutes(1)).Should().BeTrue();
     }
 
     [Fact]

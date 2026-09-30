@@ -10,9 +10,10 @@ public static class IdempotencyPayloadHasher
         string? paymentId,
         string partyId,
         long amount,
-        string currency)
+        string currency,
+        string? settlementChannel = null)
     {
-        var rawPayload = $"{commandType}:{paymentId ?? string.Empty}:{partyId}:{amount}:{currency}";
+        var rawPayload = $"{commandType}:{paymentId ?? string.Empty}:{partyId}:{amount}:{currency}:{settlementChannel ?? string.Empty}";
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawPayload));
         return Convert.ToHexStringLower(hashBytes);
     }

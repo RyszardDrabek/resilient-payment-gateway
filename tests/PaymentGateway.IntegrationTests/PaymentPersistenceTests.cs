@@ -184,7 +184,7 @@ public sealed class PaymentPersistenceTests : IAsyncLifetime
             loaded.PayloadHash.Should().Be("hash_persist_123");
             loaded.Status.Should().Be(PaymentGateway.Domain.Enums.IdempotencyStatus.InFlight);
 
-            loaded.Complete(201, "{\"paymentId\":\"pay_100\"}");
+            loaded.Complete(201, "{\"paymentId\":\"pay_100\"}", "pay_100");
             await readRepository.UpdateAsync(loaded, CancellationToken.None);
         }
 
@@ -197,7 +197,7 @@ public sealed class PaymentPersistenceTests : IAsyncLifetime
             completed!.Status.Should().Be(PaymentGateway.Domain.Enums.IdempotencyStatus.Completed);
             completed.ResponseStatusCode.Should().Be(201);
             completed.ResponsePayload.Should().Be("{\"paymentId\":\"pay_100\"}");
-            completed.PaymentId.Should().BeNull();
+            completed.PaymentId.Should().Be("pay_100");
         }
     }
 

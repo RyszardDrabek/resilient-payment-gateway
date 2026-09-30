@@ -39,7 +39,7 @@ public partial class AddIdempotencyRecords : Migration
             table: "IdempotencyRecords",
             columns: new[] { "CommandType", "Key" },
             unique: true,
-            filter: "\"PaymentId\" IS NULL");
+            filter: "\"CommandType\" = 'Authorize'");
 
         migrationBuilder.CreateIndex(
             name: "IX_IdempotencyRecords_PaymentId_CommandType_Key",
@@ -47,7 +47,7 @@ public partial class AddIdempotencyRecords : Migration
             table: "IdempotencyRecords",
             columns: new[] { "PaymentId", "CommandType", "Key" },
             unique: true,
-            filter: "\"PaymentId\" IS NOT NULL");
+            filter: "\"CommandType\" != 'Authorize'");
     }
 
     /// <inheritdoc />
