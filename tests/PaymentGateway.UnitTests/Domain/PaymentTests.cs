@@ -49,6 +49,32 @@ public class PaymentTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Payment_ThrowsArgumentException_WhenPartyIdIsNullOrWhitespace(string? invalidPartyId)
+    {
+        // Act
+        var act = () => Payment.Authorize(invalidPartyId!, 1000, "EUR", "MOCK", "ref_1");
+
+        // Assert
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Payment_ThrowsArgumentException_WhenSettlementChannelIsNullOrWhitespace(string? invalidChannel)
+    {
+        // Act
+        var act = () => Payment.Authorize("party_1", 1000, "EUR", invalidChannel!, "ref_1");
+
+        // Assert
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("EU")]
     [InlineData("EURO")]

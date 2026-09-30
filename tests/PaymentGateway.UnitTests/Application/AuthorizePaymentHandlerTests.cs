@@ -139,4 +139,18 @@ public class AuthorizePaymentHandlerTests
         result.State.Should().Be("Declined");
         result.DeclineReason.Should().Be("Limit exceeded");
     }
+
+    [Fact]
+    public async Task GetPayment_NonExistingId_ReturnsNull()
+    {
+        // Arrange
+        var repository = new InMemoryPaymentRepository();
+        var queryHandler = new GetPaymentByIdQueryHandler(repository);
+
+        // Act
+        var result = await queryHandler.Handle(new GetPaymentByIdQuery("non_existent_id"), CancellationToken.None);
+
+        // Assert
+        result.Should().BeNull();
+    }
 }
