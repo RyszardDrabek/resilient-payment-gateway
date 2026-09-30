@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application;
 using PaymentGateway.Edge;
 using PaymentGateway.Infrastructure;
@@ -49,6 +50,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
+app.MapPaymentEndpoints();
 app.MapGet("/health", async (PaymentDbContext db, CancellationToken ct) =>
 {
     var canConnect = await db.Database.CanConnectAsync(ct);
