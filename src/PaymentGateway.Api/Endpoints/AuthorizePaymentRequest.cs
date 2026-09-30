@@ -4,4 +4,4 @@ public record AuthorizePaymentRequest(
     string PartyId,
     long Amount,
     string Currency,
-    string SettlementChannel);
+    string? SettlementChannel = null);

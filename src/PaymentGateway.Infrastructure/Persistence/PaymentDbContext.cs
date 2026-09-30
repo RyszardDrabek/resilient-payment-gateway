@@ -19,6 +19,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.Currency).IsRequired().HasMaxLength(3);
             b.Property(p => p.SettlementChannel).IsRequired().HasMaxLength(64);
             b.Property(p => p.ChannelReference).HasMaxLength(128);
+            b.Property(p => p.DeclineReason).HasMaxLength(256);
             b.Property(p => p.State).HasConversion<string>();
         });
     }

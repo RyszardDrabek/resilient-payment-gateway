@@ -1,5 +1,3 @@
-using PaymentGateway.Domain.Entities;
-
 namespace PaymentGateway.Application.Payments;
 
 public record PaymentDto(
@@ -10,4 +8,5 @@ public record PaymentDto(
     string SettlementChannel,
     string State,
     string? ChannelReference,
+    string? DeclineReason,
     DateTimeOffset CreatedAt);

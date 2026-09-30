@@ -8,6 +8,7 @@ public sealed class Payment
     public string Currency { get; private set; } = string.Empty;
     public string SettlementChannel { get; private set; } = string.Empty;
     public string? ChannelReference { get; private set; }
+    public string? DeclineReason { get; private set; }
     public PaymentState State { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -20,7 +21,8 @@ public sealed class Payment
         string currency,
         string settlementChannel,
         PaymentState state,
-        string? channelReference = null)
+        string? channelReference = null,
+        string? declineReason = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
@@ -34,6 +36,7 @@ public sealed class Payment
         SettlementChannel = settlementChannel;
         State = state;
         ChannelReference = channelReference;
+        DeclineReason = declineReason;
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
@@ -53,9 +56,10 @@ public sealed class Payment
         long amount,
         string currency,
         string settlementChannel,
-        string? channelReference = null)
+        string? channelReference = null,
+        string? declineReason = null)
     {
         var id = $"pay_{Guid.NewGuid():N}";
-        return new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Declined, channelReference);
+        return new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Declined, channelReference, declineReason);
     }
 }

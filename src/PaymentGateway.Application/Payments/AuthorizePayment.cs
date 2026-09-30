@@ -8,7 +8,7 @@ public record AuthorizePaymentCommand(
     string PartyId,
     long Amount,
     string Currency,
-    string SettlementChannel) : IRequest<PaymentDto>;
+    string? SettlementChannel = null) : IRequest<PaymentDto>;
 
 public sealed class AuthorizePaymentCommandHandler(
     ISettlementPort settlementPort,
@@ -16,16 +16,30 @@ public sealed class AuthorizePaymentCommandHandler(
 {
     public async Task<PaymentDto> Handle(AuthorizePaymentCommand request, CancellationToken ct)
     {
-        var settlement = await settlementPort.AuthorizeAsync(
-            request.PartyId,
-            request.Amount,
-            request.Currency,
-            request.SettlementChannel,
-            ct);
+        SettlementResult settlement;
+        try
+        {
+            settlement = await settlementPort.AuthorizeAsync(
+                request.PartyId,
+                request.Amount,
+                request.Currency,
+                request.SettlementChannel,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            settlement = new SettlementResult(
+                false,
+                request.SettlementChannel ?? "UNKNOWN",
+                string.Empty,
+                $"Settlement channel failed to answer: {ex.Message}");
+        }
+
+        var channel = settlement.Channel;
 
         var payment = settlement.IsAuthorized
-            ? Payment.Authorize(request.PartyId, request.Amount, request.Currency, request.SettlementChannel, settlement.ChannelReference)
-            : Payment.Decline(request.PartyId, request.Amount, request.Currency, request.SettlementChannel, settlement.ChannelReference);
+            ? Payment.Authorize(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference)
+            : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
 
         await repository.AddAsync(payment, ct);
 

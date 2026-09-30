@@ -6,6 +6,6 @@ public interface ISettlementPort
         string partyId,
         long amount,
         string currency,
-        string channel,
+        string? channel = null,
         CancellationToken ct = default);
 }

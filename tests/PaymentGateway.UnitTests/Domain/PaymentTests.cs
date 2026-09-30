@@ -21,16 +21,18 @@ public class PaymentTests
         payment.SettlementChannel.Should().Be("MOCK");
         payment.State.Should().Be(PaymentState.Authorized);
         payment.ChannelReference.Should().Be("ref_mock_001");
+        payment.DeclineReason.Should().BeNull();
     }
 
     [Fact]
-    public void Payment_Decline_CreatesDeclinedPayment()
+    public void Payment_Decline_CreatesDeclinedPaymentWithReason()
     {
         // Act
-        var payment = Payment.Decline("party_123", 2500, "USD", "ADYEN", "ref_declined_002");
+        var payment = Payment.Decline("party_123", 2500, "USD", "ADYEN", "ref_declined_002", "Insufficient funds");
 
         // Assert
         payment.State.Should().Be(PaymentState.Declined);
         payment.ChannelReference.Should().Be("ref_declined_002");
+        payment.DeclineReason.Should().Be("Insufficient funds");
     }
 }
