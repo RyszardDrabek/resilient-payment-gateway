@@ -35,4 +35,29 @@ public class PaymentTests
         payment.ChannelReference.Should().Be("ref_declined_002");
         payment.DeclineReason.Should().Be("Insufficient funds");
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-100)]
+    public void Payment_ThrowsArgumentOutOfRangeException_WhenAmountIsZeroOrNegative(long invalidAmount)
+    {
+        // Act
+        var act = () => Payment.Authorize("party_1", invalidAmount, "EUR", "MOCK", "ref_1");
+
+        // Assert
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("EU")]
+    [InlineData("EURO")]
+    public void Payment_ThrowsArgumentException_WhenCurrencyIsNotThreeLetters(string invalidCurrency)
+    {
+        // Act
+        var act = () => Payment.Authorize("party_1", 1000, invalidCurrency, "MOCK", "ref_1");
+
+        // Assert
+        act.Should().Throw<ArgumentException>();
+    }
 }

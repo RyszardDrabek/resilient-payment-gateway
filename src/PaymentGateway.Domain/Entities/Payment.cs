@@ -28,6 +28,12 @@ public sealed class Payment
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
         ArgumentException.ThrowIfNullOrWhiteSpace(settlementChannel);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
+
+        if (currency.Trim().Length != 3)
+        {
+            throw new ArgumentException("Currency must be a 3-letter ISO code.", nameof(currency));
+        }
 
         Id = id;
         PartyId = partyId;
