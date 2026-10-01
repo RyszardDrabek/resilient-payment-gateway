@@ -111,7 +111,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
         CancellationToken ct = default)
     {
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
-        var captureRef = $"cap_{Guid.NewGuid():N}";
+        var captureRef = string.IsNullOrWhiteSpace(paymentId) ? $"cap_{Guid.NewGuid():N}" : $"{paymentId}_cap_{Guid.NewGuid():N}";
         var request = new AdyenModificationRequest(
             _options.MerchantAccount,
             captureRef,
@@ -134,7 +134,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
         CancellationToken ct = default)
     {
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
-        var refundRef = $"ref_{Guid.NewGuid():N}";
+        var refundRef = string.IsNullOrWhiteSpace(paymentId) ? $"ref_{Guid.NewGuid():N}" : $"{paymentId}_ref_{Guid.NewGuid():N}";
         var request = new AdyenModificationRequest(
             _options.MerchantAccount,
             refundRef,
@@ -155,7 +155,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
         CancellationToken ct = default)
     {
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
-        var cancelRef = $"cnc_{Guid.NewGuid():N}";
+        var cancelRef = string.IsNullOrWhiteSpace(paymentId) ? $"cnc_{Guid.NewGuid():N}" : $"{paymentId}_cnc_{Guid.NewGuid():N}";
         var request = new AdyenModificationRequest(
             _options.MerchantAccount,
             cancelRef);

@@ -99,7 +99,7 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
         // 1. Authorize: POST /v71/payments
         server
             .Given(Request.Create().WithPath("/v71/payments").UsingPost())
-            .RespondWith(Response.Create().WithCallback(requestMessage =>
+            .RespondWith(Response.Create().WithCallback(async requestMessage =>
             {
                 var body = requestMessage.Body ?? string.Empty;
                 var pspRef = $"adyen_auth_{Guid.NewGuid():N}";
@@ -121,7 +121,7 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                 // Timeout simulation
                 if (body.Contains("timeout", StringComparison.OrdinalIgnoreCase))
                 {
-                    Thread.Sleep(TimeSpan.FromSeconds(10));
+                    await Task.Delay(TimeSpan.FromSeconds(10));
                 }
 
                 // Error / 500 simulation
