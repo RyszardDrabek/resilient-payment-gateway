@@ -94,11 +94,15 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
         };
     }
 
-    private static void SetupStubs(WireMockServer server)
+    private void SetupStubs(WireMockServer server)
     {
-        // 1. Authorize: POST /v71/payments
+        var version = _options.ApiVersion;
+        var paymentsPath = AdyenEndpoints.Payments(version);
+        var prefix = AdyenEndpoints.PaymentsPathPrefix(version);
+
+        // 1. Authorize: POST /{version}/payments
         server
-            .Given(Request.Create().WithPath("/v71/payments").UsingPost())
+            .Given(Request.Create().WithPath(paymentsPath).UsingPost())
             .RespondWith(Response.Create().WithCallback(async requestMessage =>
             {
                 var body = requestMessage.Body ?? string.Empty;
@@ -153,9 +157,9 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                 return CreateJsonResponse(200, successResponse);
             }));
 
-        // 2. Capture: POST /v71/payments/{paymentPspReference}/captures
+        // 2. Capture: POST /{version}/payments/{paymentPspReference}/captures
         server
-            .Given(Request.Create().WithPath(p => p.StartsWith("/v71/payments/") && p.EndsWith("/captures")).UsingPost())
+            .Given(Request.Create().WithPath(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && p.EndsWith("/captures", StringComparison.OrdinalIgnoreCase)).UsingPost())
             .RespondWith(Response.Create().WithCallback(requestMessage =>
             {
                 var path = requestMessage.Path;
@@ -182,9 +186,9 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                 return CreateJsonResponse(200, capResponse);
             }));
 
-        // 3. Refund: POST /v71/payments/{paymentPspReference}/refunds
+        // 3. Refund: POST /{version}/payments/{paymentPspReference}/refunds
         server
-            .Given(Request.Create().WithPath(p => p.StartsWith("/v71/payments/") && p.EndsWith("/refunds")).UsingPost())
+            .Given(Request.Create().WithPath(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && p.EndsWith("/refunds", StringComparison.OrdinalIgnoreCase)).UsingPost())
             .RespondWith(Response.Create().WithCallback(requestMessage =>
             {
                 var path = requestMessage.Path;
@@ -211,9 +215,9 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                 return CreateJsonResponse(200, refResponse);
             }));
 
-        // 4. Cancel: POST /v71/payments/{paymentPspReference}/cancels
+        // 4. Cancel: POST /{version}/payments/{paymentPspReference}/cancels
         server
-            .Given(Request.Create().WithPath(p => p.StartsWith("/v71/payments/") && p.EndsWith("/cancels")).UsingPost())
+            .Given(Request.Create().WithPath(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && p.EndsWith("/cancels", StringComparison.OrdinalIgnoreCase)).UsingPost())
             .RespondWith(Response.Create().WithCallback(requestMessage =>
             {
                 var path = requestMessage.Path;

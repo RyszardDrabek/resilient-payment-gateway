@@ -5,6 +5,7 @@ public sealed class AdyenOptions
     public const string SectionName = "Adyen";
 
     public string Mode { get; set; } = "WireMock";
+    public string ApiVersion { get; set; } = AdyenEndpoints.DefaultApiVersion;
     public string? BaseUrl { get; set; }
     public string MerchantAccount { get; set; } = "InterparkingMockAccount";
     public string? ApiKey { get; set; }

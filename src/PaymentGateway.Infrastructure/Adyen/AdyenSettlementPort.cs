@@ -58,7 +58,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
 
         try
         {
-            var url = BuildEndpointUrl("/v71/payments");
+            var url = BuildEndpointUrl(AdyenEndpoints.Payments(_options.ApiVersion));
             using var response = await _httpClient.PostAsJsonAsync(url, paymentRequest, ct);
 
             if (!response.IsSuccessStatusCode)
@@ -118,7 +118,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
             new AdyenAmount(currency, amount));
 
         return await SendModificationAsync(
-            $"/v71/payments/{channelReference}/captures",
+            AdyenEndpoints.Captures(channelReference, _options.ApiVersion),
             request,
             resolvedChannel,
             captureRef,
@@ -141,7 +141,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
             new AdyenAmount(currency, amount));
 
         return await SendModificationAsync(
-            $"/v71/payments/{channelReference}/refunds",
+            AdyenEndpoints.Refunds(channelReference, _options.ApiVersion),
             request,
             resolvedChannel,
             refundRef,
@@ -161,7 +161,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
             cancelRef);
 
         return await SendModificationAsync(
-            $"/v71/payments/{channelReference}/cancels",
+            AdyenEndpoints.Cancels(channelReference, _options.ApiVersion),
             request,
             resolvedChannel,
             cancelRef,
