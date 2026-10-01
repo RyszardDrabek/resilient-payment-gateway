@@ -118,6 +118,19 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task Post_Payments_Without_IdempotencyKey_Returns_400_BadRequest()
+    {
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var request = new AuthorizePaymentRequest("party_1", 1000, "EUR");
+        var response = await client.PostAsJsonAsync("/payments", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Theory]
     [InlineData("", 1000, "EUR")]       // Missing partyId
     [InlineData("   ", 1000, "EUR")]    // Whitespace partyId
@@ -131,6 +144,7 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_invalid_test");
 
         var invalidRequest = new AuthorizePaymentRequest(partyId, amount, currency);
         var response = await client.PostAsJsonAsync("/payments", invalidRequest);
@@ -166,6 +180,7 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_success_key_1");
 
         var request = new AuthorizePaymentRequest("party_success", 2500, "EUR");
         var postResponse = await client.PostAsJsonAsync("/payments", request);
@@ -182,5 +197,83 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         fetched.Should().NotBeNull();
         fetched!.PaymentId.Should().Be(created.PaymentId);
         fetched.PartyId.Should().Be("party_success");
+    }
+
+    [Fact]
+    public async Task Post_Payments_DuplicateKey_SamePayload_Replays_Payment_Without_Duplication()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_replay_endpoint_key");
+
+        var request = new AuthorizePaymentRequest("party_replay", 3000, "EUR");
+
+        var firstResponse = await client.PostAsJsonAsync("/payments", request);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var firstResult = await firstResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        firstResult.Should().NotBeNull();
+
+        var secondResponse = await client.PostAsJsonAsync("/payments", request);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var secondResult = await secondResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        secondResult.Should().NotBeNull();
+        secondResult!.PaymentId.Should().Be(firstResult!.PaymentId);
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+        await using var db = new PaymentDbContext(options);
+        var paymentCount = await db.Payments.CountAsync(p => p.PartyId == "party_replay");
+        paymentCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Post_Payments_DuplicateKey_DifferentPayload_Returns_409_Conflict()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_conflict_endpoint_key");
+
+        var firstRequest = new AuthorizePaymentRequest("party_conflict", 1000, "EUR");
+        var firstResponse = await client.PostAsJsonAsync("/payments", firstRequest);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var secondRequest = new AuthorizePaymentRequest("party_conflict", 2000, "EUR");
+        var secondResponse = await client.PostAsJsonAsync("/payments", secondRequest);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Post_Payments_DuplicateKey_DifferentSettlementChannel_Returns_409_Conflict()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_conflict_channel_key");
+
+        var firstRequest = new AuthorizePaymentRequest("party_channel", 1000, "EUR", SettlementChannel: "MOCK");
+        var firstResponse = await client.PostAsJsonAsync("/payments", firstRequest);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var secondRequest = new AuthorizePaymentRequest("party_channel", 1000, "EUR", SettlementChannel: "ADYEN");
+        var secondResponse = await client.PostAsJsonAsync("/payments", secondRequest);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 }

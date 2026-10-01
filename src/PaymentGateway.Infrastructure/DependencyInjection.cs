@@ -31,6 +31,7 @@ public static class DependencyInjection
             options.UseNpgsql(cs, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "risk"));
         });
         services.AddScoped<PaymentGateway.Domain.Ports.IPaymentRepository, PaymentGateway.Infrastructure.Repositories.PaymentRepository>();
+        services.AddScoped<PaymentGateway.Domain.Ports.IIdempotencyRepository, PaymentGateway.Infrastructure.Repositories.IdempotencyRepository>();
         services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort, PaymentGateway.Infrastructure.Services.MockSettlementPort>();
 
         var useInMemory = configuration.GetValue("RabbitMq:UseInMemory", true);

@@ -1,5 +1,6 @@
 using MediatR;
 using PaymentGateway.Application.Payments;
+using PaymentGateway.Domain.Exceptions;
 
 namespace PaymentGateway.Api.Endpoints;
 
@@ -11,8 +12,25 @@ public static class PaymentEndpoints
             .WithTags("Payments")
             .RequireAuthorization();
 
-        group.MapPost("/", async (AuthorizePaymentRequest request, ISender mediator, CancellationToken ct) =>
+        group.MapPost("/", async (HttpContext httpContext, AuthorizePaymentRequest request, ISender mediator, CancellationToken ct) =>
         {
+            var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                idempotencyKey = request.IdempotencyKey;
+            }
+
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                return Results.BadRequest(new
+                {
+                    type = "urn:rpg:problem:validation",
+                    title = "Validation Failed",
+                    status = 400,
+                    detail = "Idempotency-Key is required on payment commands."
+                });
+            }
+
             if (string.IsNullOrWhiteSpace(request.PartyId) ||
                 request.Amount <= 0 ||
                 string.IsNullOrWhiteSpace(request.Currency) ||
@@ -20,18 +38,45 @@ public static class PaymentEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code."
+                    type = "urn:rpg:problem:validation",
+                    title = "Validation Failed",
+                    status = 400,
+                    detail = "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code."
                 });
             }
 
-            var command = new AuthorizePaymentCommand(
-                request.PartyId,
-                request.Amount,
-                request.Currency,
-                request.SettlementChannel);
+            try
+            {
+                var command = new AuthorizePaymentCommand(
+                    idempotencyKey,
+                    request.PartyId,
+                    request.Amount,
+                    request.Currency,
+                    request.SettlementChannel);
 
-            var result = await mediator.Send(command, ct);
-            return Results.Created($"/payments/{result.PaymentId}", result);
+                var result = await mediator.Send(command, ct);
+                return Results.Created($"/payments/{result.PaymentId}", result);
+            }
+            catch (IdempotencyConflictException ex)
+            {
+                return Results.Conflict(new
+                {
+                    type = "urn:rpg:problem:conflict",
+                    title = "Conflict",
+                    status = 409,
+                    detail = ex.Message
+                });
+            }
+            catch (IdempotencyInFlightException ex)
+            {
+                return Results.Conflict(new
+                {
+                    type = "urn:rpg:problem:conflict",
+                    title = "Conflict",
+                    status = 409,
+                    detail = ex.Message
+                });
+            }
         });
 
         group.MapGet("/{id}", async (string id, ISender mediator, CancellationToken ct) =>
