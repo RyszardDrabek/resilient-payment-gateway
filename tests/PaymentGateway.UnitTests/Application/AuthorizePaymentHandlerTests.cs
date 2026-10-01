@@ -40,6 +40,15 @@ public class AuthorizePaymentHandlerTests
 
             return Task.FromResult(new SettlementResult(true, resolvedChannel, ChannelRef));
         }
+
+        public Task<SettlementResult> CaptureAsync(string paymentId, string channelReference, long amount, string currency, string? channel = null, CancellationToken ct = default)
+            => Task.FromResult(SettlementResult.Success(channel ?? ActiveChannel, $"cap_{ChannelRef}", paymentId));
+
+        public Task<SettlementResult> RefundAsync(string paymentId, string channelReference, long amount, string currency, string? channel = null, CancellationToken ct = default)
+            => Task.FromResult(SettlementResult.Success(channel ?? ActiveChannel, $"ref_{ChannelRef}", paymentId));
+
+        public Task<SettlementResult> CancelAsync(string paymentId, string channelReference, string? channel = null, CancellationToken ct = default)
+            => Task.FromResult(SettlementResult.Success(channel ?? ActiveChannel, $"cnc_{ChannelRef}", paymentId));
     }
 
     private class InMemoryPaymentRepository : IPaymentRepository

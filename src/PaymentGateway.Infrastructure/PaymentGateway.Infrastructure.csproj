@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>PaymentGateway.Infrastructure</RootNamespace>
     <AssemblyName>PaymentGateway.Infrastructure</AssemblyName>
@@ -17,6 +17,7 @@
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Polly.Core" />
+    <PackageReference Include="WireMock.Net" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PaymentGateway.Application\PaymentGateway.Application.csproj" />

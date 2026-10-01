@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PaymentGateway.Application\PaymentGateway.Application.csproj" />
     <ProjectReference Include="..\..\src\PaymentGateway.Domain\PaymentGateway.Domain.csproj" />
+    <ProjectReference Include="..\..\src\PaymentGateway.Infrastructure\PaymentGateway.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
