@@ -1,11 +1,18 @@
+using System.Net.Mime;
+using System.Text.Json;
 using MediatR;
 using PaymentGateway.Application.Payments;
-using PaymentGateway.Domain.Exceptions;
+using PaymentGateway.Edge.Problems;
 
 namespace PaymentGateway.Api.Endpoints;
 
 public static class PaymentEndpoints
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/payments")
@@ -22,13 +29,12 @@ public static class PaymentEndpoints
 
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
-                return Results.BadRequest(new
-                {
-                    type = "urn:rpg:problem:validation",
-                    title = "Validation Failed",
-                    status = 400,
-                    detail = "Idempotency-Key is required on payment commands."
-                });
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Idempotency-Key is required on payment commands.");
             }
 
             if (string.IsNullOrWhiteSpace(request.PartyId) ||
@@ -36,55 +42,60 @@ public static class PaymentEndpoints
                 string.IsNullOrWhiteSpace(request.Currency) ||
                 request.Currency.Trim().Length != 3)
             {
-                return Results.BadRequest(new
-                {
-                    type = "urn:rpg:problem:validation",
-                    title = "Validation Failed",
-                    status = 400,
-                    detail = "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code."
-                });
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code.");
             }
 
-            try
-            {
-                var command = new AuthorizePaymentCommand(
-                    idempotencyKey,
-                    request.PartyId,
-                    request.Amount,
-                    request.Currency,
-                    request.SettlementChannel);
+            var command = new AuthorizePaymentCommand(
+                idempotencyKey,
+                request.PartyId,
+                request.Amount,
+                request.Currency,
+                request.SettlementChannel);
 
-                var result = await mediator.Send(command, ct);
-                return Results.Created($"/payments/{result.PaymentId}", result);
-            }
-            catch (IdempotencyConflictException ex)
-            {
-                return Results.Conflict(new
-                {
-                    type = "urn:rpg:problem:conflict",
-                    title = "Conflict",
-                    status = 409,
-                    detail = ex.Message
-                });
-            }
-            catch (IdempotencyInFlightException ex)
-            {
-                return Results.Conflict(new
-                {
-                    type = "urn:rpg:problem:conflict",
-                    title = "Conflict",
-                    status = 409,
-                    detail = ex.Message
-                });
-            }
+            // Domain exceptions (IdempotencyConflictException, IdempotencyInFlightException, etc.)
+            // are handled by PaymentExceptionHandlerMiddleware — no try/catch needed here.
+            var result = await mediator.Send(command, ct);
+            return Results.Created($"/payments/{result.PaymentId}", result);
         });
 
-        group.MapGet("/{id}", async (string id, ISender mediator, CancellationToken ct) =>
+        group.MapGet("/{id}", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetPaymentByIdQuery(id), ct);
-            return result is not null ? Results.Ok(result) : Results.NotFound();
+            if (result is null)
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status404NotFound,
+                    PaymentProblemTypes.NotFound,
+                    "Not Found",
+                    $"Payment '{id}' was not found.");
+            }
+
+            return Results.Ok(result);
         });
 
         return app;
+    }
+
+    private static IResult ProblemResult(
+        HttpContext httpContext,
+        int statusCode,
+        string type,
+        string title,
+        string detail)
+    {
+        var problem = new PaymentProblemDetails(
+            Type: type,
+            Title: title,
+            Status: statusCode,
+            Detail: detail,
+            CorrelationId: httpContext.TraceIdentifier);
+
+        return Results.Json(problem, JsonOptions, "application/problem+json", statusCode);
     }
 }

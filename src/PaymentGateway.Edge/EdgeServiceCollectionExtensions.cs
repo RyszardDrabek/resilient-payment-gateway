@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using PaymentGateway.Edge.Middleware;
 
 namespace PaymentGateway.Edge;
 
 /// <summary>
-/// EDGE HTTP plumbing stubs (ADR-007). Problem Details registry, rate limits, and masking land in F-EDGE-*.
+/// EDGE HTTP plumbing (ADR-007): Problem Details, exception mapping, rate limits, and masking.
 /// </summary>
 public static class EdgeServiceCollectionExtensions
 {
@@ -16,7 +17,8 @@ public static class EdgeServiceCollectionExtensions
 
     public static IApplicationBuilder UseEdge(this IApplicationBuilder app)
     {
-        // Full RFC 7807 exception mapping lands in F-EDGE-01.
+        // F-EDGE-01: Global RFC 7807 exception handler — must be first so all downstream exceptions are caught.
+        app.UseMiddleware<PaymentExceptionHandlerMiddleware>();
         app.UseStatusCodePages();
         return app;
     }

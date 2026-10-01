@@ -276,4 +276,98 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         var secondResponse = await client.PostAsJsonAsync("/payments", secondRequest);
         secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
+
+    // ---- F-EDGE-01: RFC 7807 problem document body checks ----
+
+    [Fact]
+    public async Task Post_Payments_Without_IdempotencyKey_Returns400_WithProblemDetails()
+    {
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var request = new AuthorizePaymentRequest("party_1", 1000, "EUR");
+        var response = await client.PostAsJsonAsync("/payments", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:validation");
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(400);
+        doc.RootElement.GetProperty("correlationId").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Post_Payments_With_InvalidInput_Returns400_WithProblemDetails()
+    {
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_invalid_body_test");
+
+        var request = new AuthorizePaymentRequest("", 0, "");
+        var response = await client.PostAsJsonAsync("/payments", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:validation");
+    }
+
+    [Fact]
+    public async Task Get_Payments_NonExistingId_Returns404_WithProblemDetails()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var response = await client.GetAsync("/payments/non_existent_pay_id_problem");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:not-found");
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(404);
+        doc.RootElement.GetProperty("correlationId").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Post_Payments_DuplicateKey_DifferentPayload_Returns409_WithProblemDetails()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "idem_conflict_problem_body_key");
+
+        var firstRequest = new AuthorizePaymentRequest("party_pb_conflict", 1000, "EUR");
+        var firstResponse = await client.PostAsJsonAsync("/payments", firstRequest);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var secondRequest = new AuthorizePaymentRequest("party_pb_conflict", 9999, "EUR");
+        var secondResponse = await client.PostAsJsonAsync("/payments", secondRequest);
+
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        secondResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var body = await secondResponse.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:conflict");
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(409);
+    }
 }
