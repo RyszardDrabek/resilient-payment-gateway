@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddEdge();
+builder.Services.AddEdge(builder.Configuration);
 
 var jwtKey = builder.Configuration["Auth:JwtSigningKey"]
     ?? throw new InvalidOperationException("Auth:JwtSigningKey is required.");
@@ -48,6 +48,7 @@ app.Logger.LogInformation("PaymentGateway.Api starting");
 app.UseEdge();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
 app.MapPaymentEndpoints();

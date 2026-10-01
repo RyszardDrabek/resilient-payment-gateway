@@ -17,7 +17,8 @@ public static class PaymentEndpoints
     {
         var group = app.MapGroup("/payments")
             .WithTags("Payments")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting(PaymentGateway.Edge.RateLimiting.PaymentRateLimitingExtensions.PolicyName);
 
         group.MapPost("/", async (HttpContext httpContext, AuthorizePaymentRequest request, ISender mediator, CancellationToken ct) =>
         {
