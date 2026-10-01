@@ -35,4 +35,16 @@ public sealed class LayerDependencyTests
 
         result.IsSuccessful.Should().BeTrue(because: string.Join(", ", result.FailingTypeNames ?? []));
     }
+
+    [Fact]
+    public void Application_ShouldNotDependOn_Edge()
+    {
+        // F-EDGE-01: Edge is an API-layer concern; Application must not take a dependency on it.
+        var result = Types.InAssembly(typeof(Application.AssemblyMarker).Assembly)
+            .ShouldNot()
+            .HaveDependencyOn("PaymentGateway.Edge")
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue(because: string.Join(", ", result.FailingTypeNames ?? []));
+    }
 }
