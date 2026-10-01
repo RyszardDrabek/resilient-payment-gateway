@@ -334,6 +334,7 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        response.Headers.Contains("X-Correlation-Id").Should().BeTrue();
 
         var body = await response.Content.ReadAsStringAsync();
         using var doc = System.Text.Json.JsonDocument.Parse(body);

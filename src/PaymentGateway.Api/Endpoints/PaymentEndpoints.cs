@@ -89,12 +89,19 @@ public static class PaymentEndpoints
         string title,
         string detail)
     {
+        var correlationId = httpContext.TraceIdentifier;
+
+        if (!httpContext.Response.Headers.ContainsKey("X-Correlation-Id"))
+        {
+            httpContext.Response.Headers["X-Correlation-Id"] = correlationId;
+        }
+
         var problem = new PaymentProblemDetails(
             Type: type,
             Title: title,
             Status: statusCode,
             Detail: detail,
-            CorrelationId: httpContext.TraceIdentifier);
+            CorrelationId: correlationId);
 
         return Results.Json(problem, JsonOptions, "application/problem+json", statusCode);
     }

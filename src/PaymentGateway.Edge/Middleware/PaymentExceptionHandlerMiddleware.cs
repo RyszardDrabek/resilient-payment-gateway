@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using PaymentGateway.Domain.Exceptions;
 using PaymentGateway.Edge.Problems;
 
@@ -12,8 +13,12 @@ namespace PaymentGateway.Edge.Middleware;
 /// Sits at the outermost pipeline position so no domain exception reaches ASP.NET's default handler.
 /// Never exposes stack traces or secrets in responses.
 /// </summary>
-public sealed class PaymentExceptionHandlerMiddleware(RequestDelegate next)
+public sealed class PaymentExceptionHandlerMiddleware(
+    RequestDelegate next,
+    ILogger<PaymentExceptionHandlerMiddleware> logger)
 {
+    private const string CorrelationIdHeader = "X-Correlation-Id";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -52,8 +57,13 @@ public sealed class PaymentExceptionHandlerMiddleware(RequestDelegate next)
                 "Conflict",
                 ex.Message);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(
+                ex,
+                "Unhandled server error processing request. CorrelationId: {CorrelationId}",
+                context.TraceIdentifier);
+
             // Never include ex.Message or stack trace — may contain secrets or instrument data.
             await WriteProblemAsync(
                 context,
@@ -71,12 +81,19 @@ public sealed class PaymentExceptionHandlerMiddleware(RequestDelegate next)
         string title,
         string detail)
     {
+        var correlationId = context.TraceIdentifier;
+
+        if (!context.Response.Headers.ContainsKey(CorrelationIdHeader))
+        {
+            context.Response.Headers[CorrelationIdHeader] = correlationId;
+        }
+
         var problem = new PaymentProblemDetails(
             Type: type,
             Title: title,
             Status: (int)statusCode,
             Detail: detail,
-            CorrelationId: context.TraceIdentifier);
+            CorrelationId: correlationId);
 
         context.Response.StatusCode = (int)statusCode;
         context.Response.ContentType = "application/problem+json";

@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using PaymentGateway.Domain.Exceptions;
 using PaymentGateway.Edge.Middleware;
 using PaymentGateway.Edge.Problems;
@@ -19,16 +20,18 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         return ctx;
     }
 
-    private static async Task<(int StatusCode, string Body, string ContentType)> RunMiddleware(
+    private static async Task<(int StatusCode, string Body, string ContentType, IHeaderDictionary Headers)> RunMiddleware(
         HttpContext context,
         RequestDelegate next)
     {
-        var middleware = new PaymentExceptionHandlerMiddleware(next);
+        var middleware = new PaymentExceptionHandlerMiddleware(
+            next,
+            NullLogger<PaymentExceptionHandlerMiddleware>.Instance);
         await middleware.InvokeAsync(context);
         context.Response.Body.Seek(0, System.IO.SeekOrigin.Begin);
         using var reader = new System.IO.StreamReader(context.Response.Body);
         var body = await reader.ReadToEndAsync();
-        return (context.Response.StatusCode, body, context.Response.ContentType ?? "");
+        return (context.Response.StatusCode, body, context.Response.ContentType ?? "", context.Response.Headers);
     }
 
     [Fact]
@@ -37,7 +40,7 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         var context = MakeContext();
         var next = new RequestDelegate(_ => Task.CompletedTask);
 
-        var (statusCode, body, _) = await RunMiddleware(context, next);
+        var (statusCode, body, _, _) = await RunMiddleware(context, next);
 
         statusCode.Should().Be(200);
         body.Should().BeEmpty();
@@ -49,10 +52,11 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         var context = MakeContext();
         var next = new RequestDelegate(_ => throw new IdempotencyKeyMissingException());
 
-        var (statusCode, body, contentType) = await RunMiddleware(context, next);
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
 
         statusCode.Should().Be(400);
         contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
         doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Validation);
         doc.GetProperty("correlationId").GetString().Should().Be("test-trace-id");
@@ -64,10 +68,11 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         var context = MakeContext();
         var next = new RequestDelegate(_ => throw new IdempotencyConflictException());
 
-        var (statusCode, body, contentType) = await RunMiddleware(context, next);
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
 
         statusCode.Should().Be(409);
         contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
         doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
     }
@@ -78,10 +83,11 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         var context = MakeContext();
         var next = new RequestDelegate(_ => throw new IdempotencyInFlightException());
 
-        var (statusCode, body, contentType) = await RunMiddleware(context, next);
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
 
         statusCode.Should().Be(409);
         contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
         doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
     }
@@ -92,10 +98,11 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         var context = MakeContext();
         var next = new RequestDelegate(_ => throw new InvalidOperationException("Internal details that must not leak"));
 
-        var (statusCode, body, contentType) = await RunMiddleware(context, next);
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
 
         statusCode.Should().Be(500);
         contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
         doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.ServerError);
         // Must NOT expose the original exception message or stack trace
