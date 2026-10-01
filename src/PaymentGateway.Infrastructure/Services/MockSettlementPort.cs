@@ -30,4 +30,50 @@ public sealed class MockSettlementPort(IConfiguration configuration) : ISettleme
         var channelRef = $"ref_{channelName}_{Guid.NewGuid():N}";
         return Task.FromResult(new SettlementResult(true, resolvedChannel, channelRef));
     }
+
+    public Task<SettlementResult> CaptureAsync(
+        string paymentId,
+        string channelReference,
+        long amount,
+        string currency,
+        string? channel = null,
+        CancellationToken ct = default)
+    {
+        var resolvedChannel = !string.IsNullOrWhiteSpace(channel)
+            ? channel
+            : (configuration["PaymentGateway:ActiveChannel"] ?? "MOCK");
+
+        var transitionRef = $"ref_cap_{Guid.NewGuid():N}";
+        return Task.FromResult(SettlementResult.Success(resolvedChannel, transitionRef, paymentId));
+    }
+
+    public Task<SettlementResult> RefundAsync(
+        string paymentId,
+        string channelReference,
+        long amount,
+        string currency,
+        string? channel = null,
+        CancellationToken ct = default)
+    {
+        var resolvedChannel = !string.IsNullOrWhiteSpace(channel)
+            ? channel
+            : (configuration["PaymentGateway:ActiveChannel"] ?? "MOCK");
+
+        var transitionRef = $"ref_ref_{Guid.NewGuid():N}";
+        return Task.FromResult(SettlementResult.Success(resolvedChannel, transitionRef, paymentId));
+    }
+
+    public Task<SettlementResult> CancelAsync(
+        string paymentId,
+        string channelReference,
+        string? channel = null,
+        CancellationToken ct = default)
+    {
+        var resolvedChannel = !string.IsNullOrWhiteSpace(channel)
+            ? channel
+            : (configuration["PaymentGateway:ActiveChannel"] ?? "MOCK");
+
+        var transitionRef = $"ref_cnc_{Guid.NewGuid():N}";
+        return Task.FromResult(SettlementResult.Success(resolvedChannel, transitionRef, paymentId));
+    }
 }

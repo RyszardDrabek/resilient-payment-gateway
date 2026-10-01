@@ -32,7 +32,33 @@ public static class DependencyInjection
         });
         services.AddScoped<PaymentGateway.Domain.Ports.IPaymentRepository, PaymentGateway.Infrastructure.Repositories.PaymentRepository>();
         services.AddScoped<PaymentGateway.Domain.Ports.IIdempotencyRepository, PaymentGateway.Infrastructure.Repositories.IdempotencyRepository>();
-        services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort, PaymentGateway.Infrastructure.Services.MockSettlementPort>();
+        services.AddTransient<PaymentGateway.Infrastructure.Services.MockSettlementPort>();
+
+        services.Configure<PaymentGateway.Infrastructure.Adyen.AdyenOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Adyen.AdyenOptions.SectionName));
+        var adyenOptions = configuration.GetSection(PaymentGateway.Infrastructure.Adyen.AdyenOptions.SectionName).Get<PaymentGateway.Infrastructure.Adyen.AdyenOptions>() ?? new PaymentGateway.Infrastructure.Adyen.AdyenOptions();
+
+        var isLiveAdyen = string.Equals(adyenOptions.Mode, "Live", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(adyenOptions.ApiKey);
+        if (!isLiveAdyen)
+        {
+            services.AddSingleton<PaymentGateway.Infrastructure.Adyen.AdyenWireMockServer>();
+            services.AddHostedService(sp => sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenWireMockServer>());
+        }
+
+        services.AddHttpClient<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>((sp, client) =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(adyenOptions.TimeoutSeconds > 0 ? adyenOptions.TimeoutSeconds : 5);
+        });
+
+        services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort>(sp =>
+        {
+            var activeChannel = configuration["PaymentGateway:ActiveChannel"];
+            if (string.Equals(activeChannel, "MOCK", StringComparison.OrdinalIgnoreCase))
+            {
+                return sp.GetRequiredService<PaymentGateway.Infrastructure.Services.MockSettlementPort>();
+            }
+
+            return sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>();
+        });
 
         var useInMemory = configuration.GetValue("RabbitMq:UseInMemory", true);
         var rabbitHost = configuration["RabbitMq:Host"] ?? "localhost";
