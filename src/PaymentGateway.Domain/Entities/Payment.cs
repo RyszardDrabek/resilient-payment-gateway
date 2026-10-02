@@ -11,6 +11,12 @@ public sealed class Payment
     public string? DeclineReason { get; private set; }
     public PaymentState State { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
+    public int Version { get; private set; } = 1;
+
+    private readonly List<Events.IDomainEvent> _domainEvents = [];
+    public IReadOnlyCollection<Events.IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+
+    public void ClearDomainEvents() => _domainEvents.Clear();
 
     private Payment() { } // EF Core
 
@@ -22,7 +28,8 @@ public sealed class Payment
         string settlementChannel,
         PaymentState state,
         string? channelReference = null,
-        string? declineReason = null)
+        string? declineReason = null,
+        int version = 1)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
@@ -44,6 +51,7 @@ public sealed class Payment
         ChannelReference = channelReference;
         DeclineReason = declineReason;
         CreatedAt = DateTimeOffset.UtcNow;
+        Version = version > 0 ? version : 1;
     }
 
     public static Payment Authorize(
@@ -54,7 +62,16 @@ public sealed class Payment
         string channelReference)
     {
         var id = $"pay_{Guid.NewGuid():N}";
-        return new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Authorized, channelReference);
+        var payment = new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Authorized, channelReference);
+        payment._domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            payment.Id,
+            payment.PartyId,
+            Enums.PaymentLifecycleOutcome.Authorized,
+            payment.Amount,
+            payment.Currency,
+            payment.Version,
+            DateTimeOffset.UtcNow));
+        return payment;
     }
 
     public static Payment Decline(
@@ -66,6 +83,57 @@ public sealed class Payment
         string? declineReason = null)
     {
         var id = $"pay_{Guid.NewGuid():N}";
-        return new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Declined, channelReference, declineReason);
+        var payment = new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Declined, channelReference, declineReason);
+        payment._domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            payment.Id,
+            payment.PartyId,
+            Enums.PaymentLifecycleOutcome.Declined,
+            payment.Amount,
+            payment.Currency,
+            payment.Version,
+            DateTimeOffset.UtcNow));
+        return payment;
+    }
+
+    public static Payment CreatePending(
+        string partyId,
+        long amount,
+        string currency,
+        string settlementChannel,
+        string? channelReference = null,
+        string? reason = null)
+    {
+        var id = $"pay_{Guid.NewGuid():N}";
+        var payment = new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Pending, channelReference, reason);
+        payment._domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            payment.Id,
+            payment.PartyId,
+            Enums.PaymentLifecycleOutcome.Pending,
+            payment.Amount,
+            payment.Currency,
+            payment.Version,
+            DateTimeOffset.UtcNow));
+        return payment;
+    }
+
+    public static Payment CreateUnknown(
+        string partyId,
+        long amount,
+        string currency,
+        string settlementChannel,
+        string? channelReference = null,
+        string? reason = null)
+    {
+        var id = $"pay_{Guid.NewGuid():N}";
+        var payment = new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.Unknown, channelReference, reason);
+        payment._domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            payment.Id,
+            payment.PartyId,
+            Enums.PaymentLifecycleOutcome.Unknown,
+            payment.Amount,
+            payment.Currency,
+            payment.Version,
+            DateTimeOffset.UtcNow));
+        return payment;
     }
 }

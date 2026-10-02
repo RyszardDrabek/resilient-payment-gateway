@@ -7,6 +7,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 {
     public DbSet<PaymentGateway.Domain.Entities.Payment> Payments => Set<PaymentGateway.Domain.Entities.Payment>();
     public DbSet<PaymentGateway.Domain.Entities.IdempotencyRecord> IdempotencyRecords => Set<PaymentGateway.Domain.Entities.IdempotencyRecord>();
+    public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +23,21 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.ChannelReference).HasMaxLength(128);
             b.Property(p => p.DeclineReason).HasMaxLength(256);
             b.Property(p => p.State).HasConversion<string>();
+            b.Property(p => p.Version).IsRequired().HasDefaultValue(1);
+            b.Ignore(p => p.DomainEvents);
+        });
+
+        modelBuilder.Entity<OutboxMessageRecord>(b =>
+        {
+            b.ToTable("OutboxMessages", "pay");
+            b.HasKey(o => o.Id);
+            b.Property(o => o.EventType).IsRequired().HasMaxLength(256);
+            b.Property(o => o.Payload).IsRequired();
+            b.Property(o => o.CreatedAt).IsRequired();
+            b.Property(o => o.ProcessedAt);
+            b.Property(o => o.DeliveryAttempts).IsRequired().HasDefaultValue(0);
+            b.Property(o => o.Error).HasMaxLength(1024);
+            b.HasIndex(o => o.ProcessedAt);
         });
 
         modelBuilder.Entity<PaymentGateway.Domain.Entities.IdempotencyRecord>(b =>
