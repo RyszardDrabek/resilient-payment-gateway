@@ -1,3 +1,5 @@
+using PaymentGateway.Domain.Exceptions;
+
 namespace PaymentGateway.Domain.Entities;
 
 public sealed class Payment
@@ -135,5 +137,76 @@ public sealed class Payment
             payment.Version,
             DateTimeOffset.UtcNow));
         return payment;
+    }
+
+    public void Capture(string channelReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);
+
+        if (State != PaymentState.Authorized)
+        {
+            throw new PaymentInvalidStateException(State, "Capture");
+        }
+
+        State = PaymentState.Captured;
+        ChannelReference = channelReference;
+        Version++;
+
+        _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            Id,
+            PartyId,
+            Enums.PaymentLifecycleOutcome.Captured,
+            Amount,
+            Currency,
+            Version,
+            DateTimeOffset.UtcNow));
+    }
+
+    public void Cancel(string channelReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);
+
+        // AC-2: Cancel when authorized and uncaptured
+        if (State != PaymentState.Authorized)
+        {
+            throw new PaymentInvalidStateException(State, "Cancel");
+        }
+
+        State = PaymentState.Cancelled;
+        ChannelReference = channelReference;
+        Version++;
+
+        _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            Id,
+            PartyId,
+            Enums.PaymentLifecycleOutcome.Cancelled,
+            Amount,
+            Currency,
+            Version,
+            DateTimeOffset.UtcNow));
+    }
+
+    public void Refund(string channelReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);
+
+        // AC-3: Refund a captured payment
+        if (State != PaymentState.Captured)
+        {
+            throw new PaymentInvalidStateException(State, "Refund");
+        }
+
+        State = PaymentState.Refunded;
+        ChannelReference = channelReference;
+        Version++;
+
+        _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            Id,
+            PartyId,
+            Enums.PaymentLifecycleOutcome.Refunded,
+            Amount,
+            Currency,
+            Version,
+            DateTimeOffset.UtcNow));
     }
 }

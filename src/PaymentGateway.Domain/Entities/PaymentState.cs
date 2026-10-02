@@ -5,5 +5,8 @@ public enum PaymentState
     Authorized,
     Declined,
     Pending,
-    Unknown
+    Unknown,
+    Captured,
+    Cancelled,
+    Refunded
 }
