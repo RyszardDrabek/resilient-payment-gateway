@@ -60,6 +60,9 @@ public static class DependencyInjection
             return sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>();
         });
 
+        services.AddSingleton<PaymentGateway.Infrastructure.Events.ITestEventStore, PaymentGateway.Infrastructure.Events.InMemoryTestEventStore>();
+        services.AddHostedService<PaymentGateway.Infrastructure.Services.OutboxDispatcherService>();
+
         var useInMemory = configuration.GetValue("RabbitMq:UseInMemory", true);
         var rabbitHost = configuration["RabbitMq:Host"] ?? "localhost";
         var rabbitUser = configuration["RabbitMq:Username"] ?? "guest";
@@ -67,6 +70,8 @@ public static class DependencyInjection
 
         services.AddMassTransit(x =>
         {
+            x.AddConsumer<PaymentGateway.Infrastructure.Events.PaymentLifecycleTestConsumer>();
+
             if (useInMemory)
             {
                 x.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));

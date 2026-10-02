@@ -10,6 +10,34 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
     public async Task AddAsync(Payment payment, CancellationToken ct = default)
     {
         dbContext.Payments.Add(payment);
+
+        foreach (var domainEvent in payment.DomainEvents)
+        {
+            if (domainEvent is PaymentGateway.Domain.Events.PaymentTransitionDomainEvent transition)
+            {
+                var lifecycleEvent = new PaymentGateway.Application.Events.PaymentLifecycleEvent(
+                    EventId: $"evt_{Guid.NewGuid():N}",
+                    PaymentId: transition.PaymentId,
+                    PartyId: transition.PartyId,
+                    Outcome: transition.Outcome.ToString().ToLowerInvariant(),
+                    Amount: transition.Amount,
+                    Currency: transition.Currency,
+                    Version: transition.Version,
+                    OccurredAt: transition.OccurredAt);
+
+                var outboxMessage = new OutboxMessageRecord
+                {
+                    Id = Guid.NewGuid(),
+                    EventType = typeof(PaymentGateway.Application.Events.PaymentLifecycleEvent).FullName ?? nameof(PaymentGateway.Application.Events.PaymentLifecycleEvent),
+                    Payload = System.Text.Json.JsonSerializer.Serialize(lifecycleEvent),
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+
+                dbContext.OutboxMessages.Add(outboxMessage);
+            }
+        }
+
+        payment.ClearDomainEvents();
         await dbContext.SaveChangesAsync(ct);
     }
 
