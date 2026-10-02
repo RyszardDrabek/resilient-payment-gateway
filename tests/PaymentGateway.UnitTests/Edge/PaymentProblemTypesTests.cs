@@ -13,6 +13,7 @@ public sealed class PaymentProblemTypesTests
         PaymentProblemTypes.NotFound.Should().StartWith("urn:rpg:problem:");
         PaymentProblemTypes.Conflict.Should().StartWith("urn:rpg:problem:");
         PaymentProblemTypes.ServerError.Should().StartWith("urn:rpg:problem:");
+        PaymentProblemTypes.RateLimit.Should().StartWith("urn:rpg:problem:");
     }
 
     [Fact]
@@ -22,5 +23,6 @@ public sealed class PaymentProblemTypesTests
         PaymentProblemTypes.NotFound.Should().Be("urn:rpg:problem:not-found");
         PaymentProblemTypes.Conflict.Should().Be("urn:rpg:problem:conflict");
         PaymentProblemTypes.ServerError.Should().Be("urn:rpg:problem:server-error");
+        PaymentProblemTypes.RateLimit.Should().Be("urn:rpg:problem:rate-limit");
     }
 }

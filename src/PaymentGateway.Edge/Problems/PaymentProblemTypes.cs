@@ -10,4 +10,5 @@ public static class PaymentProblemTypes
     public const string NotFound = "urn:rpg:problem:not-found";
     public const string Conflict = "urn:rpg:problem:conflict";
     public const string ServerError = "urn:rpg:problem:server-error";
+    public const string RateLimit = "urn:rpg:problem:rate-limit";
 }
