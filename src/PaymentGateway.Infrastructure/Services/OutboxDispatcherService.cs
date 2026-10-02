@@ -4,15 +4,20 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using PaymentGateway.Application.Events;
+using PaymentGateway.Infrastructure.Options;
 using PaymentGateway.Infrastructure.Persistence;
 
 namespace PaymentGateway.Infrastructure.Services;
 
 public sealed class OutboxDispatcherService(
     IServiceScopeFactory scopeFactory,
+    IOptions<OutboxOptions> options,
     ILogger<OutboxDispatcherService> logger) : BackgroundService
 {
+    private readonly OutboxOptions _options = options.Value;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -26,7 +31,7 @@ public sealed class OutboxDispatcherService(
                 logger.LogError(ex, "Error while processing outbox messages.");
             }
 
-            await Task.Delay(100, stoppingToken);
+            await Task.Delay(_options.PollingIntervalMs, stoppingToken);
         }
     }
 
@@ -37,9 +42,9 @@ public sealed class OutboxDispatcherService(
         var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
         var pendingMessages = await dbContext.OutboxMessages
-            .Where(m => m.ProcessedAt == null)
+            .Where(m => m.ProcessedAt == null && m.DeliveryAttempts < _options.MaxDeliveryAttempts)
             .OrderBy(m => m.CreatedAt)
-            .Take(50)
+            .Take(_options.BatchSize)
             .ToListAsync(ct);
 
         if (pendingMessages.Count == 0)
@@ -49,9 +54,11 @@ public sealed class OutboxDispatcherService(
 
         foreach (var message in pendingMessages)
         {
+            message.DeliveryAttempts++;
             try
             {
-                if (message.EventType == typeof(PaymentLifecycleEvent).FullName ||
+                if (message.EventType == PaymentLifecycleEvent.EventType ||
+                    message.EventType == typeof(PaymentLifecycleEvent).FullName ||
                     message.EventType == nameof(PaymentLifecycleEvent))
                 {
                     var evt = JsonSerializer.Deserialize<PaymentLifecycleEvent>(message.Payload);
@@ -62,11 +69,26 @@ public sealed class OutboxDispatcherService(
                 }
 
                 message.ProcessedAt = DateTimeOffset.UtcNow;
+                message.Error = null;
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to dispatch outbox message {MessageId}", message.Id);
+                logger.LogError(
+                    ex,
+                    "Failed to dispatch outbox message {MessageId} (Attempt {Attempt}/{MaxAttempts})",
+                    message.Id,
+                    message.DeliveryAttempts,
+                    _options.MaxDeliveryAttempts);
+
                 message.Error = ex.Message;
+
+                if (message.DeliveryAttempts >= _options.MaxDeliveryAttempts)
+                {
+                    logger.LogCritical(
+                        "Outbox message {MessageId} exceeded max delivery attempts ({MaxAttempts}) and is dead-lettered.",
+                        message.Id,
+                        _options.MaxDeliveryAttempts);
+                }
             }
         }
 

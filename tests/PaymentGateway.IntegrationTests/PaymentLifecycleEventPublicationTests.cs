@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
@@ -7,6 +8,7 @@ using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
@@ -77,7 +79,17 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
                 builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
                 builder.UseSetting("RabbitMq:UseInMemory", "true");
                 builder.UseSetting("Auth:JwtSigningKey", JwtKey);
-                builder.UseSetting("PaymentGateway:ActiveChannel", "MOCK");
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:PaymentDb"] = connectionString,
+                        ["ConnectionStrings:RiskDb"] = connectionString,
+                        ["RabbitMq:UseInMemory"] = "true",
+                        ["Auth:JwtSigningKey"] = JwtKey,
+                        ["PaymentGateway:ActiveChannel"] = "MOCK"
+                    });
+                });
             });
     }
 
@@ -95,8 +107,8 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
                 new Claim("role", role)
             }),
             Expires = DateTime.UtcNow.AddHours(1),
-            Issuer = "PaymentGateway",
-            Audience = "PaymentGateway",
+            Issuer = "payment-gateway",
+            Audience = "payment-gateway",
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
         };
         var token = tokenHandler.CreateToken(tokenDescriptor);
@@ -124,23 +136,20 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        // Process pending outbox messages to dispatch to MassTransit
-        using (var scope = factory.Services.CreateScope())
+        // The background OutboxDispatcherService polls every 100 ms — wait for it to dispatch and the bus consumer to record.
+        // Polling avoids a race condition where a manual call and the running background service both pick up the same row.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        IReadOnlyList<PaymentLifecycleEvent> events = [];
+        while (DateTime.UtcNow < deadline)
         {
-            var dispatcher = scope.ServiceProvider.GetRequiredService<IHostedService>() as OutboxDispatcherService;
-            if (dispatcher is not null)
-            {
-                await dispatcher.ProcessPendingMessagesAsync();
-            }
+            await Task.Delay(100);
+            events = eventStore.GetEvents();
+            if (events.Count > 0) break;
         }
 
-        // Wait briefly for in-memory bus delivery
-        await Task.Delay(200);
-
-        var events = eventStore.GetEvents();
         events.Should().ContainSingle();
 
-        var lifecycleEvent = events.Single();
+        var lifecycleEvent = events[0];
         lifecycleEvent.PartyId.Should().Be("party_evt_100");
         lifecycleEvent.Outcome.Should().Be("authorized");
         lifecycleEvent.Amount.Should().Be(2500);
@@ -157,11 +166,18 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
             return;
         }
 
-        // 1. Commit a payment directly to DB with an Outbox record (simulating process death right after commit)
         var options = new DbContextOptionsBuilder<PaymentDbContext>()
             .UseNpgsql(_postgres.GetConnectionString())
             .Options;
 
+        // 1. Start a fresh host instance (restart) — CreateClient() starts the host and the MassTransit bus
+        await using var factory = CreateFactory();
+        var _ = factory.CreateClient(); // starts the host so the in-memory bus and consumers are live
+        var eventStore = factory.Services.GetRequiredService<ITestEventStore>();
+        eventStore.Clear();
+
+        // 2. Seed payment + outbox record AFTER clearing the event store to avoid the race where the
+        //    background service processes the record before Clear() is called.
         var payment = PaymentGateway.Domain.Entities.Payment.Authorize(
             "party_kill_test",
             4000L,
@@ -186,42 +202,24 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
             db.OutboxMessages.Add(new OutboxMessageRecord
             {
                 Id = Guid.NewGuid(),
-                EventType = typeof(PaymentLifecycleEvent).FullName ?? nameof(PaymentLifecycleEvent),
+                EventType = PaymentLifecycleEvent.EventType,
                 Payload = System.Text.Json.JsonSerializer.Serialize(lifecycleEvent),
                 CreatedAt = DateTimeOffset.UtcNow,
-                ProcessedAt = null // Unprocessed because process died
+                ProcessedAt = null // Unprocessed — simulates process death right after commit
             });
             await db.SaveChangesAsync();
         }
 
-        // 2. Start a fresh host instance (restart)
-        await using var factory = CreateFactory();
-        var eventStore = factory.Services.GetRequiredService<ITestEventStore>();
-        eventStore.Clear();
-
-        // 3. Trigger outbox dispatcher on the new host
-        using (var scope = factory.Services.CreateScope())
+        // 3. Poll until the background OutboxDispatcherService picks up and dispatches the record (up to 5 s)
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        IReadOnlyList<PaymentLifecycleEvent> received = [];
+        while (DateTime.UtcNow < deadline)
         {
-            var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-            var publishEndpoint = scope.ServiceProvider.GetRequiredService<MassTransit.IPublishEndpoint>();
-
-            var pending = await db.OutboxMessages.Where(m => m.ProcessedAt == null).ToListAsync();
-            foreach (var msg in pending)
-            {
-                var evt = System.Text.Json.JsonSerializer.Deserialize<PaymentLifecycleEvent>(msg.Payload);
-                if (evt is not null)
-                {
-                    await publishEndpoint.Publish(evt);
-                }
-                msg.ProcessedAt = DateTimeOffset.UtcNow;
-            }
-            await db.SaveChangesAsync();
+            await Task.Delay(100);
+            received = eventStore.GetEvents();
+            if (received.Any(e => e.EventId == eventId)) break;
         }
 
-        await Task.Delay(200);
-
-        // 4. Verify test consumer observed the event after restart
-        var received = eventStore.GetEvents();
         received.Should().Contain(e => e.EventId == eventId && e.PartyId == "party_kill_test");
     }
 }

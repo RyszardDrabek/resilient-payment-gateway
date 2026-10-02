@@ -9,5 +9,6 @@ public sealed class OutboxMessageRecord
     public string Payload { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ProcessedAt { get; set; }
+    public int DeliveryAttempts { get; set; }
     public string? Error { get; set; }
 }

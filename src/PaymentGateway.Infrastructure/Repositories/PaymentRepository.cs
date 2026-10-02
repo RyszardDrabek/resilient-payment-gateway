@@ -28,7 +28,7 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
                 var outboxMessage = new OutboxMessageRecord
                 {
                     Id = Guid.NewGuid(),
-                    EventType = typeof(PaymentGateway.Application.Events.PaymentLifecycleEvent).FullName ?? nameof(PaymentGateway.Application.Events.PaymentLifecycleEvent),
+                    EventType = PaymentGateway.Application.Events.PaymentLifecycleEvent.EventType,
                     Payload = System.Text.Json.JsonSerializer.Serialize(lifecycleEvent),
                     CreatedAt = DateTimeOffset.UtcNow
                 };

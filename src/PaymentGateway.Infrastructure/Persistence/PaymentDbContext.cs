@@ -29,12 +29,13 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 
         modelBuilder.Entity<OutboxMessageRecord>(b =>
         {
-            b.ToTable("OutboxMessages");
+            b.ToTable("OutboxMessages", "pay");
             b.HasKey(o => o.Id);
             b.Property(o => o.EventType).IsRequired().HasMaxLength(256);
             b.Property(o => o.Payload).IsRequired();
             b.Property(o => o.CreatedAt).IsRequired();
             b.Property(o => o.ProcessedAt);
+            b.Property(o => o.DeliveryAttempts).IsRequired().HasDefaultValue(0);
             b.Property(o => o.Error).HasMaxLength(1024);
             b.HasIndex(o => o.ProcessedAt);
         });

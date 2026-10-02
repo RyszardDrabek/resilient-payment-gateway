@@ -29,6 +29,7 @@ public partial class AddOutboxMessagesAndPaymentVersion : Migration
                 Payload = table.Column<string>(type: "text", nullable: false),
                 CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                 ProcessedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                DeliveryAttempts = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                 Error = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true)
             },
             constraints: table =>

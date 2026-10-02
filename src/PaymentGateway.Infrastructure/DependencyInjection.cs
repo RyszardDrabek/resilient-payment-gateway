@@ -60,6 +60,7 @@ public static class DependencyInjection
             return sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>();
         });
 
+        services.Configure<PaymentGateway.Infrastructure.Options.OutboxOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Options.OutboxOptions.SectionName));
         services.AddSingleton<PaymentGateway.Infrastructure.Events.ITestEventStore, PaymentGateway.Infrastructure.Events.InMemoryTestEventStore>();
         services.AddHostedService<PaymentGateway.Infrastructure.Services.OutboxDispatcherService>();
 
