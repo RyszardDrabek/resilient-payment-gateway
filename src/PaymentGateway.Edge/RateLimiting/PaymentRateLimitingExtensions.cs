@@ -56,9 +56,9 @@ public static class PaymentRateLimitingExtensions
                     return RateLimitPartition.GetNoLimiter("unlimited");
                 }
 
-                var rateLimitOptions = httpContext.RequestServices
-                    .GetService<IOptions<PaymentRateLimitOptions>>()?.Value
-                    ?? new PaymentRateLimitOptions();
+                var optionsMonitor = httpContext.RequestServices
+                    .GetService<IOptionsMonitor<PaymentRateLimitOptions>>();
+                var rateLimitOptions = optionsMonitor?.CurrentValue ?? new PaymentRateLimitOptions();
 
                 return RateLimitPartition.GetConcurrencyLimiter(
                     "global-payment-concurrency",
@@ -73,9 +73,9 @@ public static class PaymentRateLimitingExtensions
             // Per-caller partition policy (AC-1, AC-2)
             options.AddPolicy(PolicyName, httpContext =>
             {
-                var rateLimitOptions = httpContext.RequestServices
-                    .GetService<IOptions<PaymentRateLimitOptions>>()?.Value
-                    ?? new PaymentRateLimitOptions();
+                var optionsMonitor = httpContext.RequestServices
+                    .GetService<IOptionsMonitor<PaymentRateLimitOptions>>();
+                var rateLimitOptions = optionsMonitor?.CurrentValue ?? new PaymentRateLimitOptions();
 
                 // Key rate limits from coarse caller identity: JWT sub claim first, fallback to IP address, or anonymous
                 var partitionKey = ResolveCallerIdentity(httpContext);
