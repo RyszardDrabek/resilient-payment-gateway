@@ -10,7 +10,31 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
     public async Task AddAsync(Payment payment, CancellationToken ct = default)
     {
         dbContext.Payments.Add(payment);
+        DispatchDomainEventsToOutbox(payment);
+        await dbContext.SaveChangesAsync(ct);
+    }
 
+    public async Task UpdateAsync(Payment payment, CancellationToken ct = default)
+    {
+        dbContext.Payments.Update(payment);
+        DispatchDomainEventsToOutbox(payment);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new PaymentGateway.Domain.Exceptions.PaymentConcurrencyException(payment.Id);
+        }
+    }
+
+    public async Task<Payment?> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        return await dbContext.Payments.FirstOrDefaultAsync(p => p.Id == id, ct);
+    }
+
+    private void DispatchDomainEventsToOutbox(Payment payment)
+    {
         foreach (var domainEvent in payment.DomainEvents)
         {
             if (domainEvent is PaymentGateway.Domain.Events.PaymentTransitionDomainEvent transition)
@@ -38,11 +62,5 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
         }
 
         payment.ClearDomainEvents();
-        await dbContext.SaveChangesAsync(ct);
-    }
-
-    public async Task<Payment?> GetByIdAsync(string id, CancellationToken ct = default)
-    {
-        return await dbContext.Payments.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
     }
 }

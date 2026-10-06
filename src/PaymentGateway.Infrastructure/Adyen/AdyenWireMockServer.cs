@@ -43,14 +43,33 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
         _logger?.LogInformation("Adyen WireMock server started at {Url}", _server.Url);
     }
 
+    private readonly object _syncLock = new();
+
     public void Stop()
     {
-        if (_server is not null && _server.IsStarted)
+        lock (_syncLock)
         {
-            _server.Stop();
-            _server.Dispose();
+            var server = _server;
             _server = null;
-            _logger?.LogInformation("Adyen WireMock server stopped");
+
+            if (server is null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (server.IsStarted)
+                {
+                    server.Stop();
+                }
+                server.Dispose();
+                _logger?.LogInformation("Adyen WireMock server stopped");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Error while stopping Adyen WireMock server");
+            }
         }
     }
 

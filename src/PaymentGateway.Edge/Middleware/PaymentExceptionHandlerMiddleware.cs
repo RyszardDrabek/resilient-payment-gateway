@@ -57,6 +57,42 @@ public sealed class PaymentExceptionHandlerMiddleware(
                 "Conflict",
                 ex.Message);
         }
+        catch (PaymentInvalidStateException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.Conflict,
+                PaymentProblemTypes.Conflict,
+                "Conflict",
+                ex.Message);
+        }
+        catch (PaymentNotFoundException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.NotFound,
+                PaymentProblemTypes.NotFound,
+                "Not Found",
+                ex.Message);
+        }
+        catch (PaymentConcurrencyException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.Conflict,
+                PaymentProblemTypes.Conflict,
+                "Conflict",
+                ex.Message);
+        }
+        catch (PaymentOperationFailedException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.Conflict,
+                PaymentProblemTypes.Conflict,
+                "Conflict",
+                ex.Message);
+        }
         catch (Exception ex)
         {
             logger.LogError(

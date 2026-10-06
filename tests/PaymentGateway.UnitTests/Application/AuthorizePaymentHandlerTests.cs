@@ -61,6 +61,21 @@ public class AuthorizePaymentHandlerTests
             return Task.CompletedTask;
         }
 
+        public Task UpdateAsync(Payment payment, CancellationToken ct = default)
+        {
+            var idx = SavedPayments.FindIndex(x => x.Id == payment.Id);
+            if (idx >= 0)
+            {
+                SavedPayments[idx] = payment;
+            }
+            else
+            {
+                SavedPayments.Add(payment);
+            }
+
+            return Task.CompletedTask;
+        }
+
         public Task<Payment?> GetByIdAsync(string id, CancellationToken ct = default)
         {
             var p = SavedPayments.FirstOrDefault(x => x.Id == id);

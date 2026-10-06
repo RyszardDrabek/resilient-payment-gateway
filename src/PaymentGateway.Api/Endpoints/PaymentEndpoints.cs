@@ -80,6 +80,57 @@ public static class PaymentEndpoints
             return Results.Ok(result);
         });
 
+        group.MapPost("/{id}/capture", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
+        {
+            var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Idempotency-Key is required on payment commands.");
+            }
+
+            var result = await mediator.Send(new CapturePaymentCommand(id, idempotencyKey), ct);
+            return Results.Ok(result);
+        });
+
+        group.MapPost("/{id}/cancel", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
+        {
+            var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Idempotency-Key is required on payment commands.");
+            }
+
+            var result = await mediator.Send(new CancelPaymentCommand(id, idempotencyKey), ct);
+            return Results.Ok(result);
+        });
+
+        group.MapPost("/{id}/refund", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
+        {
+            var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Idempotency-Key is required on payment commands.");
+            }
+
+            var result = await mediator.Send(new RefundPaymentCommand(id, idempotencyKey), ct);
+            return Results.Ok(result);
+        });
+
         return app;
     }
 

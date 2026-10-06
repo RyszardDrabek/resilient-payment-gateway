@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Exceptions;
 using PaymentGateway.Edge.Middleware;
 using PaymentGateway.Edge.Problems;
@@ -90,6 +91,70 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
         headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
         doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
+    }
+
+    [Fact]
+    public async Task PaymentInvalidStateException_Returns409_ConflictProblem_NamingCurrentState()
+    {
+        var context = MakeContext();
+        var next = new RequestDelegate(_ => throw new PaymentInvalidStateException(PaymentState.Captured, "Cancel"));
+
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
+
+        statusCode.Should().Be(409);
+        contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
+        var doc = JsonSerializer.Deserialize<JsonElement>(body);
+        doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
+        doc.GetProperty("detail").GetString().Should().Contain("Captured");
+        doc.GetProperty("detail").GetString().Should().Contain("Cancel");
+    }
+
+    [Fact]
+    public async Task PaymentNotFoundException_Returns404_NotFoundProblem()
+    {
+        var context = MakeContext();
+        var next = new RequestDelegate(_ => throw new PaymentNotFoundException("pay_abc123"));
+
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
+
+        statusCode.Should().Be(404);
+        contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
+        var doc = JsonSerializer.Deserialize<JsonElement>(body);
+        doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.NotFound);
+        doc.GetProperty("detail").GetString().Should().Contain("pay_abc123");
+    }
+
+    [Fact]
+    public async Task PaymentConcurrencyException_Returns409_ConflictProblem()
+    {
+        var context = MakeContext();
+        var next = new RequestDelegate(_ => throw new PaymentConcurrencyException("pay_concurrent_1"));
+
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
+
+        statusCode.Should().Be(409);
+        contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
+        var doc = JsonSerializer.Deserialize<JsonElement>(body);
+        doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
+        doc.GetProperty("detail").GetString().Should().Contain("pay_concurrent_1");
+    }
+
+    [Fact]
+    public async Task PaymentOperationFailedException_Returns409_ConflictProblem()
+    {
+        var context = MakeContext();
+        var next = new RequestDelegate(_ => throw new PaymentOperationFailedException("Capture", "Channel unreachable"));
+
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
+
+        statusCode.Should().Be(409);
+        contentType.Should().Contain("application/problem+json");
+        var doc = JsonSerializer.Deserialize<JsonElement>(body);
+        doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
+        doc.GetProperty("detail").GetString().Should().Contain("Channel unreachable");
     }
 
     [Fact]
