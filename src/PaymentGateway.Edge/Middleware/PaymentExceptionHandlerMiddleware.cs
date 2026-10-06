@@ -75,13 +75,22 @@ public sealed class PaymentExceptionHandlerMiddleware(
                 "Not Found",
                 ex.Message);
         }
+        catch (PaymentConcurrencyException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.Conflict,
+                PaymentProblemTypes.Conflict,
+                "Conflict",
+                ex.Message);
+        }
         catch (PaymentOperationFailedException ex)
         {
             await WriteProblemAsync(
                 context,
-                HttpStatusCode.UnprocessableEntity,
+                HttpStatusCode.Conflict,
                 PaymentProblemTypes.Conflict,
-                "Operation Failed",
+                "Conflict",
                 ex.Message);
         }
         catch (Exception ex)

@@ -127,14 +127,30 @@ public sealed class PaymentExceptionHandlerMiddlewareTests
     }
 
     [Fact]
-    public async Task PaymentOperationFailedException_Returns422_Problem()
+    public async Task PaymentConcurrencyException_Returns409_ConflictProblem()
+    {
+        var context = MakeContext();
+        var next = new RequestDelegate(_ => throw new PaymentConcurrencyException("pay_concurrent_1"));
+
+        var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
+
+        statusCode.Should().Be(409);
+        contentType.Should().Contain("application/problem+json");
+        headers["X-Correlation-Id"].ToString().Should().Be("test-trace-id");
+        var doc = JsonSerializer.Deserialize<JsonElement>(body);
+        doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
+        doc.GetProperty("detail").GetString().Should().Contain("pay_concurrent_1");
+    }
+
+    [Fact]
+    public async Task PaymentOperationFailedException_Returns409_ConflictProblem()
     {
         var context = MakeContext();
         var next = new RequestDelegate(_ => throw new PaymentOperationFailedException("Capture", "Channel unreachable"));
 
         var (statusCode, body, contentType, headers) = await RunMiddleware(context, next);
 
-        statusCode.Should().Be(422);
+        statusCode.Should().Be(409);
         contentType.Should().Contain("application/problem+json");
         var doc = JsonSerializer.Deserialize<JsonElement>(body);
         doc.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);

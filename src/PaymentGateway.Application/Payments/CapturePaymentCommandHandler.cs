@@ -101,7 +101,7 @@ public sealed class CapturePaymentCommandHandler(
         if (!settlement.IsSuccessful)
         {
             var reason = settlement.DeclineReason ?? "Settlement channel rejected capture request.";
-            record.Fail(422, reason);
+            record.Fail(409, reason);
             await idempotencyRepository.UpdateAsync(record, ct);
             throw new PaymentOperationFailedException("Capture", reason);
         }

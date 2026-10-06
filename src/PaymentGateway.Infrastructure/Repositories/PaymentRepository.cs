@@ -18,7 +18,14 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
     {
         dbContext.Payments.Update(payment);
         DispatchDomainEventsToOutbox(payment);
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new PaymentGateway.Domain.Exceptions.PaymentConcurrencyException(payment.Id);
+        }
     }
 
     public async Task<Payment?> GetByIdAsync(string id, CancellationToken ct = default)

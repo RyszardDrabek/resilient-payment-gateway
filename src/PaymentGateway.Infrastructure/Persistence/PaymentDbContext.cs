@@ -23,7 +23,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.ChannelReference).HasMaxLength(128);
             b.Property(p => p.DeclineReason).HasMaxLength(256);
             b.Property(p => p.State).HasConversion<string>();
-            b.Property(p => p.Version).IsRequired().HasDefaultValue(1);
+            b.Property(p => p.Version).IsRequired().HasDefaultValue(1).IsConcurrencyToken();
             b.Ignore(p => p.DomainEvents);
         });
 

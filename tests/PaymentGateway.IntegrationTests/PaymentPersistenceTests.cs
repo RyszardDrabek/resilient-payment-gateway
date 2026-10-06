@@ -229,4 +229,53 @@ public sealed class PaymentPersistenceTests : IAsyncLifetime
             await act.Should().ThrowAsync<PaymentGateway.Domain.Exceptions.IdempotencyInFlightException>();
         }
     }
+
+    [Fact]
+    public async Task PaymentRepository_UpdateAsync_ConcurrentModification_ThrowsPaymentConcurrencyException()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        var payment = Payment.Authorize(
+            partyId: "merchant_concurrent_01",
+            amount: 5000,
+            currency: "EUR",
+            settlementChannel: "MOCK",
+            channelReference: "ref_init_1");
+
+        await using (var db = new PaymentDbContext(options))
+        {
+            var repo = new PaymentRepository(db);
+            await repo.AddAsync(payment);
+        }
+
+        // Load into two separate DbContext instances
+        await using var db1 = new PaymentDbContext(options);
+        await using var db2 = new PaymentDbContext(options);
+
+        var repo1 = new PaymentRepository(db1);
+        var repo2 = new PaymentRepository(db2);
+
+        var p1 = await repo1.GetByIdAsync(payment.Id);
+        var p2 = await repo2.GetByIdAsync(payment.Id);
+
+        p1.Should().NotBeNull();
+        p2.Should().NotBeNull();
+
+        // Transition 1 succeeds (Version 1 -> 2)
+        p1!.Capture("ref_cap_1");
+        await repo1.UpdateAsync(p1);
+
+        // Transition 2 attempts update with stale original version
+        p2!.Capture("ref_cap_2");
+        var act = () => repo2.UpdateAsync(p2);
+
+        await act.Should().ThrowAsync<PaymentGateway.Domain.Exceptions.PaymentConcurrencyException>();
+    }
 }
