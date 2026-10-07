@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using OpenTelemetry;
 
 namespace PaymentGateway.Edge.Telemetry;
@@ -12,38 +11,6 @@ namespace PaymentGateway.Edge.Telemetry;
 /// </summary>
 public sealed class InstrumentMaskingProcessor : BaseProcessor<Activity>
 {
-    // ── Patterns ─────────────────────────────────────────────────────────────
-
-    /// <summary>13–19 digit card PAN with optional spaces or hyphens between groups.</summary>
-    private static readonly Regex PanPattern = new(
-        @"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{1,4}\b",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        matchTimeout: TimeSpan.FromMilliseconds(100));
-
-    /// <summary>32 lower/upper-hex chars (e.g. a Braintree/Stripe-style payment token).</summary>
-    private static readonly Regex TokenPattern = new(
-        @"\b[0-9a-fA-F]{32}\b",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        matchTimeout: TimeSpan.FromMilliseconds(100));
-
-    /// <summary>IBAN: 2-letter country code + 2 check digits + 11-30 BBAN chars.</summary>
-    private static readonly Regex IbanPattern = new(
-        @"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        matchTimeout: TimeSpan.FromMilliseconds(100));
-
-    // ── Masking evaluator (applied in order: PAN → Token → IBAN) ─────────────
-
-    private static readonly MatchEvaluator Masker = m =>
-    {
-        // Irreversible mask: keep last 4 chars for debuggability.
-        var raw = m.Value;
-        var suffix = raw.Length >= 4 ? raw[^4..] : raw;
-        return $"****{suffix}";
-    };
-
-    // ── BaseProcessor<Activity> ───────────────────────────────────────────────
-
     /// <summary>
     /// Runs synchronously after the activity ends, before export. Replaces sensitive
     /// string-valued tags in-place. Non-string tags are never touched.
@@ -67,7 +34,7 @@ public sealed class InstrumentMaskingProcessor : BaseProcessor<Activity>
 
             try
             {
-                var masked = ApplyMasking(raw);
+                var masked = InstrumentMaskingPatterns.Mask(raw);
                 if (!string.Equals(masked, raw, StringComparison.Ordinal))
                 {
                     rewrites ??= [];
@@ -87,16 +54,5 @@ public sealed class InstrumentMaskingProcessor : BaseProcessor<Activity>
                 activity.SetTag(key, masked);
             }
         }
-    }
-
-    // ── Private helpers ───────────────────────────────────────────────────────
-
-    private static string ApplyMasking(string value)
-    {
-        // Apply patterns in priority order. Each pass may replace multiple occurrences.
-        var result = PanPattern.Replace(value, Masker);
-        result = TokenPattern.Replace(result, Masker);
-        result = IbanPattern.Replace(result, Masker);
-        return result;
     }
 }
