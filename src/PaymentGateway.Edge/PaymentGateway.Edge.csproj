@@ -7,6 +7,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="OpenTelemetry" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\PaymentGateway.Domain\PaymentGateway.Domain.csproj" />
   </ItemGroup>
 </Project>
