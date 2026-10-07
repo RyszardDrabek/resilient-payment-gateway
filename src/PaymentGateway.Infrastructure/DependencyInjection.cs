@@ -37,8 +37,7 @@ public static class DependencyInjection
         services.Configure<PaymentGateway.Infrastructure.Adyen.AdyenOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Adyen.AdyenOptions.SectionName));
         var adyenOptions = configuration.GetSection(PaymentGateway.Infrastructure.Adyen.AdyenOptions.SectionName).Get<PaymentGateway.Infrastructure.Adyen.AdyenOptions>() ?? new PaymentGateway.Infrastructure.Adyen.AdyenOptions();
 
-        var isLiveAdyen = string.Equals(adyenOptions.Mode, "Live", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(adyenOptions.ApiKey);
-        if (!isLiveAdyen)
+        if (!adyenOptions.IsLiveMode)
         {
             services.AddSingleton<PaymentGateway.Infrastructure.Adyen.AdyenWireMockServer>();
             services.AddHostedService(sp => sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenWireMockServer>());
