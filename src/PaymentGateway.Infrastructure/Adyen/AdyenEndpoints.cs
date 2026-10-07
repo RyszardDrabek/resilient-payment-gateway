@@ -3,6 +3,7 @@ namespace PaymentGateway.Infrastructure.Adyen;
 public static class AdyenEndpoints
 {
     public const string DefaultApiVersion = "v71";
+    public const string LiveSandboxBaseUrl = "https://checkout-test.adyen.com";
 
     public static string Payments(string version = DefaultApiVersion) =>
         $"/{version}/payments";

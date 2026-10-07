@@ -36,6 +36,15 @@ public sealed class AdyenSettlementPort : ISettlementPort
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
         var merchantReference = $"mref_{Guid.NewGuid():N}";
 
+        if (_options.IsLiveMode && !_options.HasValidCredentials)
+        {
+            _logger?.LogError("Adyen live mode selected but credentials are absent or invalid. Refusing settlement.");
+            return SettlementResult.ConfigurationFail(
+                resolvedChannel,
+                "Adyen live sandbox mode is selected but credentials are absent or invalid.",
+                merchantReference);
+        }
+
         // Configure request instrument fields (AC-4) and mock triggers
         var isDecline = !string.IsNullOrEmpty(partyId) && partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase);
         var isTimeout = !string.IsNullOrEmpty(partyId) && partyId.Contains("timeout", StringComparison.OrdinalIgnoreCase);
@@ -59,13 +68,32 @@ public sealed class AdyenSettlementPort : ISettlementPort
         try
         {
             var url = BuildEndpointUrl(AdyenEndpoints.Payments(_options.ApiVersion));
-            using var response = await _httpClient.PostAsJsonAsync(url, paymentRequest, ct);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(paymentRequest)
+            };
+
+            if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+            {
+                httpRequest.Headers.TryAddWithoutValidation("X-API-Key", _options.ApiKey);
+            }
+
+            using var response = await _httpClient.SendAsync(httpRequest, ct);
+
+            if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                _logger?.LogError("Adyen sandbox returned authentication error {StatusCode}.", (int)response.StatusCode);
+                return SettlementResult.ConfigurationFail(
+                    resolvedChannel,
+                    $"Adyen live credentials rejected by sandbox: {(int)response.StatusCode}",
+                    merchantReference);
+            }
 
             if (!response.IsSuccessStatusCode)
             {
                 return SettlementResult.Unanswered(
                     resolvedChannel,
-                    $"Adyen simulator returned status code {(int)response.StatusCode}",
+                    $"Adyen settlement returned status code {(int)response.StatusCode}",
                     merchantReference);
             }
 
@@ -74,7 +102,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
             {
                 return SettlementResult.Unanswered(
                     resolvedChannel,
-                    "Empty or null response payload received from Adyen simulator",
+                    "Empty or null response payload received from Adyen settlement",
                     merchantReference);
             }
 
@@ -94,7 +122,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or TaskCanceledException)
         {
-            _logger?.LogWarning(ex, "Settlement call to Adyen simulator was unanswered or timed out.");
+            _logger?.LogWarning(ex, "Settlement call to Adyen was unanswered or timed out.");
             return SettlementResult.Unanswered(
                 resolvedChannel,
                 $"Settlement channel failed to answer: {ex.Message}",
@@ -175,16 +203,44 @@ public sealed class AdyenSettlementPort : ISettlementPort
         string operationRef,
         CancellationToken ct)
     {
+        if (_options.IsLiveMode && !_options.HasValidCredentials)
+        {
+            _logger?.LogError("Adyen live mode selected but credentials are absent or invalid. Refusing modification.");
+            return SettlementResult.ConfigurationFail(
+                resolvedChannel,
+                "Adyen live sandbox mode is selected but credentials are absent or invalid.",
+                operationRef);
+        }
+
         try
         {
             var url = BuildEndpointUrl(relativePath);
-            using var response = await _httpClient.PostAsJsonAsync(url, request, ct);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(request)
+            };
+
+            if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+            {
+                httpRequest.Headers.TryAddWithoutValidation("X-API-Key", _options.ApiKey);
+            }
+
+            using var response = await _httpClient.SendAsync(httpRequest, ct);
+
+            if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                _logger?.LogError("Adyen sandbox returned authentication error {StatusCode} for modification.", (int)response.StatusCode);
+                return SettlementResult.ConfigurationFail(
+                    resolvedChannel,
+                    $"Adyen live credentials rejected by sandbox: {(int)response.StatusCode}",
+                    operationRef);
+            }
 
             if (!response.IsSuccessStatusCode)
             {
                 return SettlementResult.Unanswered(
                     resolvedChannel,
-                    $"Adyen simulator returned status code {(int)response.StatusCode}",
+                    $"Adyen settlement returned status code {(int)response.StatusCode}",
                     operationRef);
             }
 
@@ -193,7 +249,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
             {
                 return SettlementResult.Unanswered(
                     resolvedChannel,
-                    "Empty or null response payload received from Adyen simulator",
+                    "Empty or null response payload received from Adyen settlement",
                     operationRef);
             }
 
@@ -204,7 +260,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or TaskCanceledException)
         {
-            _logger?.LogWarning(ex, "Modification call to Adyen simulator was unanswered or timed out.");
+            _logger?.LogWarning(ex, "Modification call to Adyen was unanswered or timed out.");
             return SettlementResult.Unanswered(
                 resolvedChannel,
                 $"Settlement channel failed to answer: {ex.Message}",
@@ -216,7 +272,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
     {
         var baseUrl = !string.IsNullOrWhiteSpace(_options.BaseUrl)
             ? _options.BaseUrl
-            : (_mockServer?.Url ?? "http://localhost:8089");
+            : (_options.IsLiveMode ? AdyenEndpoints.LiveSandboxBaseUrl : (_mockServer?.Url ?? "http://localhost:8089"));
 
         return baseUrl.TrimEnd('/') + relativePath;
     }

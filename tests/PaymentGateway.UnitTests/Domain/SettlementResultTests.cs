@@ -69,4 +69,21 @@ public class SettlementResultTests
         result.DeclineReason.Should().BeNull();
         result.MerchantReference.Should().BeNull();
     }
+
+    [Fact]
+    public void ConfigurationFail_CreatesNonSuccessResultWithConfigurationFailFlag()
+    {
+        // Act
+        var result = SettlementResult.ConfigurationFail("ADYEN", "Missing API key", "mref_666");
+
+        // Assert
+        result.IsAuthorized.Should().BeFalse();
+        result.IsUnanswered.Should().BeFalse();
+        result.IsConfigurationFail.Should().BeTrue();
+        result.IsSuccessful.Should().BeFalse();
+        result.Channel.Should().Be("ADYEN");
+        result.ChannelReference.Should().BeEmpty();
+        result.MerchantReference.Should().Be("mref_666");
+        result.DeclineReason.Should().Be("Missing API key");
+    }
 }
