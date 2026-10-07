@@ -1,11 +1,13 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application;
 using PaymentGateway.Edge;
+using PaymentGateway.Edge.Telemetry;
 using PaymentGateway.Infrastructure;
 using PaymentGateway.Infrastructure.Persistence;
 
@@ -39,6 +41,10 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
     .WithTracing(t => t
         .AddAspNetCoreInstrumentation()
+        .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN before export
+        .AddOtlpExporter())
+    .WithLogging(l => l
+        .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN in logs before export
         .AddOtlpExporter());
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
