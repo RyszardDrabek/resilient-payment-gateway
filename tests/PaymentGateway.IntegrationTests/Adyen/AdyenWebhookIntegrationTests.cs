@@ -93,7 +93,8 @@ public sealed class AdyenWebhookIntegrationTests : IAsyncLifetime
 
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
-        var validator = factory.Services.GetRequiredService<IAdyenHmacValidator>();
+        using var scope = factory.Services.CreateScope();
+        var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
 
         var pspRef = $"PSP-{Guid.NewGuid():N}";
         var item = CreateNotificationItem(pspRef, "PAY-AC1", "AUTHORISATION", 1500, "EUR", "true");
@@ -135,7 +136,8 @@ public sealed class AdyenWebhookIntegrationTests : IAsyncLifetime
 
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
-        var validator = factory.Services.GetRequiredService<IAdyenHmacValidator>();
+        using var scope = factory.Services.CreateScope();
+        var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
 
         var pspRef = $"PSP-{Guid.NewGuid():N}";
         var item = CreateNotificationItem(pspRef, "PAY-REPLAY", "AUTHORISATION", 3000, "EUR", "true");
@@ -159,23 +161,21 @@ public sealed class AdyenWebhookIntegrationTests : IAsyncLifetime
 
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
-        var validator = factory.Services.GetRequiredService<IAdyenHmacValidator>();
+        using var scope = factory.Services.CreateScope();
+        var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
 
         var paymentId = $"pay_corr_{Guid.NewGuid():N}";
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-            var payment = new Payment(
-                id: paymentId,
-                partyId: "party_corr",
-                amount: 4500,
-                currency: "EUR",
-                settlementChannel: "ADYEN",
-                state: PaymentState.Authorized,
-                channelReference: $"psp_init_{Guid.NewGuid():N}");
-            db.Payments.Add(payment);
-            await db.SaveChangesAsync();
-        }
+        var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+        var payment = new Payment(
+            id: paymentId,
+            partyId: "party_corr",
+            amount: 4500,
+            currency: "EUR",
+            settlementChannel: "ADYEN",
+            state: PaymentState.Authorized,
+            channelReference: $"psp_init_{Guid.NewGuid():N}");
+        db.Payments.Add(payment);
+        await db.SaveChangesAsync();
 
         var webhookPsp = $"PSP-{Guid.NewGuid():N}";
         var item = CreateNotificationItem(webhookPsp, paymentId, "CAPTURE", 4500, "EUR", "true");
@@ -186,10 +186,10 @@ public sealed class AdyenWebhookIntegrationTests : IAsyncLifetime
         var response = await client.PostAsJsonAsync("/webhooks/adyen", payload);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        using (var scope = factory.Services.CreateScope())
+        using (var verifyScope = factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-            var storedNotification = await db.AdyenNotifications.FirstOrDefaultAsync(n => n.PspReference == webhookPsp);
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+            var storedNotification = await verifyDb.AdyenNotifications.FirstOrDefaultAsync(n => n.PspReference == webhookPsp);
             storedNotification.Should().NotBeNull();
             storedNotification!.CorrelatedPaymentId.Should().Be(paymentId);
             storedNotification.MerchantReference.Should().Be(paymentId);
@@ -203,7 +203,8 @@ public sealed class AdyenWebhookIntegrationTests : IAsyncLifetime
 
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
-        var validator = factory.Services.GetRequiredService<IAdyenHmacValidator>();
+        using var scope = factory.Services.CreateScope();
+        var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
 
         // Inject multiple signed events directly into in-memory pipeline
         var events = new[] { "AUTHORISATION", "CAPTURE", "REFUND" };

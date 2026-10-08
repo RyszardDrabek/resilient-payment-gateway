@@ -32,7 +32,7 @@ public static class DependencyInjection
         });
         services.AddScoped<PaymentGateway.Domain.Ports.IPaymentRepository, PaymentGateway.Infrastructure.Repositories.PaymentRepository>();
         services.AddScoped<PaymentGateway.Domain.Ports.IIdempotencyRepository, PaymentGateway.Infrastructure.Repositories.IdempotencyRepository>();
-        services.AddScoped<PaymentGateway.Application.Adyen.IAdyenHmacValidator, PaymentGateway.Infrastructure.Adyen.AdyenHmacValidator>();
+        services.AddSingleton<PaymentGateway.Application.Adyen.IAdyenHmacValidator, PaymentGateway.Infrastructure.Adyen.AdyenHmacValidator>();
         services.AddScoped<PaymentGateway.Application.Adyen.IAdyenNotificationRepository, PaymentGateway.Infrastructure.Repositories.AdyenNotificationRepository>();
         services.AddTransient<PaymentGateway.Infrastructure.Services.MockSettlementPort>();
 
