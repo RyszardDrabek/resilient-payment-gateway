@@ -7,7 +7,8 @@ namespace PaymentGateway.Application.Adyen;
 public sealed class IngestAdyenWebhookCommandHandler(
     IAdyenHmacValidator hmacValidator,
     IAdyenNotificationRepository notificationRepository,
-    IPaymentRepository paymentRepository) : IRequestHandler<IngestAdyenWebhookCommand, AdyenWebhookIngestionResult>
+    IPaymentRepository paymentRepository,
+    IAdyenReconciliationService? reconciliationService = null) : IRequestHandler<IngestAdyenWebhookCommand, AdyenWebhookIngestionResult>
 {
     public async Task<AdyenWebhookIngestionResult> Handle(IngestAdyenWebhookCommand request, CancellationToken cancellationToken)
     {
@@ -15,6 +16,8 @@ public sealed class IngestAdyenWebhookCommandHandler(
         {
             return AdyenWebhookIngestionResult.Failure("Payload contains no notification items.");
         }
+
+        var savedNotifications = new List<AdyenNotification>();
 
         foreach (var wrapper in request.Payload.NotificationItems)
         {
@@ -79,9 +82,20 @@ public sealed class IngestAdyenWebhookCommandHandler(
                 correlatedPaymentId: correlatedPaymentId);
 
             await notificationRepository.AddAsync(notification, cancellationToken);
+            savedNotifications.Add(notification);
         }
 
         await notificationRepository.SaveChangesAsync(cancellationToken);
+
+        if (reconciliationService is not null)
+        {
+            foreach (var notification in savedNotifications)
+            {
+                await reconciliationService.ReconcileNotificationAsync(notification.Id, cancellationToken);
+            }
+        }
+
         return AdyenWebhookIngestionResult.Success();
     }
 }
+

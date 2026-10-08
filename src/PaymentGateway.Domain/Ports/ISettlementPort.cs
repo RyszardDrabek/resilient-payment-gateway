@@ -30,4 +30,13 @@ public interface ISettlementPort
         string channelReference,
         string? channel = null,
         CancellationToken ct = default);
+
+    Task<SettlementResult> QueryPaymentStatusAsync(
+        string paymentId,
+        string? channelReference = null,
+        string? merchantReference = null,
+        string? channel = null,
+        CancellationToken ct = default) =>
+        Task.FromResult(SettlementResult.Unanswered(channel ?? "UNKNOWN", "Status query not supported by settlement channel"));
 }
+

@@ -38,6 +38,15 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
         return await dbContext.Payments.FirstOrDefaultAsync(p => p.ChannelReference == channelReference, ct);
     }
 
+    public async Task<IReadOnlyList<Payment>> GetUnresolvedAsync(CancellationToken ct = default)
+    {
+        return await dbContext.Payments
+            .Where(p => p.State == PaymentState.Pending || p.State == PaymentState.Unknown)
+            .OrderBy(p => p.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+
     private void DispatchDomainEventsToOutbox(Payment payment)
     {
         foreach (var domainEvent in payment.DomainEvents)

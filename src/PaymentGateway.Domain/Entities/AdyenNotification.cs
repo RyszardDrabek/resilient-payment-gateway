@@ -75,4 +75,10 @@ public sealed class AdyenNotification
     {
         Status = "Processed";
     }
+
+    public void MarkUncorrelated()
+    {
+        Status = "Uncorrelated";
+    }
 }
+
