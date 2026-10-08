@@ -277,10 +277,11 @@ public sealed class AdyenReconciliationIntegrationTests : IAsyncLifetime
             .FirstOrDefaultAsync(m => m.EventType == PaymentLifecycleEvent.EventType);
 
         outboxMessage.Should().NotBeNull();
-        var payloadObj = JsonSerializer.Deserialize<JsonElement>(outboxMessage!.Payload);
-        payloadObj.GetProperty("paymentId").GetString().Should().Be(payment.Id);
-        payloadObj.GetProperty("outcome").GetString().Should().Be("authorized");
-        payloadObj.GetProperty("amount").GetInt64().Should().Be(9000L);
+        var lifecycleEvent = JsonSerializer.Deserialize<PaymentLifecycleEvent>(outboxMessage!.Payload);
+        lifecycleEvent.Should().NotBeNull();
+        lifecycleEvent!.PaymentId.Should().Be(payment.Id);
+        lifecycleEvent.Outcome.Should().Be("authorized");
+        lifecycleEvent.Amount.Should().Be(9000L);
     }
 
     private static AdyenNotificationRequestItem CreateNotificationItem(
