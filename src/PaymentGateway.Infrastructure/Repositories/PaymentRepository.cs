@@ -33,6 +33,11 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
         return await dbContext.Payments.FirstOrDefaultAsync(p => p.Id == id, ct);
     }
 
+    public async Task<Payment?> GetByChannelReferenceAsync(string channelReference, CancellationToken ct = default)
+    {
+        return await dbContext.Payments.FirstOrDefaultAsync(p => p.ChannelReference == channelReference, ct);
+    }
+
     private void DispatchDomainEventsToOutbox(Payment payment)
     {
         foreach (var domainEvent in payment.DomainEvents)

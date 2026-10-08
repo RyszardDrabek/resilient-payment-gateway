@@ -12,6 +12,7 @@ public sealed class AdyenOptions
     public int TimeoutSeconds { get; set; } = 5;
     public bool AutoStartMockServer { get; set; } = true;
     public int? MockServerPort { get; set; }
+    public string? HmacKey { get; set; } = "44782DEF547AAB80616F310827471246151F9957283A359CE97849303DE8E9E3";
 
     public bool IsLiveMode =>
         string.Equals(Mode, "Live", StringComparison.OrdinalIgnoreCase) ||

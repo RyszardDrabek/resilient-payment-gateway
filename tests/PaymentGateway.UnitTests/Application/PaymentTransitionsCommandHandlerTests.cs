@@ -72,6 +72,12 @@ public sealed class PaymentTransitionsCommandHandlerTests
             var p = SavedPayments.FirstOrDefault(x => x.Id == id);
             return Task.FromResult(p);
         }
+
+        public Task<Payment?> GetByChannelReferenceAsync(string channelReference, CancellationToken ct = default)
+        {
+            var p = SavedPayments.FirstOrDefault(x => x.ChannelReference == channelReference);
+            return Task.FromResult(p);
+        }
     }
 
     private class TestIdempotencyRepository : IIdempotencyRepository
