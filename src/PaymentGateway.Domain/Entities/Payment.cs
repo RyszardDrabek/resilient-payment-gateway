@@ -249,6 +249,12 @@ public sealed class Payment
             return false;
         }
 
+        // Authorized cannot revert to Declined
+        if (State == PaymentState.Authorized && targetState.Value == PaymentState.Declined)
+        {
+            return false;
+        }
+
         // Valid transition applied
         State = targetState.Value;
         if (!string.IsNullOrWhiteSpace(channelReference))

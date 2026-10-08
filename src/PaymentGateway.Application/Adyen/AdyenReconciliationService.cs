@@ -102,6 +102,15 @@ public sealed class AdyenReconciliationService(
                 Message: $"Payment is already resolved in state '{payment.State}'.");
         }
 
+        if (reconciliationWindow.HasValue && payment.CreatedAt + reconciliationWindow.Value > DateTimeOffset.UtcNow)
+        {
+            return new ReconciliationResult(
+                ReconciliationStatus.Unresolved,
+                PaymentId: payment.Id,
+                Outcome: payment.State.ToString(),
+                Message: $"Payment is still within the reconciliation window ({reconciliationWindow.Value.TotalMinutes:F0} min) and pending webhook arrival.");
+        }
+
         // AC-4: Query Adyen for payment status using retained references
         var statusResult = await settlementPort.QueryPaymentStatusAsync(
             paymentId: payment.Id,

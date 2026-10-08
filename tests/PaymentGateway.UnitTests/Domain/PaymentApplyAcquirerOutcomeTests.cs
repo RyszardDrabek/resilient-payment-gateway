@@ -109,4 +109,22 @@ public sealed class PaymentApplyAcquirerOutcomeTests
         var domainEvt = payment.DomainEvents.Single().Should().BeOfType<PaymentTransitionDomainEvent>().Subject;
         domainEvt.Outcome.Should().Be(PaymentLifecycleOutcome.Declined);
     }
+
+    [Fact]
+    public void AC1_WhenOutOfOrderDeclineArrivesAfterAuthorized_DoesNotRevertState_AndReturnsFalse()
+    {
+        // Arrange: payment is authorized
+        var payment = Payment.Authorize("cust_1", 1000L, "EUR", "ADYEN", "psp_1");
+        payment.ClearDomainEvents();
+        var authorizedVersion = payment.Version;
+
+        // Act: late/out-of-order Declined outcome arrives
+        var applied = payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Declined, "psp_declined", "Card expired");
+
+        // Assert: state remains Authorized, not reverted to Declined
+        applied.Should().BeFalse();
+        payment.State.Should().Be(PaymentState.Authorized);
+        payment.Version.Should().Be(authorizedVersion);
+        payment.DomainEvents.Should().BeEmpty();
+    }
 }

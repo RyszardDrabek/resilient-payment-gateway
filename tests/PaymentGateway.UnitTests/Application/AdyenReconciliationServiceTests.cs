@@ -75,6 +75,7 @@ public sealed class AdyenReconciliationServiceTests
     private class FakeSettlementPort : ISettlementPort
     {
         public SettlementResult QueryResult { get; set; } = SettlementResult.Unanswered("ADYEN", "Default mock");
+        public int QueryCount { get; private set; }
 
         public Task<SettlementResult> AuthorizeAsync(string partyId, long amount, string currency, string? channel = null, CancellationToken ct = default) =>
             throw new NotImplementedException();
@@ -88,8 +89,11 @@ public sealed class AdyenReconciliationServiceTests
         public Task<SettlementResult> CancelAsync(string paymentId, string channelReference, string? channel = null, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
-        public Task<SettlementResult> QueryPaymentStatusAsync(string paymentId, string? channelReference = null, string? merchantReference = null, string? channel = null, CancellationToken ct = default) =>
-            Task.FromResult(QueryResult);
+        public Task<SettlementResult> QueryPaymentStatusAsync(string paymentId, string? channelReference = null, string? merchantReference = null, string? channel = null, CancellationToken ct = default)
+        {
+            QueryCount++;
+            return Task.FromResult(QueryResult);
+        }
     }
 
     private class DirectMediator(IPaymentRepository paymentRepository) : IMediator
@@ -276,5 +280,28 @@ public sealed class AdyenReconciliationServiceTests
 
         var updatedPayment = await paymentRepo.GetByIdAsync(pendingPayment.Id);
         updatedPayment!.State.Should().Be(PaymentState.Authorized);
+    }
+
+    [Fact]
+    public async Task AC4_WhenPaymentWithinReconciliationWindow_ReturnsUnresolvedWithoutQueryingAdyen()
+    {
+        // Arrange
+        var notifRepo = new FakeNotificationRepository();
+        var paymentRepo = new FakePaymentRepository();
+        var settlementPort = new FakeSettlementPort();
+        var mediator = new DirectMediator(paymentRepo);
+
+        var pendingPayment = Payment.CreatePending("cust_recent", 5000L, "EUR", "ADYEN", "temp_ref");
+        await paymentRepo.AddAsync(pendingPayment);
+
+        var service = new AdyenReconciliationService(notifRepo, paymentRepo, settlementPort, mediator);
+
+        // Act: pass reconciliation window of 30 minutes (payment was just created, so within window)
+        var result = await service.ReconcileUnresolvedPaymentAsync(pendingPayment.Id, TimeSpan.FromMinutes(30));
+
+        // Assert
+        result.Status.Should().Be(ReconciliationStatus.Unresolved);
+        result.Message.Should().Contain("reconciliation window");
+        settlementPort.QueryCount.Should().Be(0); // Adyen was not queried
     }
 }
