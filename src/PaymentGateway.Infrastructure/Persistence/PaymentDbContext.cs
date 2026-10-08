@@ -7,6 +7,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 {
     public DbSet<PaymentGateway.Domain.Entities.Payment> Payments => Set<PaymentGateway.Domain.Entities.Payment>();
     public DbSet<PaymentGateway.Domain.Entities.IdempotencyRecord> IdempotencyRecords => Set<PaymentGateway.Domain.Entities.IdempotencyRecord>();
+    public DbSet<PaymentGateway.Domain.Entities.AdyenNotification> AdyenNotifications => Set<PaymentGateway.Domain.Entities.AdyenNotification>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -62,6 +63,26 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.HasIndex(r => new { r.PaymentId, r.CommandType, r.Key })
                 .HasFilter("\"CommandType\" != 'Authorize'")
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.AdyenNotification>(b =>
+        {
+            b.ToTable("AdyenNotifications");
+            b.HasKey(n => n.Id);
+            b.Property(n => n.PspReference).IsRequired().HasMaxLength(128);
+            b.Property(n => n.OriginalReference).HasMaxLength(128);
+            b.Property(n => n.MerchantAccountCode).IsRequired().HasMaxLength(128);
+            b.Property(n => n.MerchantReference).IsRequired().HasMaxLength(128);
+            b.Property(n => n.EventCode).IsRequired().HasMaxLength(64);
+            b.Property(n => n.AmountCurrency).IsRequired().HasMaxLength(3);
+            b.Property(n => n.Reason).HasMaxLength(512);
+            b.Property(n => n.CorrelatedPaymentId).HasMaxLength(128);
+            b.Property(n => n.Status).IsRequired().HasMaxLength(64);
+            b.Property(n => n.CreatedAt).IsRequired();
+
+            b.HasIndex(n => new { n.PspReference, n.EventCode }).IsUnique();
+            b.HasIndex(n => n.MerchantReference);
+            b.HasIndex(n => n.CorrelatedPaymentId);
         });
     }
 }

@@ -67,6 +67,7 @@ app.UseRateLimiter();
 
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
 app.MapPaymentEndpoints();
+app.MapAdyenWebhookEndpoints();
 app.MapGet("/health", async (PaymentDbContext db, CancellationToken ct) =>
 {
     var canConnect = await db.Database.CanConnectAsync(ct);
