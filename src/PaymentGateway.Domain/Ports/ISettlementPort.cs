@@ -9,6 +9,15 @@ public interface ISettlementPort
         string? channel = null,
         CancellationToken ct = default);
 
+    Task<SettlementResult> AuthorizeAsync(
+        string partyId,
+        long amount,
+        string currency,
+        string? channel,
+        string? idempotencyKey,
+        CancellationToken ct = default) =>
+        AuthorizeAsync(partyId, amount, currency, channel, ct);
+
     Task<SettlementResult> CaptureAsync(
         string paymentId,
         string channelReference,

@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PaymentGateway.Domain.Ports;
 using PaymentGateway.Infrastructure.Adyen.Models;
+using Polly;
+using Polly.Retry;
 
 namespace PaymentGateway.Infrastructure.Adyen;
 
@@ -13,28 +15,55 @@ public sealed class AdyenSettlementPort : ISettlementPort
     private readonly AdyenOptions _options;
     private readonly AdyenWireMockServer? _mockServer;
     private readonly ILogger<AdyenSettlementPort>? _logger;
+    private readonly ResiliencePipeline<SettlementResult> _pipeline;
 
     public AdyenSettlementPort(
         HttpClient httpClient,
         IOptions<AdyenOptions> options,
         AdyenWireMockServer? mockServer = null,
-        ILogger<AdyenSettlementPort>? logger = null)
+        ILogger<AdyenSettlementPort>? logger = null,
+        ResiliencePipeline<SettlementResult>? pipeline = null)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _mockServer = mockServer;
         _logger = logger;
+
+        _pipeline = pipeline ?? new ResiliencePipelineBuilder<SettlementResult>()
+            .AddRetry(new RetryStrategyOptions<SettlementResult>
+            {
+                ShouldHandle = new PredicateBuilder<SettlementResult>()
+                    .Handle<HttpRequestException>()
+                    .Handle<TimeoutException>()
+                    .Handle<TaskCanceledException>()
+                    .HandleResult(r => r.IsUnanswered && !r.IsConfigurationFail),
+                MaxRetryAttempts = _options.MaxRetryAttempts,
+                Delay = TimeSpan.FromMilliseconds(_options.RetryDelayMilliseconds),
+                BackoffType = DelayBackoffType.Constant
+            })
+            .Build();
     }
+
+    public Task<SettlementResult> AuthorizeAsync(
+        string partyId,
+        long amount,
+        string currency,
+        string? channel = null,
+        CancellationToken ct = default) =>
+        AuthorizeAsync(partyId, amount, currency, channel, null, ct);
 
     public async Task<SettlementResult> AuthorizeAsync(
         string partyId,
         long amount,
         string currency,
-        string? channel = null,
+        string? channel,
+        string? idempotencyKey,
         CancellationToken ct = default)
     {
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
-        var merchantReference = $"mref_{Guid.NewGuid():N}";
+        var merchantReference = !string.IsNullOrWhiteSpace(idempotencyKey)
+            ? $"mref_{idempotencyKey}"
+            : $"mref_{Guid.NewGuid():N}";
 
         if (_options.IsLiveMode && !_options.HasValidCredentials)
         {
@@ -45,6 +74,20 @@ public sealed class AdyenSettlementPort : ISettlementPort
                 merchantReference);
         }
 
+        return await _pipeline.ExecuteAsync(async cancellationToken =>
+        {
+            return await ExecuteSingleAuthorizeAttemptAsync(partyId, amount, currency, resolvedChannel, merchantReference, cancellationToken);
+        }, ct);
+    }
+
+    private async Task<SettlementResult> ExecuteSingleAuthorizeAttemptAsync(
+        string partyId,
+        long amount,
+        string currency,
+        string resolvedChannel,
+        string merchantReference,
+        CancellationToken ct)
+    {
         // Configure request instrument fields (AC-4) and mock triggers
         var isDecline = !string.IsNullOrEmpty(partyId) && partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase);
         var isTimeout = !string.IsNullOrEmpty(partyId) && partyId.Contains("timeout", StringComparison.OrdinalIgnoreCase);
@@ -86,6 +129,16 @@ public sealed class AdyenSettlementPort : ISettlementPort
                 return SettlementResult.ConfigurationFail(
                     resolvedChannel,
                     $"Adyen live credentials rejected by sandbox: {(int)response.StatusCode}",
+                    merchantReference);
+            }
+
+            if (AdyenFailureClassifier.IsTerminalClientError(response.StatusCode))
+            {
+                _logger?.LogWarning("Adyen rejected request with terminal client error {StatusCode}.", (int)response.StatusCode);
+                return SettlementResult.Declined(
+                    resolvedChannel,
+                    string.Empty,
+                    $"Adyen rejected request with client error: {(int)response.StatusCode}",
                     merchantReference);
             }
 

@@ -333,7 +333,7 @@ public class AuthorizePaymentHandlerTests
     }
 
     [Fact]
-    public async Task AuthorizePayment_ProviderFailsToAnswer_RecordsDeclinedPayment_AC2()
+    public async Task AuthorizePayment_ProviderFailsToAnswer_LeavesPaymentPending_AC3()
     {
         // Arrange
         var settlementPort = new StubSettlementPort { ShouldThrow = true };
@@ -346,11 +346,12 @@ public class AuthorizePaymentHandlerTests
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
 
-        // Assert
-        result.State.Should().Be("Declined");
+        // Assert (F-ADYEN-05 AC-3: unanswered deadline leaves payment pending, never silent decline)
+        result.State.Should().Be("Pending");
         result.DeclineReason.Should().Contain("Settlement channel failed to answer");
         paymentRepo.SavedPayments.Should().HaveCount(1);
-        paymentRepo.SavedPayments[0].State.Should().Be(PaymentState.Declined);
+        paymentRepo.SavedPayments[0].State.Should().Be(PaymentState.Pending);
+        paymentRepo.SavedPayments[0].DomainEvents.Should().ContainSingle(e => ((PaymentGateway.Domain.Events.PaymentTransitionDomainEvent)e).Outcome == PaymentGateway.Domain.Enums.PaymentLifecycleOutcome.Pending);
     }
 
     [Fact]

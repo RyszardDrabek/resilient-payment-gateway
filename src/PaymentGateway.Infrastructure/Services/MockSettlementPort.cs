@@ -10,11 +10,28 @@ public sealed class MockSettlementPort(IConfiguration configuration) : ISettleme
         long amount,
         string currency,
         string? channel = null,
+        CancellationToken ct = default) =>
+        AuthorizeAsync(partyId, amount, currency, channel, null, ct);
+
+    public Task<SettlementResult> AuthorizeAsync(
+        string partyId,
+        long amount,
+        string currency,
+        string? channel,
+        string? idempotencyKey,
         CancellationToken ct = default)
     {
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel)
             ? channel
             : (configuration["PaymentGateway:ActiveChannel"] ?? "MOCK");
+
+        if (!string.IsNullOrEmpty(partyId) && (partyId.Contains("timeout", StringComparison.OrdinalIgnoreCase) || partyId.Contains("unanswered", StringComparison.OrdinalIgnoreCase)))
+        {
+            return Task.FromResult(SettlementResult.Unanswered(
+                resolvedChannel,
+                "Mock settlement channel failed to answer",
+                idempotencyKey));
+        }
 
         // Mock decline trigger: partyId starting with "decline_"
         if (!string.IsNullOrEmpty(partyId) && partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase))
@@ -23,12 +40,13 @@ public sealed class MockSettlementPort(IConfiguration configuration) : ISettleme
                 false,
                 resolvedChannel,
                 $"ref_declined_{Guid.NewGuid():N}",
-                "Insufficient funds"));
+                "Insufficient funds",
+                MerchantReference: idempotencyKey));
         }
 
         var channelName = resolvedChannel.ToLowerInvariant();
         var channelRef = $"ref_{channelName}_{Guid.NewGuid():N}";
-        return Task.FromResult(new SettlementResult(true, resolvedChannel, channelRef));
+        return Task.FromResult(new SettlementResult(true, resolvedChannel, channelRef, MerchantReference: idempotencyKey));
     }
 
     public Task<SettlementResult> CaptureAsync(
