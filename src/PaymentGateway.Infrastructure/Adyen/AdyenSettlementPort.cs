@@ -196,6 +196,90 @@ public sealed class AdyenSettlementPort : ISettlementPort
             ct);
     }
 
+    public async Task<SettlementResult> QueryPaymentStatusAsync(
+        string paymentId,
+        string? channelReference = null,
+        string? merchantReference = null,
+        string? channel = null,
+        CancellationToken ct = default)
+    {
+        var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
+        var operationRef = merchantReference ?? paymentId;
+
+        if (_options.IsLiveMode && !_options.HasValidCredentials)
+        {
+            return SettlementResult.ConfigurationFail(
+                resolvedChannel,
+                "Adyen live sandbox mode is selected but credentials are absent or invalid.",
+                operationRef);
+        }
+
+        try
+        {
+            var relativePath = !string.IsNullOrWhiteSpace(channelReference)
+                ? $"{AdyenEndpoints.PaymentsPathPrefix(_options.ApiVersion)}{channelReference}"
+                : $"{AdyenEndpoints.Payments(_options.ApiVersion)}?merchantReference={merchantReference ?? paymentId}";
+
+            var url = BuildEndpointUrl(relativePath);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, url);
+
+            if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+            {
+                httpRequest.Headers.TryAddWithoutValidation("X-API-Key", _options.ApiKey);
+            }
+
+            using var response = await _httpClient.SendAsync(httpRequest, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return SettlementResult.Unanswered(
+                    resolvedChannel,
+                    $"Adyen status query returned status code {(int)response.StatusCode}",
+                    operationRef);
+            }
+
+            var paymentResponse = await response.Content.ReadFromJsonAsync<AdyenPaymentResponse>(cancellationToken: ct);
+            if (paymentResponse is null)
+            {
+                return SettlementResult.Unanswered(
+                    resolvedChannel,
+                    "Empty or null response payload received from Adyen status query",
+                    operationRef);
+            }
+
+            if (string.Equals(paymentResponse.ResultCode, "Authorised", StringComparison.OrdinalIgnoreCase))
+            {
+                return SettlementResult.Success(
+                    resolvedChannel,
+                    paymentResponse.PspReference,
+                    paymentResponse.MerchantReference ?? operationRef);
+            }
+
+            if (string.Equals(paymentResponse.ResultCode, "Refused", StringComparison.OrdinalIgnoreCase))
+            {
+                return SettlementResult.Declined(
+                    resolvedChannel,
+                    paymentResponse.PspReference,
+                    paymentResponse.RefusalReason ?? "Refused",
+                    paymentResponse.MerchantReference ?? operationRef);
+            }
+
+            return SettlementResult.Unanswered(
+                resolvedChannel,
+                $"Adyen reported unresolved result code: {paymentResponse.ResultCode}",
+                operationRef);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or TaskCanceledException)
+        {
+            _logger?.LogWarning(ex, "Query status call to Adyen was unanswered or timed out.");
+            return SettlementResult.Unanswered(
+                resolvedChannel,
+                $"Settlement channel failed to answer: {ex.Message}",
+                operationRef);
+        }
+    }
+
+
     private async Task<SettlementResult> SendModificationAsync(
         string relativePath,
         AdyenModificationRequest request,

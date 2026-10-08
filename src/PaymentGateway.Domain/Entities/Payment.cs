@@ -209,4 +209,70 @@ public sealed class Payment
             Version,
             DateTimeOffset.UtcNow));
     }
+
+    public bool ApplyAcquirerOutcome(
+        Enums.PaymentLifecycleOutcome outcome,
+        string? channelReference = null,
+        string? reason = null)
+    {
+        var targetState = outcome switch
+        {
+            Enums.PaymentLifecycleOutcome.Authorized => PaymentState.Authorized,
+            Enums.PaymentLifecycleOutcome.Declined => PaymentState.Declined,
+            Enums.PaymentLifecycleOutcome.Captured => PaymentState.Captured,
+            Enums.PaymentLifecycleOutcome.Cancelled => PaymentState.Cancelled,
+            Enums.PaymentLifecycleOutcome.Refunded => PaymentState.Refunded,
+            _ => (PaymentState?)null
+        };
+
+        if (targetState is null)
+        {
+            return false;
+        }
+
+        // AC-1: Duplicate absorption (no double-apply, no version increment, no duplicate event)
+        if (State == targetState.Value)
+        {
+            return false;
+        }
+
+        // AC-1: Out-of-order protection — acquirer truth progression:
+        // Terminal states cannot be reverted:
+        if (State is PaymentState.Refunded or PaymentState.Cancelled or PaymentState.Declined)
+        {
+            return false;
+        }
+
+        // Captured cannot revert to Authorized or Declined
+        if (State == PaymentState.Captured && targetState.Value is PaymentState.Authorized or PaymentState.Declined)
+        {
+            return false;
+        }
+
+        // Valid transition applied
+        State = targetState.Value;
+        if (!string.IsNullOrWhiteSpace(channelReference))
+        {
+            ChannelReference = channelReference;
+        }
+
+        if (targetState.Value == PaymentState.Declined && !string.IsNullOrWhiteSpace(reason))
+        {
+            DeclineReason = reason;
+        }
+
+        Version++;
+
+        _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            Id,
+            PartyId,
+            outcome,
+            Amount,
+            Currency,
+            Version,
+            DateTimeOffset.UtcNow));
+
+        return true;
+    }
 }
+

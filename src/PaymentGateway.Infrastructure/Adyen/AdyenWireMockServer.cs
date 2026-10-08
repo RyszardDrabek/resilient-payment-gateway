@@ -262,5 +262,40 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
 
                 return CreateJsonResponse(200, cncResponse);
             }));
+
+        // 5. Query status: GET /{version}/payments/{paymentPspReference}
+        server
+            .Given(Request.Create().WithPath(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && !p.EndsWith("/captures", StringComparison.OrdinalIgnoreCase) && !p.EndsWith("/refunds", StringComparison.OrdinalIgnoreCase) && !p.EndsWith("/cancels", StringComparison.OrdinalIgnoreCase)).UsingGet())
+            .RespondWith(Response.Create().WithCallback(requestMessage =>
+            {
+                var path = requestMessage.Path;
+                var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var paymentPsp = segments.Length >= 3 ? segments[2] : "unknown_psp";
+
+                if (paymentPsp.Contains("unresolved", StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateJsonResponse(404, new { status = 404, message = "Payment not found or still unresolved" });
+                }
+
+                if (paymentPsp.Contains("decline", StringComparison.OrdinalIgnoreCase) || paymentPsp.Contains("refused", StringComparison.OrdinalIgnoreCase))
+                {
+                    var declineResponse = new AdyenPaymentResponse(
+                        paymentPsp,
+                        "Refused",
+                        "Refused by acquirer",
+                        paymentPsp);
+
+                    return CreateJsonResponse(200, declineResponse);
+                }
+
+                var successResponse = new AdyenPaymentResponse(
+                    paymentPsp,
+                    "Authorised",
+                    null,
+                    paymentPsp);
+
+                return CreateJsonResponse(200, successResponse);
+            }));
     }
 }
+
