@@ -20,6 +20,15 @@ public sealed class Payment
 
     public void ClearDomainEvents() => _domainEvents.Clear();
 
+    private static readonly HashSet<string> SupportedCryptoAssets = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "USDC",
+        "USDT"
+    };
+
+    public static bool IsSupportedCryptoAsset(string asset) =>
+        SupportedCryptoAssets.Contains(asset);
+
     private Payment() { } // EF Core
 
     public Payment(
@@ -39,9 +48,10 @@ public sealed class Payment
         ArgumentException.ThrowIfNullOrWhiteSpace(settlementChannel);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
 
-        if (currency.Trim().Length != 3)
+        var trimmedCurrency = currency.Trim();
+        if (trimmedCurrency.Length != 3 && !IsSupportedCryptoAsset(trimmedCurrency))
         {
-            throw new ArgumentException("Currency must be a 3-letter ISO code.", nameof(currency));
+            throw new ArgumentException("Currency must be a 3-letter ISO code or supported crypto asset.", nameof(currency));
         }
 
         Id = id;

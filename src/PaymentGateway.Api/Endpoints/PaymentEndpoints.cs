@@ -2,6 +2,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using MediatR;
 using PaymentGateway.Application.Payments;
+using PaymentGateway.Domain.Entities;
 using PaymentGateway.Edge.Problems;
 
 namespace PaymentGateway.Api.Endpoints;
@@ -41,14 +42,14 @@ public static class PaymentEndpoints
             if (string.IsNullOrWhiteSpace(request.PartyId) ||
                 request.Amount <= 0 ||
                 string.IsNullOrWhiteSpace(request.Currency) ||
-                request.Currency.Trim().Length != 3)
+                (request.Currency.Trim().Length != 3 && !Payment.IsSupportedCryptoAsset(request.Currency.Trim())))
             {
                 return ProblemResult(
                     httpContext,
                     StatusCodes.Status400BadRequest,
                     PaymentProblemTypes.Validation,
                     "Validation Failed",
-                    "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code.");
+                    "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code or supported crypto asset.");
             }
 
             var command = new AuthorizePaymentCommand(
