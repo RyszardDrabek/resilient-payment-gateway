@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application.Payments;
+using PaymentGateway.Application.Web3;
 using PaymentGateway.Infrastructure.Persistence;
 using PaymentGateway.Infrastructure.Web3;
 using Testcontainers.PostgreSql;
@@ -166,7 +167,7 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
         var pendingResponse = await client.GetAsync("/ops/web3/pending");
         pendingResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var pendingList = await pendingResponse.Content.ReadFromJsonAsync<List<PendingObservationDto>>();
-        pendingList.Should().Contain(p => p.PaymentId == payment.PaymentId && p.Status == "pending" && p.ConfirmationDepth == 1);
+        pendingList.Should().Contain(p => p.PaymentId == payment.PaymentId && p.Status == Web3SettlementStatusExtensions.Pending && p.ConfirmationDepth == 1);
 
         // 3. Advance confirmations to 3 (finality met) - AC-2
         var simulator = factory.Services.GetRequiredService<IWeb3ChainClient>() as LocalWeb3SimulatorClient;
@@ -177,7 +178,7 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
         var confirmResponse = await client.PostAsync($"/ops/web3/payments/{payment.PaymentId}/confirm", null);
         confirmResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var confirmResult = await confirmResponse.Content.ReadFromJsonAsync<PendingObservationDto>();
-        confirmResult!.Status.Should().Be("settled");
+        confirmResult!.Status.Should().Be(Web3SettlementStatusExtensions.Settled);
         confirmResult.ConfirmationDepth.Should().Be(3);
 
         // Verify payment is now Captured, retaining txHash (AC-2)
@@ -223,12 +224,62 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
         var confirmResponse = await client.PostAsync($"/ops/web3/payments/{payment.PaymentId}/confirm", null);
         confirmResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var confirmResult = await confirmResponse.Content.ReadFromJsonAsync<PendingObservationDto>();
-        confirmResult!.Status.Should().Be("reorgpending");
+        confirmResult!.Status.Should().Be(Web3SettlementStatusExtensions.ReorgPending);
 
         // Verify payment remains Pending (does not transition to Captured)
         var getResponse = await client.GetAsync($"/payments/{payment.PaymentId}");
         var currentPayment = await getResponse.Content.ReadFromJsonAsync<PaymentDto>();
         currentPayment!.State.Should().Be("Pending");
+    }
+
+    [Fact]
+    public async Task WhenOnChainTransactionReverts_RestoresPriorState()
+    {
+        if (!_dockerAvailable) return;
+
+        using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
+        using var client = CreateAuthenticatedClient(factory);
+
+        // 1. Authorize USDC payment off-chain
+        var authRequest = new AuthorizePaymentRequest(
+            IdempotencyKey: $"web3_revert_auth_{Guid.NewGuid():N}",
+            PartyId: "merchant_party_revert",
+            Amount: 10000000L, // 10 USDC
+            Currency: "USDC");
+
+        var authResponse = await client.PostAsJsonAsync("/payments", authRequest);
+        authResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var payment = await authResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        payment.Should().NotBeNull();
+        payment!.State.Should().Be("Authorized");
+
+        // 2. Capture payment on-chain (broadcasts tx, enters Pending)
+        using var captureReq = new HttpRequestMessage(HttpMethod.Post, $"/payments/{payment.PaymentId}/capture");
+        captureReq.Headers.Add("Idempotency-Key", $"web3_revert_cap_{Guid.NewGuid():N}");
+        var captureResponse = await client.SendAsync(captureReq);
+        captureResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var capturePayment = await captureResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        capturePayment!.State.Should().Be("Pending");
+
+        var txHash = capturePayment.ChannelReference!;
+
+        // 3. Simulate on-chain revert with finality
+        var simulator = factory.Services.GetRequiredService<IWeb3ChainClient>() as LocalWeb3SimulatorClient;
+        simulator.Should().NotBeNull();
+        simulator!.SimulateRevert(txHash);
+        simulator.SetConfirmations(txHash, 3);
+
+        // 4. Trigger watcher via /ops/web3/payments/{id}/confirm
+        var confirmResponse = await client.PostAsync($"/ops/web3/payments/{payment.PaymentId}/confirm", null);
+        confirmResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var confirmResult = await confirmResponse.Content.ReadFromJsonAsync<PendingObservationDto>();
+        confirmResult!.Status.Should().Be(Web3SettlementStatusExtensions.Settled);
+
+        // 5. Verify payment state was restored to Authorized
+        var finalGetResponse = await client.GetAsync($"/payments/{payment.PaymentId}");
+        finalGetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var finalPayment = await finalGetResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        finalPayment!.State.Should().Be("Authorized");
     }
 
     [Fact]

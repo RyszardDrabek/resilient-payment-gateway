@@ -100,7 +100,7 @@ public sealed class Web3FinalityWatcherServiceTests
         var mediator = new FakeMediator(repo);
 
         var txHash = "0xabc123456789";
-        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash, "capture");
+        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash);
         await repo.AddAsync(payment);
 
         chainClient.Receipts[txHash] = new Web3TransactionReceipt(
@@ -139,7 +139,7 @@ public sealed class Web3FinalityWatcherServiceTests
         var mediator = new FakeMediator(repo);
 
         var txHash = "0xfinalized_capture";
-        var payment = Payment.CreatePending("cust_1", 2500000L, "USDC", "WEB3", txHash, "capture");
+        var payment = Payment.CreatePending("cust_1", 2500000L, "USDC", "WEB3", txHash);
         await repo.AddAsync(payment);
 
         chainClient.Receipts[txHash] = new Web3TransactionReceipt(
@@ -184,7 +184,7 @@ public sealed class Web3FinalityWatcherServiceTests
         var mediator = new FakeMediator(repo);
 
         var txHash = "0xfinalized_refund";
-        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash, "refund");
+        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash);
         await repo.AddAsync(payment);
 
         chainClient.Receipts[txHash] = new Web3TransactionReceipt(
@@ -228,7 +228,7 @@ public sealed class Web3FinalityWatcherServiceTests
         var mediator = new FakeMediator(repo);
 
         var txHash = "0xreorged_tx";
-        var payment = Payment.CreatePending("cust_reorg", 1000000L, "USDC", "WEB3", txHash, "capture");
+        var payment = Payment.CreatePending("cust_reorg", 1000000L, "USDC", "WEB3", txHash);
         await repo.AddAsync(payment);
 
         // Receipt is not in chainClient (dropped / reorged)
@@ -258,7 +258,7 @@ public sealed class Web3FinalityWatcherServiceTests
         var mediator = new FakeMediator(repo);
 
         var txHash = "0xbroadcast_only";
-        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash, "capture");
+        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash);
         await repo.AddAsync(payment);
 
         chainClient.Receipts[txHash] = new Web3TransactionReceipt(
@@ -296,7 +296,7 @@ public sealed class Web3FinalityWatcherServiceTests
         var mediator = new FakeMediator(repo);
 
         var txHash = "0xreverted_tx";
-        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash, "capture");
+        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash);
         await repo.AddAsync(payment);
 
         chainClient.Receipts[txHash] = new Web3TransactionReceipt(
@@ -320,13 +320,58 @@ public sealed class Web3FinalityWatcherServiceTests
         var observation = await sut.ObserveAndApplyFinalityAsync(payment.Id);
 
         // Assert
+        // observation.Status is Settled here because the watcher reached terminal resolution
+        // for this on-chain lifecycle (the revert was conclusively processed and handled).
         observation.Status.Should().Be(Web3SettlementStatus.Settled);
 
-        // Restores Authorized (prior state for capture)
+        // Restores Authorized (prior state for capture, identified by To == MerchantDestinationAddress)
         mediator.DispatchedCommands.Should().ContainSingle();
         var cmd = mediator.DispatchedCommands[0];
         cmd.Outcome.Should().Be(PaymentLifecycleOutcome.Authorized);
         payment.State.Should().Be(PaymentState.Authorized);
+    }
+
+    [Fact]
+    public async Task WhenOnChainRefundTransactionReverts_RestoresCapturedState()
+    {
+        var repo = new FakePaymentRepository();
+        var chainClient = new FakeChainClient();
+        var mediator = new FakeMediator(repo);
+
+        var txHash = "0xreverted_refund_tx";
+        var payment = Payment.CreatePending("cust_1", 1000000L, "USDC", "WEB3", txHash);
+        await repo.AddAsync(payment);
+
+        chainClient.Receipts[txHash] = new Web3TransactionReceipt(
+            TransactionHash: txHash,
+            From: _options.TreasuryAddress,
+            To: _options.RefundDestinationAddress,
+            Amount: 1000000L,
+            Asset: "USDC",
+            IsSuccess: false, // Reverted!
+            Confirmations: 5,
+            BlockTimestamp: DateTimeOffset.UtcNow);
+
+        var sut = new Web3FinalityWatcherService(
+            repo,
+            chainClient,
+            Options.Create(_options),
+            mediator,
+            NullLogger<Web3FinalityWatcherService>.Instance);
+
+        // Act
+        var observation = await sut.ObserveAndApplyFinalityAsync(payment.Id);
+
+        // Assert
+        // observation.Status is Settled here because the watcher reached terminal resolution
+        // for this on-chain lifecycle (the revert was conclusively processed and handled).
+        observation.Status.Should().Be(Web3SettlementStatus.Settled);
+
+        // Restores Captured (prior state for refund, identified by To == RefundDestinationAddress)
+        mediator.DispatchedCommands.Should().ContainSingle();
+        var cmd = mediator.DispatchedCommands[0];
+        cmd.Outcome.Should().Be(PaymentLifecycleOutcome.Captured);
+        payment.State.Should().Be(PaymentState.Captured);
     }
 
     [Fact]
@@ -336,9 +381,9 @@ public sealed class Web3FinalityWatcherServiceTests
         var chainClient = new FakeChainClient();
         var mediator = new FakeMediator(repo);
 
-        var p1 = Payment.CreatePending("c1", 1000L, "USDC", "WEB3", "0xtx1", "capture");
-        var p2 = Payment.CreatePending("c2", 2000L, "EUR", "ADYEN", "psp_2", "capture");
-        var p3 = Payment.CreatePending("c3", 3000L, "USDC", "WEB3", "0xtx3", "refund");
+        var p1 = Payment.CreatePending("c1", 1000L, "USDC", "WEB3", "0xtx1");
+        var p2 = Payment.CreatePending("c2", 2000L, "EUR", "ADYEN", "psp_2");
+        var p3 = Payment.CreatePending("c3", 3000L, "USDC", "WEB3", "0xtx3");
 
         await repo.AddAsync(p1);
         await repo.AddAsync(p2);

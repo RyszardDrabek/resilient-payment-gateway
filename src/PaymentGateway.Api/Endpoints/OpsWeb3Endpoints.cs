@@ -17,7 +17,7 @@ public static class OpsWeb3Endpoints
                 p.TransactionHash,
                 p.ConfirmationDepth,
                 p.RequiredConfirmations,
-                Status = p.Status.ToString().ToLowerInvariant(),
+                Status = p.Status.ToStatusString(),
                 p.Message
             });
 
@@ -33,7 +33,7 @@ public static class OpsWeb3Endpoints
                 result.TransactionHash,
                 result.ConfirmationDepth,
                 result.RequiredConfirmations,
-                Status = result.Status.ToString().ToLowerInvariant(),
+                Status = result.Status.ToStatusString(),
                 result.Message
             });
         });
@@ -47,7 +47,7 @@ public static class OpsWeb3Endpoints
                 r.TransactionHash,
                 r.ConfirmationDepth,
                 r.RequiredConfirmations,
-                Status = r.Status.ToString().ToLowerInvariant(),
+                Status = r.Status.ToStatusString(),
                 r.Message
             });
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,11 @@ public sealed class Web3FinalityWatcherService : IWeb3FinalityWatcherService
     private readonly Web3Options _options;
     private readonly IMediator _mediator;
     private readonly ILogger<Web3FinalityWatcherService> _logger;
+
+    // Short-lived per-txHash cache (10s TTL) to prevent duplicate chain RPC round-trips
+    // when /ops/web3/pending is followed by /ops/web3/watch-all in rapid succession.
+    private readonly ConcurrentDictionary<string, (Web3TransactionReceipt? Receipt, DateTimeOffset CachedAt)> _receiptCache = new();
+    private static readonly TimeSpan ReceiptCacheTtl = TimeSpan.FromSeconds(10);
 
     public Web3FinalityWatcherService(
         IPaymentRepository paymentRepository,
@@ -70,7 +76,7 @@ public sealed class Web3FinalityWatcherService : IWeb3FinalityWatcherService
         }
 
         var txHash = payment.ChannelReference;
-        var receipt = await _chainClient.GetReceiptAsync(txHash, ct);
+        var receipt = await GetReceiptWithCacheAsync(txHash, ct);
 
         // AC-3: Reorganized or dropped transaction before finality
         if (receipt is null)
@@ -108,11 +114,17 @@ public sealed class Web3FinalityWatcherService : IWeb3FinalityWatcherService
                 Message: $"Transaction awaiting finality confirmation ({receipt.Confirmations}/{_options.RequiredFinalityConfirmations}). Payment remains pending.");
         }
 
+        // Invalidate cache since state transition is about to occur
+        _receiptCache.TryRemove(txHash, out _);
+
+        // Identify operation type exclusively via on-chain transfer destination address (receipt.To)
+        var isRefund = string.Equals(receipt.To, _options.RefundDestinationAddress, StringComparison.OrdinalIgnoreCase);
+
         // AC-2, AC-4: Finality policy satisfied
         if (!receipt.IsSuccess)
         {
-            // On-chain revert: restore prior state
-            var priorOutcome = string.Equals(payment.DeclineReason, "refund", StringComparison.OrdinalIgnoreCase)
+            // On-chain revert: restore prior committed state (Authorized for capture, Captured for refund)
+            var priorOutcome = isRefund
                 ? PaymentLifecycleOutcome.Captured
                 : PaymentLifecycleOutcome.Authorized;
 
@@ -138,8 +150,7 @@ public sealed class Web3FinalityWatcherService : IWeb3FinalityWatcherService
         }
 
         // Finalized and successful -> complete corresponding transition (AC-2)
-        var targetOutcome = (string.Equals(payment.DeclineReason, "refund", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(receipt.To, _options.RefundDestinationAddress, StringComparison.OrdinalIgnoreCase))
+        var targetOutcome = isRefund
             ? PaymentLifecycleOutcome.Refunded
             : PaymentLifecycleOutcome.Captured;
 
@@ -204,7 +215,7 @@ public sealed class Web3FinalityWatcherService : IWeb3FinalityWatcherService
                 continue;
             }
 
-            var receipt = await _chainClient.GetReceiptAsync(payment.ChannelReference, ct);
+            var receipt = await GetReceiptWithCacheAsync(payment.ChannelReference, ct);
             if (receipt is null)
             {
                 results.Add(new Web3SettlementObservation(
@@ -229,5 +240,18 @@ public sealed class Web3FinalityWatcherService : IWeb3FinalityWatcherService
         }
 
         return results;
+    }
+
+    private async Task<Web3TransactionReceipt?> GetReceiptWithCacheAsync(string txHash, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_receiptCache.TryGetValue(txHash, out var entry) && now - entry.CachedAt < ReceiptCacheTtl)
+        {
+            return entry.Receipt;
+        }
+
+        var receipt = await _chainClient.GetReceiptAsync(txHash, ct);
+        _receiptCache[txHash] = (receipt, now);
+        return receipt;
     }
 }

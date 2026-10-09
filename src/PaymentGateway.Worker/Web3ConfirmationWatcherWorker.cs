@@ -20,14 +20,11 @@ public sealed class Web3ConfirmationWatcherWorker(
             try
             {
                 using var scope = serviceProvider.CreateScope();
-                var watcherService = scope.ServiceProvider.GetService<IWeb3FinalityWatcherService>();
-                if (watcherService is not null)
+                var watcherService = scope.ServiceProvider.GetRequiredService<IWeb3FinalityWatcherService>();
+                var results = await watcherService.WatchAllPendingSettlementsAsync(stoppingToken);
+                if (results.Count > 0)
                 {
-                    var results = await watcherService.WatchAllPendingSettlementsAsync(stoppingToken);
-                    if (results.Count > 0)
-                    {
-                        logger.LogInformation("Web3ConfirmationWatcherWorker processed {Count} pending settlements", results.Count);
-                    }
+                    logger.LogInformation("Web3ConfirmationWatcherWorker processed {Count} pending settlements", results.Count);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

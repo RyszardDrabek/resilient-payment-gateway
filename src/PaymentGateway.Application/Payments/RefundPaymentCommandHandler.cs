@@ -101,7 +101,7 @@ public sealed class RefundPaymentCommandHandler(
         // Move payment to Pending transition state, retain tx hash, and do not report as refunded.
         if (settlement.IsUnanswered && !string.IsNullOrWhiteSpace(settlement.ChannelReference))
         {
-            payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference, "refund");
+            payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference);
             await repository.UpdateAsync(payment, ct);
 
             var pendingDto = PaymentMapper.ToDto(payment);

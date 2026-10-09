@@ -101,7 +101,7 @@ public sealed class CapturePaymentCommandHandler(
         // Move payment to Pending transition state, retain tx hash, and do not report as captured.
         if (settlement.IsUnanswered && !string.IsNullOrWhiteSpace(settlement.ChannelReference))
         {
-            payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference, "capture");
+            payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference);
             await repository.UpdateAsync(payment, ct);
 
             var pendingDto = PaymentMapper.ToDto(payment);
