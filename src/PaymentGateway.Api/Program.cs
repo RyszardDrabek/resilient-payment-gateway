@@ -70,6 +70,7 @@ app.MapPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();
 app.MapOpsWeb3Endpoints();
+app.MapRiskEndpoints();
 app.MapGet("/health", async (PaymentDbContext db, CancellationToken ct) =>
 {
     var canConnect = await db.Database.CanConnectAsync(ct);
