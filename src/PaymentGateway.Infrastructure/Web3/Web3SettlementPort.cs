@@ -206,11 +206,22 @@ public sealed class Web3SettlementPort : ISettlementPort
         var receipt = await _chainClient.GetReceiptAsync(channelReference, ct);
         if (receipt is null)
         {
-            return SettlementResult.Unanswered(ChannelName, "Transaction receipt not found on chain.");
+            return SettlementResult.Unanswered(ChannelName, "Transaction receipt not found on chain.", channelReference);
         }
 
-        return receipt.IsSuccess
-            ? SettlementResult.Success(ChannelName, receipt.TransactionHash)
-            : SettlementResult.Declined(ChannelName, receipt.TransactionHash, "Transaction reverted on chain.");
+        if (!receipt.IsSuccess)
+        {
+            return SettlementResult.Declined(ChannelName, receipt.TransactionHash, "Transaction reverted on chain.");
+        }
+
+        if (receipt.Confirmations < _options.RequiredFinalityConfirmations)
+        {
+            return SettlementResult.Unanswered(
+                ChannelName,
+                $"Transaction awaiting finality confirmation ({receipt.Confirmations}/{_options.RequiredFinalityConfirmations}).",
+                receipt.TransactionHash);
+        }
+
+        return SettlementResult.Success(ChannelName, receipt.TransactionHash);
     }
 }

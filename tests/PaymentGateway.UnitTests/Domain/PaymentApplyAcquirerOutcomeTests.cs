@@ -127,4 +127,45 @@ public sealed class PaymentApplyAcquirerOutcomeTests
         payment.Version.Should().Be(authorizedVersion);
         payment.DomainEvents.Should().BeEmpty();
     }
+
+    [Fact]
+    public void FWEB302_AC1_WhenAuthorizedPaymentMovesToPending_TransitionsToPending_AndEmitsDomainEvent()
+    {
+        // Arrange
+        var payment = Payment.Authorize("cust_web3", 5000000L, "USDC", "WEB3", "web3_auth_123");
+        payment.ClearDomainEvents();
+        var initialVersion = payment.Version;
+
+        // Act: broadcast transfer pending finality
+        var applied = payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, "0xabcdef1234567890");
+
+        // Assert
+        applied.Should().BeTrue();
+        payment.State.Should().Be(PaymentState.Pending);
+        payment.ChannelReference.Should().Be("0xabcdef1234567890");
+        payment.Version.Should().Be(initialVersion + 1);
+
+        var domainEvt = payment.DomainEvents.Single().Should().BeOfType<PaymentTransitionDomainEvent>().Subject;
+        domainEvt.Outcome.Should().Be(PaymentLifecycleOutcome.Pending);
+    }
+
+    [Fact]
+    public void FWEB302_AC1_WhenCapturedPaymentReceivesLatePending_DoesNotRevertState_AndReturnsFalse()
+    {
+        // Arrange
+        var payment = Payment.Authorize("cust_web3", 5000000L, "USDC", "WEB3", "web3_auth_123");
+        payment.Capture("0xfinalized_hash");
+        payment.ClearDomainEvents();
+        var capturedVersion = payment.Version;
+
+        // Act: late pending arrives
+        var applied = payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, "0xlate_hash");
+
+        // Assert
+        applied.Should().BeFalse();
+        payment.State.Should().Be(PaymentState.Captured);
+        payment.ChannelReference.Should().Be("0xfinalized_hash");
+        payment.Version.Should().Be(capturedVersion);
+        payment.DomainEvents.Should().BeEmpty();
+    }
 }

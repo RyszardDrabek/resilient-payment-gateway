@@ -12,4 +12,6 @@ public sealed class Web3Options
     public bool SecretlessMode { get; set; } = true;
     public string[] SupportedAssets { get; set; } = ["USDC"];
     public int RequiredFinalityConfirmations { get; set; } = 1;
+    public int? InitialConfirmations { get; set; }
+    public TimeSpan FinalityTimeout { get; set; } = TimeSpan.FromMinutes(2);
 }

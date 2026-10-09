@@ -97,6 +97,21 @@ public sealed class CapturePaymentCommandHandler(
             settlement = SettlementResult.Unanswered(payment.SettlementChannel, ex.Message, payment.Id);
         }
 
+        // F-WEB3-02 AC-1: On-chain settlement broadcast submitted but awaiting finality confirmation.
+        // Move payment to Pending transition state, retain tx hash, and do not report as captured.
+        if (settlement.IsUnanswered && !string.IsNullOrWhiteSpace(settlement.ChannelReference))
+        {
+            payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference);
+            await repository.UpdateAsync(payment, ct);
+
+            var pendingDto = PaymentMapper.ToDto(payment);
+            var serializedPending = JsonSerializer.Serialize(pendingDto);
+            record.Complete(200, serializedPending, payment.Id);
+            await idempotencyRepository.UpdateAsync(record, ct);
+
+            return pendingDto;
+        }
+
         // AC-5: If settlement channel rejects or fails to answer, leave in prior state
         if (!settlement.IsSuccessful)
         {

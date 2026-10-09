@@ -17,8 +17,12 @@ public record SettlementResult(
     public static SettlementResult Declined(string channel, string? channelReference, string declineReason, string? merchantReference = null) =>
         new(false, channel, channelReference ?? string.Empty, declineReason, false, merchantReference, false);
 
-    public static SettlementResult Unanswered(string channel, string declineReason, string? merchantReference = null) =>
-        new(false, channel, string.Empty, declineReason, true, merchantReference, false);
+    public static SettlementResult Unanswered(
+        string channel,
+        string declineReason,
+        string? merchantReference = null,
+        string? channelReference = null) =>
+        new(false, channel, channelReference ?? (!string.IsNullOrWhiteSpace(merchantReference) && merchantReference.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? merchantReference : string.Empty), declineReason, true, merchantReference, false);
 
     public static SettlementResult ConfigurationFail(string channel, string declineReason, string? merchantReference = null) =>
         new(false, channel, string.Empty, declineReason, false, merchantReference, true);
