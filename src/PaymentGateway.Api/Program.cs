@@ -69,6 +69,7 @@ app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = 
 app.MapPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();
+app.MapOpsWeb3Endpoints();
 app.MapGet("/health", async (PaymentDbContext db, CancellationToken ct) =>
 {
     var canConnect = await db.Database.CanConnectAsync(ct);

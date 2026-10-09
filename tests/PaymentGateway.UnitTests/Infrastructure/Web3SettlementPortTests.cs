@@ -193,4 +193,39 @@ public sealed class Web3SettlementPortTests
         receipt.Should().NotBeNull();
         receipt!.Amount.Should().Be(preciseAmount); // Preserved without coercion to 2 decimals
     }
+
+    [Fact]
+    public async Task QueryPaymentStatus_WhenConfirmationsLessThanRequired_ReturnsUnansweredAwaitingFinality_AC1_AC4()
+    {
+        var paymentId = $"pay_{Guid.NewGuid():N}";
+        var authResult = await _port.AuthorizeAsync("party_conf", 1000000L, "USDC");
+        var captureResult = await _port.CaptureAsync(paymentId, authResult.ChannelReference, 1000000L, "USDC");
+
+        // Simulate 0 confirmations with 2 required
+        _options.RequiredFinalityConfirmations = 2;
+        _simulatorClient.SetConfirmations(captureResult.ChannelReference, 0);
+
+        var query = await _port.QueryPaymentStatusAsync(paymentId, captureResult.ChannelReference);
+
+        query.IsSuccessful.Should().BeFalse();
+        query.IsUnanswered.Should().BeTrue();
+        query.DeclineReason.Should().Contain("awaiting finality confirmation");
+    }
+
+    [Fact]
+    public async Task QueryPaymentStatus_WhenReceiptDroppedOrReorged_ReturnsUnanswered_AC3()
+    {
+        var paymentId = $"pay_{Guid.NewGuid():N}";
+        var authResult = await _port.AuthorizeAsync("party_reorg", 1000000L, "USDC");
+        var captureResult = await _port.CaptureAsync(paymentId, authResult.ChannelReference, 1000000L, "USDC");
+
+        // Simulate reorg
+        _simulatorClient.SimulateReorg(captureResult.ChannelReference);
+
+        var query = await _port.QueryPaymentStatusAsync(paymentId, captureResult.ChannelReference);
+
+        query.IsSuccessful.Should().BeFalse();
+        query.IsUnanswered.Should().BeTrue();
+        query.DeclineReason.Should().Contain("Transaction receipt not found on chain");
+    }
 }

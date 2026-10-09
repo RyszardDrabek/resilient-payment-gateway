@@ -83,6 +83,8 @@ public sealed class LocalWeb3SimulatorClient : IWeb3ChainClient
         _balances.AddOrUpdate(fromKey, _ => 0 - amount, (_, curr) => curr - amount);
         _balances.AddOrUpdate(toKey, _ => amount, (_, curr) => curr + amount);
 
+        var confirmations = _options.InitialConfirmations ?? Math.Max(1, _options.RequiredFinalityConfirmations);
+
         var receipt = new Web3TransactionReceipt(
             TransactionHash: txHash,
             From: normFrom,
@@ -90,7 +92,7 @@ public sealed class LocalWeb3SimulatorClient : IWeb3ChainClient
             Amount: amount,
             Asset: normAsset,
             IsSuccess: true,
-            Confirmations: Math.Max(1, _options.RequiredFinalityConfirmations),
+            Confirmations: confirmations,
             BlockTimestamp: DateTimeOffset.UtcNow);
 
         _receipts[txHash] = receipt;
@@ -101,12 +103,13 @@ public sealed class LocalWeb3SimulatorClient : IWeb3ChainClient
         }
 
         _logger.LogInformation(
-            "Web3 simulated transfer broadcast: {Amount} {Asset} from {From} to {To}, txHash={TxHash}",
+            "Web3 simulated transfer broadcast: {Amount} {Asset} from {From} to {To}, txHash={TxHash}, confirmations={Confirmations}",
             amount,
             normAsset,
             normFrom,
             normTo,
-            txHash);
+            txHash,
+            confirmations);
 
         return Task.FromResult(txHash);
     }
@@ -130,6 +133,35 @@ public sealed class LocalWeb3SimulatorClient : IWeb3ChainClient
         }
 
         return Task.FromResult(false);
+    }
+
+    public void SetConfirmations(string transactionHash, int confirmations)
+    {
+        if (_receipts.TryGetValue(transactionHash, out var existing))
+        {
+            _receipts[transactionHash] = existing with { Confirmations = confirmations };
+            _logger.LogInformation("Web3 simulator updated confirmations for {TxHash}: {Confirmations}", transactionHash, confirmations);
+        }
+    }
+
+    public void DropReceipt(string transactionHash)
+    {
+        _receipts.TryRemove(transactionHash, out _);
+        _logger.LogWarning("Web3 simulator dropped receipt for {TxHash} (simulating drop/reorg)", transactionHash);
+    }
+
+    public void SimulateReorg(string transactionHash)
+    {
+        DropReceipt(transactionHash);
+    }
+
+    public void SimulateRevert(string transactionHash)
+    {
+        if (_receipts.TryGetValue(transactionHash, out var existing))
+        {
+            _receipts[transactionHash] = existing with { IsSuccess = false };
+            _logger.LogWarning("Web3 simulator marked {TxHash} as reverted on chain", transactionHash);
+        }
     }
 
     public long GetBalance(string address, string asset)

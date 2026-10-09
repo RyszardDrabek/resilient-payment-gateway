@@ -232,6 +232,8 @@ public sealed class Payment
             Enums.PaymentLifecycleOutcome.Captured => PaymentState.Captured,
             Enums.PaymentLifecycleOutcome.Cancelled => PaymentState.Cancelled,
             Enums.PaymentLifecycleOutcome.Refunded => PaymentState.Refunded,
+            Enums.PaymentLifecycleOutcome.Pending => PaymentState.Pending,
+            Enums.PaymentLifecycleOutcome.Unknown => PaymentState.Unknown,
             _ => (PaymentState?)null
         };
 
@@ -253,8 +255,8 @@ public sealed class Payment
             return false;
         }
 
-        // Captured cannot revert to Authorized or Declined
-        if (State == PaymentState.Captured && targetState.Value is PaymentState.Authorized or PaymentState.Declined)
+        // Captured cannot revert to Authorized, Declined, Pending, or Unknown
+        if (State == PaymentState.Captured && targetState.Value is PaymentState.Authorized or PaymentState.Declined or PaymentState.Pending or PaymentState.Unknown)
         {
             return false;
         }

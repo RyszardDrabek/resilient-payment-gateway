@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.Configure<PaymentGateway.Infrastructure.Web3.Web3Options>(configuration.GetSection(PaymentGateway.Infrastructure.Web3.Web3Options.SectionName));
         services.AddSingleton<PaymentGateway.Infrastructure.Web3.IWeb3ChainClient, PaymentGateway.Infrastructure.Web3.LocalWeb3SimulatorClient>();
         services.AddScoped<PaymentGateway.Infrastructure.Web3.Web3SettlementPort>();
+        services.AddScoped<PaymentGateway.Application.Web3.IWeb3FinalityWatcherService, PaymentGateway.Infrastructure.Web3.Web3FinalityWatcherService>();
 
         services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort>(sp =>
         {
