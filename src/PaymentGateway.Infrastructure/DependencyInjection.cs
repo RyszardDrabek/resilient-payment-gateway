@@ -80,9 +80,16 @@ public static class DependencyInjection
         var rabbitUser = configuration["RabbitMq:Username"] ?? "guest";
         var rabbitPass = configuration["RabbitMq:Password"] ?? "guest";
 
+        services.Configure<PaymentGateway.Infrastructure.Risk.RiskOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Risk.RiskOptions.SectionName));
+        services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskVerdictRepository, PaymentGateway.Infrastructure.Repositories.RiskVerdictRepository>();
+        services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskFlagRepository, PaymentGateway.Infrastructure.Repositories.RiskFlagRepository>();
+        services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskContextStore, PaymentGateway.Infrastructure.Repositories.PartyRiskContextStore>();
+        services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskScorer, PaymentGateway.Infrastructure.Risk.DeterministicRiskScorer>();
+
         services.AddMassTransit(x =>
         {
             x.AddConsumer<PaymentGateway.Infrastructure.Events.PaymentLifecycleTestConsumer>();
+            x.AddConsumer<PaymentGateway.Infrastructure.Consumers.PaymentLifecycleRiskConsumer>();
 
             if (useInMemory)
             {
