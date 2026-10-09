@@ -19,7 +19,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.ToTable("Payments");
             b.HasKey(p => p.Id);
             b.Property(p => p.PartyId).IsRequired().HasMaxLength(128);
-            b.Property(p => p.Currency).IsRequired().HasMaxLength(3);
+            b.Property(p => p.Currency).IsRequired().HasMaxLength(12);
             b.Property(p => p.SettlementChannel).IsRequired().HasMaxLength(64);
             b.Property(p => p.ChannelReference).HasMaxLength(128);
             b.Property(p => p.DeclineReason).HasMaxLength(256);
