@@ -83,14 +83,13 @@ public sealed class AuthorizePaymentCommandHandler(
                 request.Amount,
                 request.Currency,
                 request.SettlementChannel,
+                request.IdempotencyKey,
                 ct);
         }
         catch (Exception ex)
         {
-            settlement = new SettlementResult(
-                false,
+            settlement = SettlementResult.Unanswered(
                 request.SettlementChannel ?? "UNKNOWN",
-                string.Empty,
                 $"Settlement channel failed to answer: {ex.Message}");
         }
 
@@ -98,7 +97,9 @@ public sealed class AuthorizePaymentCommandHandler(
 
         var payment = settlement.IsAuthorized
             ? Payment.Authorize(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference)
-            : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
+            : settlement.IsUnanswered
+                ? Payment.CreatePending(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason)
+                : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
 
         await repository.AddAsync(payment, ct);
 
