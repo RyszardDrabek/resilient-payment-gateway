@@ -59,7 +59,7 @@ public static class RiskEndpoints
                     $"Unsupported disposition value '{request.Disposition}'. Supported values: confirmed, false_positive, escalated.");
             }
 
-            var commandResult = await mediator.Send(new DispositionRiskFlagCommand(id, normalized), ct);
+            var commandResult = await mediator.Send(new DispositionRiskFlagCommand(id, normalized, request.Notes), ct);
 
             return commandResult.Outcome switch
             {

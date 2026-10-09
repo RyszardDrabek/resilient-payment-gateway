@@ -88,6 +88,24 @@ public sealed class RiskFlagApplicationTests
     }
 
     [Fact]
+    public async Task DispositionRiskFlagCommandHandler_WithNotes_PersistsReviewerNotes()
+    {
+        var repo = new InMemoryRiskFlagRepository();
+        var now = DateTimeOffset.UtcNow;
+        var flag = new RiskFlag("flag-10", "p10", "party-10", "e10", "Reason 10", now);
+        repo.Flags.Add(flag);
+
+        var handler = new DispositionRiskFlagCommandHandler(repo);
+        var result = await handler.Handle(new DispositionRiskFlagCommand("flag-10", "confirmed", "Confirmed fraud case"), CancellationToken.None);
+
+        result.Outcome.Should().Be(DispositionOutcome.Success);
+        result.Flag!.ReviewerNotes.Should().Be("Confirmed fraud case");
+
+        var saved = await repo.GetByIdAsync("flag-10");
+        saved!.ReviewerNotes.Should().Be("Confirmed fraud case");
+    }
+
+    [Fact]
     public async Task DispositionRiskFlagCommandHandler_NotFound_ReturnsNotFoundOutcome()
     {
         var repo = new InMemoryRiskFlagRepository();

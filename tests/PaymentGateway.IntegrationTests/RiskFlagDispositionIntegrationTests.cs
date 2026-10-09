@@ -155,6 +155,7 @@ public sealed class RiskFlagDispositionIntegrationTests : IAsyncLifetime
         updatedFlag.Status.Should().Be("Dispositioned");
         updatedFlag.Disposition.Should().Be("false_positive");
         updatedFlag.DispositionedAt.Should().NotBeNull();
+        updatedFlag.ReviewerNotes.Should().Be("Checked with customer");
 
         // Verify it is no longer in open flags list
         var listResponse = await client.GetAsync("/risk/flags");

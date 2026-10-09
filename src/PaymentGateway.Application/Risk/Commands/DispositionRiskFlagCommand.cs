@@ -31,7 +31,7 @@ public sealed record DispositionRiskFlagResult(
         new(DispositionOutcome.InvalidDisposition, ErrorMessage: $"Unsupported disposition value '{disposition}'. Supported values: confirmed, false_positive, escalated.");
 }
 
-public sealed record DispositionRiskFlagCommand(string FlagId, string Disposition) : IRequest<DispositionRiskFlagResult>;
+public sealed record DispositionRiskFlagCommand(string FlagId, string Disposition, string? Notes = null) : IRequest<DispositionRiskFlagResult>;
 
 public sealed class DispositionRiskFlagCommandHandler(IRiskFlagRepository repository)
     : IRequestHandler<DispositionRiskFlagCommand, DispositionRiskFlagResult>
@@ -60,18 +60,7 @@ public sealed class DispositionRiskFlagCommandHandler(IRiskFlagRepository reposi
             return DispositionRiskFlagResult.AlreadyDispositioned(flag.Id, flag.Disposition);
         }
 
-        try
-        {
-            flag.ApplyDisposition(normalized, DateTimeOffset.UtcNow);
-        }
-        catch (InvalidOperationException)
-        {
-            return DispositionRiskFlagResult.AlreadyDispositioned(flag.Id, flag.Disposition);
-        }
-        catch (ArgumentException)
-        {
-            return DispositionRiskFlagResult.InvalidDisposition(request.Disposition);
-        }
+        flag.ApplyDisposition(normalized, DateTimeOffset.UtcNow, request.Notes);
 
         await repository.SaveAsync(flag, ct);
         return DispositionRiskFlagResult.Succeeded(RiskFlagDto.FromDomain(flag));

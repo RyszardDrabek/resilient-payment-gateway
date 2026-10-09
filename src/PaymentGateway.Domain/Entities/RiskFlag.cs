@@ -10,6 +10,7 @@ public sealed class RiskFlag
     public string Status { get; private set; } = "Open";
     public string? Disposition { get; private set; }
     public DateTimeOffset? DispositionedAt { get; private set; }
+    public string? ReviewerNotes { get; private set; }
     public DateTimeOffset RaisedAt { get; private set; }
 
     public static readonly IReadOnlySet<string> SupportedDispositions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -19,7 +20,7 @@ public sealed class RiskFlag
         "escalated"
     };
 
-    public bool IsDispositioned => !string.IsNullOrEmpty(Disposition) || !string.Equals(Status, "Open", StringComparison.OrdinalIgnoreCase);
+    public bool IsDispositioned => Disposition is not null;
 
     private RiskFlag() { } // EF Core
 
@@ -40,7 +41,7 @@ public sealed class RiskFlag
         RaisedAt = raisedAt;
     }
 
-    public void ApplyDisposition(string disposition, DateTimeOffset dispositionedAt)
+    public void ApplyDisposition(string disposition, DateTimeOffset dispositionedAt, string? reviewerNotes = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(disposition);
         var normalized = disposition.Trim().ToLowerInvariant();
@@ -57,5 +58,6 @@ public sealed class RiskFlag
         Disposition = normalized;
         Status = "Dispositioned";
         DispositionedAt = dispositionedAt;
+        ReviewerNotes = string.IsNullOrWhiteSpace(reviewerNotes) ? null : reviewerNotes.Trim();
     }
 }

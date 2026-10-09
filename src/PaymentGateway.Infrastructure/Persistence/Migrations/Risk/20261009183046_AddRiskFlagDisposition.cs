@@ -26,6 +26,14 @@ public partial class AddRiskFlagDisposition : Migration
             type: "timestamp with time zone",
             nullable: true);
 
+        migrationBuilder.AddColumn<string>(
+            name: "ReviewerNotes",
+            schema: "risk",
+            table: "RiskFlags",
+            type: "character varying(1024)",
+            maxLength: 1024,
+            nullable: true);
+
         migrationBuilder.CreateIndex(
             name: "IX_RiskFlags_Status",
             schema: "risk",
@@ -48,6 +56,11 @@ public partial class AddRiskFlagDisposition : Migration
 
         migrationBuilder.DropColumn(
             name: "DispositionedAt",
+            schema: "risk",
+            table: "RiskFlags");
+
+        migrationBuilder.DropColumn(
+            name: "ReviewerNotes",
             schema: "risk",
             table: "RiskFlags");
     }

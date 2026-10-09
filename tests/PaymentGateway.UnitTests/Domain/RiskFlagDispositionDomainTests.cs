@@ -71,4 +71,37 @@ public sealed class RiskFlagDispositionDomainTests
             .WithMessage("*already dispositioned*");
         flag.Disposition.Should().Be("confirmed");
     }
+
+    [Fact]
+    public void RiskFlag_ApplyDisposition_WithNotes_SetsReviewerNotes()
+    {
+        var raisedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var flag = new RiskFlag("flag-1", "p1", "party-1", "e1", "Anomalous activity", raisedAt);
+
+        flag.ApplyDisposition("confirmed", DateTimeOffset.UtcNow, "Fraud team confirmed compromise");
+
+        flag.ReviewerNotes.Should().Be("Fraud team confirmed compromise");
+    }
+
+    [Fact]
+    public void RiskFlag_ApplyDisposition_WithWhitespaceNotes_SetsNullReviewerNotes()
+    {
+        var raisedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var flag = new RiskFlag("flag-1", "p1", "party-1", "e1", "Anomalous activity", raisedAt);
+
+        flag.ApplyDisposition("false_positive", DateTimeOffset.UtcNow, "   ");
+
+        flag.ReviewerNotes.Should().BeNull();
+    }
+
+    [Fact]
+    public void RiskFlag_IsDispositioned_DependsStrictlyOnDispositionPresence()
+    {
+        var raisedAt = DateTimeOffset.UtcNow;
+        var flag = new RiskFlag("flag-1", "p1", "party-1", "e1", "Anomalous activity", raisedAt);
+
+        flag.IsDispositioned.Should().BeFalse();
+        flag.ApplyDisposition("escalated", DateTimeOffset.UtcNow);
+        flag.IsDispositioned.Should().BeTrue();
+    }
 }

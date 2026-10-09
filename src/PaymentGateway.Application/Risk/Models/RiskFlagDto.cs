@@ -11,7 +11,8 @@ public sealed record RiskFlagDto(
     string Status,
     string? Disposition,
     DateTimeOffset RaisedAt,
-    DateTimeOffset? DispositionedAt)
+    DateTimeOffset? DispositionedAt,
+    string? ReviewerNotes = null)
 {
     public static RiskFlagDto FromDomain(RiskFlag flag) =>
         new(
@@ -23,7 +24,8 @@ public sealed record RiskFlagDto(
             flag.Status,
             flag.Disposition,
             flag.RaisedAt,
-            flag.DispositionedAt);
+            flag.DispositionedAt,
+            flag.ReviewerNotes);
 }
 
 public sealed record OpenRiskFlagsResponse(
