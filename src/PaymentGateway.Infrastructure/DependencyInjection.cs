@@ -50,12 +50,21 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(adyenOptions.TimeoutSeconds > 0 ? adyenOptions.TimeoutSeconds : 5);
         });
 
+        services.Configure<PaymentGateway.Infrastructure.Web3.Web3Options>(configuration.GetSection(PaymentGateway.Infrastructure.Web3.Web3Options.SectionName));
+        services.AddSingleton<PaymentGateway.Infrastructure.Web3.IWeb3ChainClient, PaymentGateway.Infrastructure.Web3.LocalWeb3SimulatorClient>();
+        services.AddScoped<PaymentGateway.Infrastructure.Web3.Web3SettlementPort>();
+
         services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort>(sp =>
         {
-            var activeChannel = configuration["PaymentGateway:ActiveChannel"];
+            var activeChannel = configuration["PaymentGateway:ActiveChannel"] ?? configuration["Settlement:ChannelId"];
             if (string.Equals(activeChannel, "MOCK", StringComparison.OrdinalIgnoreCase))
             {
                 return sp.GetRequiredService<PaymentGateway.Infrastructure.Services.MockSettlementPort>();
+            }
+
+            if (string.Equals(activeChannel, "WEB3", StringComparison.OrdinalIgnoreCase))
+            {
+                return sp.GetRequiredService<PaymentGateway.Infrastructure.Web3.Web3SettlementPort>();
             }
 
             return sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>();
