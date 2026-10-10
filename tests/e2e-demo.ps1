@@ -184,6 +184,7 @@ if ($scenarioList -contains "AdyenDecline") {
 # -----------------------------------------------------------------------------
 if ($scenarioList -contains "Web3HappyPath") {
     Write-Host "`n[SCENARIO 4] Web3 Channel: Native Crypto Settlement (Authorize -> On-Chain Capture -> Refund)" -ForegroundColor Magenta
+    # Standard Anvil/Hardhat local dev account #1 (0x70997970C51812dc3A010C7d01b50e0d17dc79C8)
     $party = "wallet_0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
     $amountUsdc = 25000000 # 25.000000 USDC (6 decimals)
     $idempAuth = [Guid]::NewGuid().ToString()
@@ -229,6 +230,7 @@ if ($scenarioList -contains "Web3HappyPath") {
 # -----------------------------------------------------------------------------
 if ($scenarioList -contains "Web3Cancel") {
     Write-Host "`n[SCENARIO 5] Web3 Channel: Payment Cancellation (Off-Chain Cancel)" -ForegroundColor Magenta
+    # Standard Anvil/Hardhat local dev account #2 (0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC)
     $party = "wallet_0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
     $idempAuth = [Guid]::NewGuid().ToString()
 

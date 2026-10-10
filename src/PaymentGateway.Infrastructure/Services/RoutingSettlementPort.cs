@@ -17,7 +17,7 @@ public sealed class RoutingSettlementPort : ISettlementPort
         _configuredActiveChannel = configuration?["PaymentGateway:ActiveChannel"] ?? configuration?["Settlement:ChannelId"];
     }
 
-    private ISettlementPort Resolve(string? channel)
+    private ISettlementPort ResolveByChannelName(string? channel)
     {
         if (string.Equals(channel, "WEB3", StringComparison.OrdinalIgnoreCase))
         {
@@ -29,23 +29,13 @@ public sealed class RoutingSettlementPort : ISettlementPort
             return _serviceProvider.GetRequiredService<MockSettlementPort>();
         }
 
-        if (string.Equals(channel, "ADYEN", StringComparison.OrdinalIgnoreCase))
-        {
-            return _serviceProvider.GetRequiredService<AdyenSettlementPort>();
-        }
-
-        if (string.Equals(_configuredActiveChannel, "WEB3", StringComparison.OrdinalIgnoreCase))
-        {
-            return _serviceProvider.GetRequiredService<Web3SettlementPort>();
-        }
-
-        if (string.Equals(_configuredActiveChannel, "MOCK", StringComparison.OrdinalIgnoreCase))
-        {
-            return _serviceProvider.GetRequiredService<MockSettlementPort>();
-        }
-
         return _serviceProvider.GetRequiredService<AdyenSettlementPort>();
     }
+
+    private ISettlementPort Resolve(string? channel)
+        => !string.IsNullOrWhiteSpace(channel)
+            ? ResolveByChannelName(channel)
+            : ResolveByChannelName(_configuredActiveChannel);
 
     public Task<SettlementResult> AuthorizeAsync(
         string partyId,
