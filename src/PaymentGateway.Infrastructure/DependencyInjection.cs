@@ -109,6 +109,13 @@ public static class DependencyInjection
             }
         });
 
+        services.Configure<MassTransitHostOptions>(options =>
+        {
+            options.WaitUntilStarted = true;
+            options.StartTimeout = TimeSpan.FromSeconds(30);
+            options.StopTimeout = TimeSpan.FromSeconds(30);
+        });
+
         return services;
     }
 }
