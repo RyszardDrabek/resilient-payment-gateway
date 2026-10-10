@@ -29,16 +29,15 @@ datasources:
         datasourceUid: 'loki'
         spanStartTimeShift: '-2m'
         spanEndTimeShift: '2m'
-        filterByTraceId: true
+        filterByTraceId: false
         filterBySpanId: false
-        tags:
-          - key: 'service.name'
-            value: 'service_name'
+        customQuery: true
+        query: '{service_name=~".+"} |= "${__trace.traceId}"'
       tracesToLogsV2:
         datasourceUid: 'loki'
         spanStartTimeShift: '-2m'
         spanEndTimeShift: '2m'
-        filterByTraceId: true
+        filterByTraceId: false
         filterBySpanId: false
-        tags:
-          - 'service.name'
+        customQuery: true
+        query: '{service_name=~".+"} |= "${__trace.traceId}"'
