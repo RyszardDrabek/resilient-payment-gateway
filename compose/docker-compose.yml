@@ -53,6 +53,12 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
 
+  loki:
+    image: grafana/loki:3.2.1
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
   api:
     build:
       context: ..
@@ -69,6 +75,8 @@ services:
       Outbox__Enabled: "false"
       Auth__JwtSigningKey: DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://loki:3100/otlp/v1/logs
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
     ports:
       - "5080:8080"
     depends_on:
@@ -89,6 +97,8 @@ services:
       RabbitMq__Username: guest
       RabbitMq__Password: guest
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://loki:3100/otlp/v1/logs
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
     depends_on:
       postgres:
         condition: service_healthy
