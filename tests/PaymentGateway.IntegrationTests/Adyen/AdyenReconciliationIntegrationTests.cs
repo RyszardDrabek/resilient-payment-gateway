@@ -1,11 +1,16 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using PaymentGateway.Application.Adyen;
 using PaymentGateway.Application.Events;
 using PaymentGateway.Domain.Entities;
@@ -85,13 +90,40 @@ public sealed class AdyenReconciliationIntegrationTests : IAsyncLifetime
             });
     }
 
+    private static string CreateJwtToken(string role = "merchant")
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(JwtKey);
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[]
+            {
+                new Claim("sub", "integration-test-user"),
+                new Claim("role", role)
+            }),
+            Expires = DateTime.UtcNow.AddHours(1),
+            Issuer = "payment-gateway",
+            Audience = "payment-gateway",
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = handler.CreateToken(descriptor);
+        return handler.WriteToken(token);
+    }
+
+    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwtToken());
+        return client;
+    }
+
     [Fact]
     public async Task AC1_When_Notifications_Arrive_OutOfOrder_Or_Duplicated_Leaves_Latest_Acquirer_Outcome()
     {
         if (!_dockerAvailable) return;
 
         await using var factory = CreateFactory();
-        var client = factory.CreateClient();
+        var client = CreateAuthenticatedClient(factory);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
@@ -146,7 +178,7 @@ public sealed class AdyenReconciliationIntegrationTests : IAsyncLifetime
         if (!_dockerAvailable) return;
 
         await using var factory = CreateFactory();
-        var client = factory.CreateClient();
+        var client = CreateAuthenticatedClient(factory);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
@@ -176,7 +208,7 @@ public sealed class AdyenReconciliationIntegrationTests : IAsyncLifetime
         if (!_dockerAvailable) return;
 
         await using var factory = CreateFactory();
-        var client = factory.CreateClient();
+        var client = CreateAuthenticatedClient(factory);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();
@@ -208,7 +240,7 @@ public sealed class AdyenReconciliationIntegrationTests : IAsyncLifetime
         if (!_dockerAvailable) return;
 
         await using var factory = CreateFactory();
-        var client = factory.CreateClient();
+        var client = CreateAuthenticatedClient(factory);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
 
@@ -248,7 +280,7 @@ public sealed class AdyenReconciliationIntegrationTests : IAsyncLifetime
         if (!_dockerAvailable) return;
 
         await using var factory = CreateFactory();
-        var client = factory.CreateClient();
+        var client = CreateAuthenticatedClient(factory);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         var validator = scope.ServiceProvider.GetRequiredService<IAdyenHmacValidator>();

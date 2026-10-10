@@ -71,10 +71,11 @@ app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();
 app.MapOpsWeb3Endpoints();
 app.MapRiskEndpoints();
-app.MapGet("/health", async (PaymentDbContext db, CancellationToken ct) =>
+app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, CancellationToken ct) =>
 {
-    var canConnect = await db.Database.CanConnectAsync(ct);
-    return canConnect
+    var canConnectPay = await db.Database.CanConnectAsync(ct);
+    var canConnectRisk = await riskDb.Database.CanConnectAsync(ct);
+    return (canConnectPay && canConnectRisk)
         ? Results.Ok(new { status = "Healthy" })
         : Results.Json(new { status = "Unhealthy" }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous();
