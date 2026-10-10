@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application;
 using PaymentGateway.Edge;
@@ -65,7 +66,12 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter())
     .WithLogging(l => l
         .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN in logs before export
-        .AddOtlpExporter());
+        .AddOtlpExporter())
+    .WithMetrics(m => m
+        .AddMeter("Microsoft.AspNetCore.Hosting")
+        .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
+        .AddMeter("PaymentGateway")
+        .AddPrometheusExporter());
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -96,6 +102,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
+app.MapPrometheusScrapingEndpoint().AllowAnonymous();
 app.MapPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();

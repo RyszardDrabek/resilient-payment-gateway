@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MediatR;
 using PaymentGateway.Domain.Entities;
+using PaymentGateway.Application.Metrics;
 using PaymentGateway.Domain.Enums;
 using PaymentGateway.Domain.Exceptions;
 using PaymentGateway.Domain.Ports;
@@ -102,6 +103,12 @@ public sealed class AuthorizePaymentCommandHandler(
                 : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
 
         await repository.AddAsync(payment, ct);
+
+        PaymentMetrics.RecordTransaction(payment.State.ToString(), channel ?? "UNKNOWN", "authorize");
+        if (payment.State == PaymentState.Declined)
+        {
+            PaymentMetrics.RecordDecline(settlement.DeclineReason ?? "Declined", channel ?? "UNKNOWN");
+        }
 
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);
