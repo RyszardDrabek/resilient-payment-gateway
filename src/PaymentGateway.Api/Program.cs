@@ -8,6 +8,7 @@ using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application;
 using PaymentGateway.Edge;
 using PaymentGateway.Edge.Telemetry;
+using Microsoft.EntityFrameworkCore;
 using PaymentGateway.Infrastructure;
 using PaymentGateway.Infrastructure.Persistence;
 
@@ -41,6 +42,9 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
     .WithTracing(t => t
         .AddAspNetCoreInstrumentation()
+        .AddSource("MassTransit")
+        .AddSource("Npgsql")
+        .AddSource("System.Net.Http")
         .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN before export
         .AddOtlpExporter())
     .WithLogging(l => l
@@ -58,6 +62,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 var app = builder.Build();
 
 app.Logger.LogInformation("PaymentGateway.Api starting");
+
+using (var scope = app.Services.CreateScope())
+{
+    var payDb = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+    await payDb.Database.MigrateAsync();
+    var riskDb = scope.ServiceProvider.GetRequiredService<RiskDbContext>();
+    await riskDb.Database.MigrateAsync();
+}
 
 app.UseForwardedHeaders();
 app.UseEdge();

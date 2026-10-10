@@ -1,3 +1,4 @@
+using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using PaymentGateway.Application;
@@ -10,7 +11,13 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Worker"))
-    .WithTracing(t => t.AddOtlpExporter());
+    .WithTracing(t => t
+        .AddSource("MassTransit")
+        .AddSource("Npgsql")
+        .AddSource("System.Net.Http")
+        .AddOtlpExporter())
+    .WithLogging(l => l
+        .AddOtlpExporter());
 
 builder.Services.AddHostedService<PaymentGateway.Worker.WorkerHeartbeat>();
 builder.Services.AddHostedService<PaymentGateway.Worker.Web3ConfirmationWatcherWorker>();
