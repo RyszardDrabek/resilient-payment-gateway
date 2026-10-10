@@ -39,22 +39,6 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
-builder.Logging.AddOpenTelemetry(logging =>
-{
-    logging.IncludeFormattedMessage = true;
-    logging.IncludeScopes = true;
-    logging.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("PaymentGateway.Api"));
-    logging.AddOtlpExporter(options =>
-    {
-        var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"];
-        if (!string.IsNullOrEmpty(endpoint))
-        {
-            options.Endpoint = new Uri(endpoint);
-            options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
-        }
-    });
-});
-
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
     .WithTracing(t => t
@@ -64,9 +48,23 @@ builder.Services.AddOpenTelemetry()
         .AddSource("System.Net.Http")
         .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN before export
         .AddOtlpExporter())
-    .WithLogging(l => l
-        .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN in logs before export
-        .AddOtlpExporter())
+    .WithLogging(logging =>
+    {
+        logging.AddInstrumentMasking(); // F-EDGE-03: mask PAN/token/IBAN in logs before export
+        logging.AddOtlpExporter(options =>
+        {
+            var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"];
+            if (!string.IsNullOrEmpty(endpoint))
+            {
+                options.Endpoint = new Uri(endpoint);
+                options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+            }
+        });
+    }, options =>
+    {
+        options.IncludeFormattedMessage = true;
+        options.IncludeScopes = true;
+    })
     .WithMetrics(m => m
         .AddMeter("Microsoft.AspNetCore.Hosting")
         .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
