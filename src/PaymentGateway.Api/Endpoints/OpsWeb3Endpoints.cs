@@ -6,7 +6,9 @@ public static class OpsWeb3Endpoints
 {
     public static IEndpointRouteBuilder MapOpsWeb3Endpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/ops/web3");
+        var group = app.MapGroup("/ops/web3")
+            .WithTags("Ops - Web3")
+            .RequireAuthorization();
 
         group.MapGet("/pending", async (IWeb3FinalityWatcherService watcherService, CancellationToken ct) =>
         {

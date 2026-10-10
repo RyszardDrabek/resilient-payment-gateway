@@ -6,7 +6,9 @@ public static class OpsReconciliationEndpoints
 {
     public static IEndpointRouteBuilder MapOpsReconciliationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/ops/reconciliation");
+        var group = app.MapGroup("/ops/reconciliation")
+            .WithTags("Ops - Reconciliation")
+            .RequireAuthorization();
 
         group.MapGet("/uncorrelated", async (IAdyenReconciliationService reconciliationService, CancellationToken ct) =>
         {
