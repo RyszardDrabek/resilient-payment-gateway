@@ -38,6 +38,22 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+    logging.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("PaymentGateway.Api"));
+    logging.AddOtlpExporter(options =>
+    {
+        var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"];
+        if (!string.IsNullOrEmpty(endpoint))
+        {
+            options.Endpoint = new Uri(endpoint);
+            options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+        }
+    });
+});
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
     .WithTracing(t => t

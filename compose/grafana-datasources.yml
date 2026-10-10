@@ -25,9 +25,20 @@ datasources:
     isDefault: false
     editable: true
     jsonData:
+      tracesToLogs:
+        datasourceUid: 'loki'
+        spanStartTimeShift: '-2m'
+        spanEndTimeShift: '2m'
+        filterByTraceId: true
+        filterBySpanId: false
+        tags:
+          - key: 'service.name'
+            value: 'service_name'
       tracesToLogsV2:
         datasourceUid: 'loki'
         spanStartTimeShift: '-2m'
         spanEndTimeShift: '2m'
         filterByTraceId: true
         filterBySpanId: false
+        tags:
+          - 'service.name'
