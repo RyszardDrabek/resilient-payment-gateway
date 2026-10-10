@@ -48,9 +48,24 @@ public sealed class RiskScoringCommandHandlerTests
         public Task<IReadOnlyList<RiskFlag>> GetByPaymentIdAsync(string paymentId, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<RiskFlag>>(Flags.Where(f => f.PaymentId == paymentId).ToList());
 
+        public Task<(IReadOnlyList<RiskFlag> Items, int TotalCount)> GetOpenFlagsAsync(int page = 1, int pageSize = 50, CancellationToken ct = default)
+        {
+            var open = Flags.Where(f => f.Status == "Open" && f.Disposition == null).ToList();
+            var items = open.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<RiskFlag> Items, int TotalCount)>((items, open.Count));
+        }
+
         public Task SaveAsync(RiskFlag flag, CancellationToken ct = default)
         {
-            Flags.Add(flag);
+            var idx = Flags.FindIndex(f => f.Id == flag.Id);
+            if (idx >= 0)
+            {
+                Flags[idx] = flag;
+            }
+            else
+            {
+                Flags.Add(flag);
+            }
             return Task.CompletedTask;
         }
     }

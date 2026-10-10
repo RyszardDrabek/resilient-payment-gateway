@@ -39,10 +39,14 @@ public sealed class RiskDbContext(DbContextOptions<RiskDbContext> options) : DbC
             b.Property(f => f.EventId).IsRequired().HasMaxLength(128);
             b.Property(f => f.Reason).IsRequired().HasMaxLength(512);
             b.Property(f => f.Status).IsRequired().HasMaxLength(32);
+            b.Property(f => f.Disposition).HasMaxLength(32);
+            b.Property(f => f.DispositionedAt);
+            b.Property(f => f.ReviewerNotes).HasMaxLength(1024);
             b.Property(f => f.RaisedAt).IsRequired();
 
             b.HasIndex(f => f.PaymentId);
             b.HasIndex(f => f.PartyId);
+            b.HasIndex(f => f.Status);
         });
 
         modelBuilder.Entity<PartyRiskContext>(b =>
