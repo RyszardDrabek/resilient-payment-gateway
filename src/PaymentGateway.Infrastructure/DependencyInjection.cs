@@ -55,7 +55,8 @@ public static class DependencyInjection
         services.AddScoped<PaymentGateway.Infrastructure.Web3.Web3SettlementPort>();
         services.AddScoped<PaymentGateway.Application.Web3.IWeb3FinalityWatcherService, PaymentGateway.Infrastructure.Web3.Web3FinalityWatcherService>();
 
-        services.AddScoped<PaymentGateway.Infrastructure.Services.RoutingSettlementPort>();
+        services.AddScoped<PaymentGateway.Infrastructure.Services.RoutingSettlementPort>(sp =>
+            new PaymentGateway.Infrastructure.Services.RoutingSettlementPort(sp, configuration));
         services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort>(sp =>
             sp.GetRequiredService<PaymentGateway.Infrastructure.Services.RoutingSettlementPort>());
 

@@ -55,6 +55,7 @@ services:
       dockerfile: compose/Dockerfile.api
     environment:
       ASPNETCORE_URLS: http://+:8080
+      Database__AutoMigrate: "true"
       ConnectionStrings__PaymentDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
       ConnectionStrings__RiskDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
       RabbitMq__UseInMemory: "false"

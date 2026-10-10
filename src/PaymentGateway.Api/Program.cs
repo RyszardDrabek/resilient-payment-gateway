@@ -63,8 +63,10 @@ var app = builder.Build();
 
 app.Logger.LogInformation("PaymentGateway.Api starting");
 
-using (var scope = app.Services.CreateScope())
+if (builder.Configuration.GetValue<bool>("Database:AutoMigrate", false) ||
+    builder.Configuration.GetValue<bool>("DATABASE_AUTOMIGRATE", false))
 {
+    using var scope = app.Services.CreateScope();
     var payDb = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
     await payDb.Database.MigrateAsync();
     var riskDb = scope.ServiceProvider.GetRequiredService<RiskDbContext>();

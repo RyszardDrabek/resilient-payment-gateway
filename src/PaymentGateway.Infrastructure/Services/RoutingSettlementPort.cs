@@ -9,12 +9,12 @@ namespace PaymentGateway.Infrastructure.Services;
 public sealed class RoutingSettlementPort : ISettlementPort
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IConfiguration _configuration;
+    private readonly string? _configuredActiveChannel;
 
-    public RoutingSettlementPort(IServiceProvider serviceProvider, IConfiguration configuration)
+    public RoutingSettlementPort(IServiceProvider serviceProvider, IConfiguration? configuration = null)
     {
         _serviceProvider = serviceProvider;
-        _configuration = configuration;
+        _configuredActiveChannel = configuration?["PaymentGateway:ActiveChannel"] ?? configuration?["Settlement:ChannelId"];
     }
 
     private ISettlementPort Resolve(string? channel)
@@ -34,13 +34,12 @@ public sealed class RoutingSettlementPort : ISettlementPort
             return _serviceProvider.GetRequiredService<AdyenSettlementPort>();
         }
 
-        var activeChannel = _configuration["PaymentGateway:ActiveChannel"] ?? _configuration["Settlement:ChannelId"];
-        if (string.Equals(activeChannel, "WEB3", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(_configuredActiveChannel, "WEB3", StringComparison.OrdinalIgnoreCase))
         {
             return _serviceProvider.GetRequiredService<Web3SettlementPort>();
         }
 
-        if (string.Equals(activeChannel, "MOCK", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(_configuredActiveChannel, "MOCK", StringComparison.OrdinalIgnoreCase))
         {
             return _serviceProvider.GetRequiredService<MockSettlementPort>();
         }
@@ -89,4 +88,12 @@ public sealed class RoutingSettlementPort : ISettlementPort
         string? channel = null,
         CancellationToken ct = default)
         => Resolve(channel).RefundAsync(paymentId, channelReference, amount, currency, channel, ct);
+
+    public Task<SettlementResult> QueryPaymentStatusAsync(
+        string paymentId,
+        string? channelReference = null,
+        string? merchantReference = null,
+        string? channel = null,
+        CancellationToken ct = default)
+        => Resolve(channel).QueryPaymentStatusAsync(paymentId, channelReference, merchantReference, channel, ct);
 }
