@@ -4,10 +4,12 @@ using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application;
 using PaymentGateway.Edge;
 using PaymentGateway.Edge.Telemetry;
+using Microsoft.EntityFrameworkCore;
 using PaymentGateway.Infrastructure;
 using PaymentGateway.Infrastructure.Persistence;
 
@@ -41,11 +43,33 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
     .WithTracing(t => t
         .AddAspNetCoreInstrumentation()
+        .AddSource("MassTransit")
+        .AddSource("Npgsql")
+        .AddSource("System.Net.Http")
         .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN before export
         .AddOtlpExporter())
-    .WithLogging(l => l
-        .AddInstrumentMasking()    // F-EDGE-03: mask PAN/token/IBAN in logs before export
-        .AddOtlpExporter());
+    .WithLogging(logging =>
+    {
+        logging.AddInstrumentMasking(); // F-EDGE-03: mask PAN/token/IBAN in logs before export
+        logging.AddOtlpExporter(options =>
+        {
+            var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"];
+            if (!string.IsNullOrEmpty(endpoint))
+            {
+                options.Endpoint = new Uri(endpoint);
+                options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+            }
+        });
+    }, options =>
+    {
+        options.IncludeFormattedMessage = true;
+        options.IncludeScopes = true;
+    })
+    .WithMetrics(m => m
+        .AddMeter("Microsoft.AspNetCore.Hosting")
+        .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
+        .AddMeter("PaymentGateway")
+        .AddPrometheusExporter());
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -59,6 +83,16 @@ var app = builder.Build();
 
 app.Logger.LogInformation("PaymentGateway.Api starting");
 
+if (builder.Configuration.GetValue<bool>("Database:AutoMigrate", false) ||
+    builder.Configuration.GetValue<bool>("DATABASE_AUTOMIGRATE", false))
+{
+    using var scope = app.Services.CreateScope();
+    var payDb = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+    await payDb.Database.MigrateAsync();
+    var riskDb = scope.ServiceProvider.GetRequiredService<RiskDbContext>();
+    await riskDb.Database.MigrateAsync();
+}
+
 app.UseForwardedHeaders();
 app.UseEdge();
 app.UseAuthentication();
@@ -66,6 +100,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
+app.MapPrometheusScrapingEndpoint().AllowAnonymous();
 app.MapPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();

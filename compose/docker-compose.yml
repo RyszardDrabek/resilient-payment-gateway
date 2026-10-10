@@ -13,6 +13,16 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@postgres:5432/payment_gateway?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     ports:
@@ -43,11 +53,23 @@ services:
 
   grafana:
     image: grafana/grafana:11.3.1
+    volumes:
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./dashboards:/etc/grafana/dashboards:ro
     ports:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+
+  loki:
+    image: grafana/loki:3.2.1
+    volumes:
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/config.yml
 
   api:
     build:
@@ -55,6 +77,7 @@ services:
       dockerfile: compose/Dockerfile.api
     environment:
       ASPNETCORE_URLS: http://+:8080
+      Database__AutoMigrate: "true"
       ConnectionStrings__PaymentDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
       ConnectionStrings__RiskDb: Host=postgres;Port=5432;Database=payment_gateway;Username=postgres;Password=postgres
       RabbitMq__UseInMemory: "false"
@@ -64,6 +87,8 @@ services:
       Outbox__Enabled: "false"
       Auth__JwtSigningKey: DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://loki:3100/otlp/v1/logs
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
     ports:
       - "5080:8080"
     depends_on:
@@ -84,6 +109,8 @@ services:
       RabbitMq__Username: guest
       RabbitMq__Password: guest
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://loki:3100/otlp/v1/logs
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
     depends_on:
       postgres:
         condition: service_healthy
