@@ -1,7 +1,7 @@
 using System.Text.Json;
 using MediatR;
-using PaymentGateway.Domain.Entities;
 using PaymentGateway.Application.Metrics;
+using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Enums;
 using PaymentGateway.Domain.Exceptions;
 using PaymentGateway.Domain.Ports;
