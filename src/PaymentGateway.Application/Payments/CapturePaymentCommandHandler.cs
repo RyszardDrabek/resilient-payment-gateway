@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MediatR;
+using PaymentGateway.Application.Metrics;
 using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Enums;
 using PaymentGateway.Domain.Exceptions;
@@ -124,6 +125,8 @@ public sealed class CapturePaymentCommandHandler(
         // AC-1: Move to captured state with channel reference
         payment.Capture(settlement.ChannelReference);
         await repository.UpdateAsync(payment, ct);
+
+        PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "capture");
 
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);

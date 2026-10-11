@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MediatR;
+using PaymentGateway.Application.Metrics;
 using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Enums;
 using PaymentGateway.Domain.Exceptions;
@@ -123,6 +124,8 @@ public sealed class RefundPaymentCommandHandler(
 
         payment.Refund(settlement.ChannelReference);
         await repository.UpdateAsync(payment, ct);
+
+        PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "refund");
 
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);

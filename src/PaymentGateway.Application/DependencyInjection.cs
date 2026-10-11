@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(assembly);
+            cfg.AddOpenBehavior(typeof(Behaviors.PerformanceBehavior<,>));
             var licenseKey = Environment.GetEnvironmentVariable("MEDIATR_LICENSE_KEY");
             if (!string.IsNullOrWhiteSpace(licenseKey))
             {
