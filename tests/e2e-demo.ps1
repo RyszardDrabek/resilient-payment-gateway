@@ -13,23 +13,36 @@ function Base64UrlEncode([byte[]]$bytes) {
     [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
-$headerB64 = Base64UrlEncode([System.Text.Encoding]::UTF8.GetBytes($headerJson))
-$payloadB64 = Base64UrlEncode([System.Text.Encoding]::UTF8.GetBytes($payloadJson))
-$hmac = New-Object System.Security.Cryptography.HMACSHA256
-$hmac.Key = [System.Text.Encoding]::UTF8.GetBytes($jwtKey)
-$sigB64 = Base64UrlEncode($hmac.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$headerB64.$payloadB64")))
-$token = "$headerB64.$payloadB64.$sigB64"
+function New-JwtToken {
+    param(
+        [string]$Sub = "merchant_demo",
+        [string]$Role = "PaymentService"
+    )
+    $hJson = '{"alg":"HS256","typ":"JWT"}'
+    $pJson = "{`"sub`":`"$Sub`",`"role`":`"$Role`",`"iss`":`"payment-gateway`",`"aud`":`"payment-gateway`",`"exp`":1999999999}"
+    $hB64 = Base64UrlEncode([System.Text.Encoding]::UTF8.GetBytes($hJson))
+    $pB64 = Base64UrlEncode([System.Text.Encoding]::UTF8.GetBytes($pJson))
+    $h = New-Object System.Security.Cryptography.HMACSHA256
+    $h.Key = [System.Text.Encoding]::UTF8.GetBytes($jwtKey)
+    $sB64 = Base64UrlEncode($h.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$hB64.$pB64")))
+    return "$hB64.$pB64.$sB64"
+}
+
+$token = New-JwtToken -Sub "merchant_demo" -Role "merchant"
 
 function Send-GatewayRequest {
     param(
         [string]$Method,
         [string]$Path,
         [hashtable]$Body = $null,
-        [string]$IdempotencyKey = $null
+        [string]$IdempotencyKey = $null,
+        [string]$AuthToken = $token,
+        [switch]$NoAuth
     )
 
-    $headers = @{
-        "Authorization" = "Bearer $token"
+    $headers = @{}
+    if (-not $NoAuth -and $AuthToken) {
+        $headers["Authorization"] = "Bearer $AuthToken"
     }
     if ($IdempotencyKey) {
         $headers["Idempotency-Key"] = $IdempotencyKey
@@ -68,7 +81,7 @@ Write-Host "====================================================================
 
 $scenarioList = @()
 if ($Scenario -eq "All") {
-    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "Volume")
+    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "Volume")
 } else {
     $scenarioList = @($Scenario)
 }
@@ -282,10 +295,117 @@ if ($scenarioList -contains "Web3Decline") {
 }
 
 # -----------------------------------------------------------------------------
-# Scenario 7: Mixed Traffic Batch
+# Scenario 7: Partial Settlement & Balance Tracking (F-PAY-04 & F-PAY-05)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "PartialSettlement") {
+    Write-Host "`n[SCENARIO 7] Phase 5: Partial Settlement & Balance Tracking (F-PAY-04 & F-PAY-05)" -ForegroundColor Magenta
+    $party = "customer_partial_$(Get-Random -Minimum 100 -Maximum 999)"
+    $amount = 20000 # 200.00 EUR
+    $idempAuth = [Guid]::NewGuid().ToString()
+
+    Write-Host "  1. Authorizing 200.00 EUR for $party..." -ForegroundColor Yellow
+    $res = Send-GatewayRequest -Method "Post" -Path "/payments" -IdempotencyKey $idempAuth -Body @{
+        partyId = $party
+        amount = $amount
+        currency = "EUR"
+        settlementChannel = "ADYEN"
+    }
+
+    if ($res.Success) {
+        $payId = $res.Data.paymentId
+        Write-Host "     -> Authorized: $payId | State: $($res.Data.state) | Authorized Balance: $($res.Data.remainingAuthorizedAmount) cents" -ForegroundColor Green
+
+        # 2. First Partial Capture (80.00 EUR / 8000 cents) -> PartiallyCaptured
+        Write-Host "  2. Capturing partial amount (80.00 EUR)..." -ForegroundColor Yellow
+        $cap1 = Send-GatewayRequest -Method "Post" -Path "/payments/$payId/capture" -IdempotencyKey ([Guid]::NewGuid().ToString()) -Body @{
+            amount = 8000
+        }
+        if ($cap1.Success) {
+            Write-Host "     -> Status: $($cap1.Data.state) | Captured: $($cap1.Data.capturedAmount) | Remaining Auth: $($cap1.Data.remainingAuthorizedAmount) cents" -ForegroundColor Green
+        } else {
+            Write-Host "     -> Partial Capture 1 Failed: $($cap1.Error)" -ForegroundColor Red
+        }
+
+        # 3. Second Partial Capture of remaining balance (120.00 EUR / 12000 cents) -> Captured
+        Write-Host "  3. Capturing remainder (120.00 EUR) to fully settle authorization..." -ForegroundColor Yellow
+        $cap2 = Send-GatewayRequest -Method "Post" -Path "/payments/$payId/capture" -IdempotencyKey ([Guid]::NewGuid().ToString()) -Body @{
+            amount = 12000
+        }
+        if ($cap2.Success) {
+            Write-Host "     -> Status: $($cap2.Data.state) | Total Captured: $($cap2.Data.capturedAmount) | Refundable Balance: $($cap2.Data.remainingRefundableAmount) cents" -ForegroundColor Green
+        } else {
+            Write-Host "     -> Partial Capture 2 Failed: $($cap2.Error)" -ForegroundColor Red
+        }
+
+        # 4. First Partial Refund (50.00 EUR / 5000 cents) -> PartiallyRefunded
+        Write-Host "  4. Refunding partial amount (50.00 EUR)..." -ForegroundColor Yellow
+        $ref1 = Send-GatewayRequest -Method "Post" -Path "/payments/$payId/refund" -IdempotencyKey ([Guid]::NewGuid().ToString()) -Body @{
+            amount = 5000
+        }
+        if ($ref1.Success) {
+            Write-Host "     -> Status: $($ref1.Data.state) | Refunded: $($ref1.Data.refundedAmount) | Remaining Refundable: $($ref1.Data.remainingRefundableAmount) cents" -ForegroundColor Green
+        } else {
+            Write-Host "     -> Partial Refund 1 Failed: $($ref1.Error)" -ForegroundColor Red
+        }
+
+        # 5. Final Refund of remaining captured funds (150.00 EUR / 15000 cents) -> Refunded
+        Write-Host "  5. Refunding remaining balance (150.00 EUR)..." -ForegroundColor Yellow
+        $ref2 = Send-GatewayRequest -Method "Post" -Path "/payments/$payId/refund" -IdempotencyKey ([Guid]::NewGuid().ToString()) -Body @{
+            amount = 15000
+        }
+        if ($ref2.Success) {
+            Write-Host "     -> Status: $($ref2.Data.state) | Total Refunded: $($ref2.Data.refundedAmount) | Remaining Refundable: $($ref2.Data.remainingRefundableAmount) cents" -ForegroundColor Green
+        } else {
+            Write-Host "     -> Partial Refund 2 Failed: $($ref2.Error)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "     -> Authorize Failed: $($res.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 8: Operator Unresolved Query API & Security Gates (F-EDGE-04)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "UnresolvedQuery") {
+    Write-Host "`n[SCENARIO 8] Phase 5: Operator Unresolved Payments Query API (F-EDGE-04)" -ForegroundColor Magenta
+
+    # 1. Test Unauthenticated Access Gate
+    Write-Host "  1. Probing unauthenticated GET /api/v1/payments/unresolved..." -ForegroundColor Yellow
+    $unauthRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/payments/unresolved" -NoAuth
+    if (-not $unauthRes.Success) {
+        Write-Host "     -> Rejected unauthenticated caller with RFC 7807 Problem Document: $($unauthRes.Status)" -ForegroundColor Green
+    } else {
+        Write-Host "     -> Security issue: Unauthenticated request was allowed!" -ForegroundColor Red
+    }
+
+    # 2. Test Forbidden Role Gate
+    Write-Host "  2. Probing with unauthorized role (guest)..." -ForegroundColor Yellow
+    $guestToken = New-JwtToken -Sub "guest_user" -Role "guest"
+    $forbiddenRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/payments/unresolved" -AuthToken $guestToken
+    if (-not $forbiddenRes.Success) {
+        Write-Host "     -> Rejected unauthorized role with RFC 7807 Problem Document: $($forbiddenRes.Status)" -ForegroundColor Green
+    } else {
+        Write-Host "     -> Security issue: Unauthorized role was allowed!" -ForegroundColor Red
+    }
+
+    # 3. Test Authorized Operator Access
+    Write-Host "  3. Querying unresolved payments as operator (role=ops)..." -ForegroundColor Yellow
+    $opsToken = New-JwtToken -Sub "operator_1" -Role "ops"
+    $opsRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/payments/unresolved?ageMinutes=0&pageSize=10" -AuthToken $opsToken
+    if ($opsRes.Success) {
+        $data = $opsRes.Data
+        Write-Host "     -> 200 OK | Page: $($data.page) | PageSize: $($data.pageSize) | TotalCount: $($data.totalCount)" -ForegroundColor Green
+        Write-Host "     -> Found $($data.items.Count) unresolved items in response." -ForegroundColor Cyan
+    } else {
+        Write-Host "     -> Operator query failed: $($opsRes.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 9: Mixed Traffic Batch
 # -----------------------------------------------------------------------------
 if ($scenarioList -contains "Volume") {
-    Write-Host "`n[SCENARIO 7] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta
+    Write-Host "`n[SCENARIO 9] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta
     for ($i = 1; $i -le $VolumeCount; $i++) {
         $isWeb3 = ($i % 2 -eq 0)
         $channel = if ($isWeb3) { "WEB3" } else { "ADYEN" }
