@@ -168,4 +168,44 @@ public sealed class PaymentApplyAcquirerOutcomeTests
         payment.Version.Should().Be(capturedVersion);
         payment.DomainEvents.Should().BeEmpty();
     }
+
+    [Theory]
+    [InlineData(PaymentLifecycleOutcome.Authorized)]
+    [InlineData(PaymentLifecycleOutcome.Declined)]
+    public void WhenPartiallyCapturedPaymentReceivesLateAuthorizedOrDeclined_DoesNotRevertState_AndReturnsFalse(PaymentLifecycleOutcome lateOutcome)
+    {
+        // Arrange: payment is partially captured
+        var payment = Payment.Authorize("cust_1", 5000L, "EUR", "ADYEN", "psp_1");
+        payment.Capture("cap_1", 2000L);
+        payment.ClearDomainEvents();
+        var partiallyCapturedVersion = payment.Version;
+
+        // Act: late Authorized or Declined notification arrives
+        var applied = payment.ApplyAcquirerOutcome(lateOutcome, "psp_late");
+
+        // Assert: state remains PartiallyCaptured
+        applied.Should().BeFalse();
+        payment.State.Should().Be(PaymentState.PartiallyCaptured);
+        payment.Version.Should().Be(partiallyCapturedVersion);
+        payment.DomainEvents.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WhenPendingPaymentDeclined_TransitionsToDeclined_AndReturnsTrue()
+    {
+        // Arrange: payment is pending
+        var payment = Payment.CreatePending("cust_1", 5000L, "EUR", "ADYEN", "psp_pending");
+        payment.ClearDomainEvents();
+        var initialVersion = payment.Version;
+
+        // Act: acquirer outcome reports Declined
+        var applied = payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Declined, "psp_declined", "Risk check failed");
+
+        // Assert: state moves to Declined
+        applied.Should().BeTrue();
+        payment.State.Should().Be(PaymentState.Declined);
+        payment.DeclineReason.Should().Be("Risk check failed");
+        payment.Version.Should().Be(initialVersion + 1);
+        payment.DomainEvents.Should().ContainSingle();
+    }
 }

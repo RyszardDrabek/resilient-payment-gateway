@@ -27,6 +27,7 @@ public sealed class CapturePaymentCommandHandler(
             throw new PaymentNotFoundException(request.PaymentId);
         }
 
+        // Pre-domain guard for early exit and validation before idempotency hash computation
         long effectiveAmount;
         if (request.Amount.HasValue)
         {
@@ -47,6 +48,7 @@ public sealed class CapturePaymentCommandHandler(
         {
             effectiveAmount = payment.State switch
             {
+                // For idempotent replay of already-captured payments with omitted amount, match the original captured amount in idempotency hash
                 PaymentState.Captured => payment.CapturedAmount > 0 ? payment.CapturedAmount : payment.Amount,
                 PaymentState.PartiallyCaptured => payment.RemainingAuthorizedAmount,
                 _ => payment.Amount

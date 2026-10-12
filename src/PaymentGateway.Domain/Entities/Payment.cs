@@ -231,6 +231,7 @@ public sealed class Payment
         }
 
         State = PaymentState.Refunded;
+        RefundedAmount = CapturedAmount > 0 ? CapturedAmount : Amount;
         ChannelReference = channelReference;
         Version++;
 
@@ -282,13 +283,20 @@ public sealed class Payment
         }
 
         // Captured cannot revert to Authorized, PartiallyCaptured, Declined, Pending, or Unknown
-        if (State == PaymentState.Captured && targetState.Value is PaymentState.Authorized or PaymentState.PartiallyCaptured or PaymentState.Declined or PaymentState.Pending or PaymentState.Unknown)
+        if (State == PaymentState.Captured
+            && (targetState.Value == PaymentState.Authorized
+                || targetState.Value == PaymentState.PartiallyCaptured
+                || targetState.Value == PaymentState.Declined
+                || targetState.Value == PaymentState.Pending
+                || targetState.Value == PaymentState.Unknown))
         {
             return false;
         }
 
-        // PartiallyCaptured cannot revert to Authorized
-        if (State == PaymentState.PartiallyCaptured && targetState.Value is PaymentState.Authorized or PaymentState.Declined)
+        // PartiallyCaptured cannot revert to Authorized or Declined
+        if (State == PaymentState.PartiallyCaptured
+            && (targetState.Value == PaymentState.Authorized
+                || targetState.Value == PaymentState.Declined))
         {
             return false;
         }

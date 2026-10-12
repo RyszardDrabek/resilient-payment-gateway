@@ -97,6 +97,7 @@ public sealed class PaymentTransitionTests
         payment.Refund("ref_ref_1");
 
         payment.State.Should().Be(PaymentState.Refunded);
+        payment.RefundedAmount.Should().Be(5000);
         payment.ChannelReference.Should().Be("ref_ref_1");
         payment.Version.Should().Be(3);
 
