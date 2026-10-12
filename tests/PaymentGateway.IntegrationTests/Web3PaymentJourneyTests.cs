@@ -113,7 +113,7 @@ public sealed class Web3PaymentJourneyTests : IAsyncLifetime
     {
         if (!_dockerAvailable || _postgres is null) return;
 
-        using var factory = CreateFactory();
+        await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
 
@@ -151,7 +151,7 @@ public sealed class Web3PaymentJourneyTests : IAsyncLifetime
     {
         if (!_dockerAvailable || _postgres is null) return;
 
-        using var factory = CreateFactory();
+        await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
 
@@ -181,7 +181,7 @@ public sealed class Web3PaymentJourneyTests : IAsyncLifetime
     {
         if (!_dockerAvailable || _postgres is null) return;
 
-        using var factory = CreateFactory();
+        await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
 
