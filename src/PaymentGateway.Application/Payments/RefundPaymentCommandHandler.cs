@@ -34,7 +34,6 @@ public sealed class RefundPaymentCommandHandler(
         var isRemainderCancelled = payment.State == PaymentState.Cancelled && captured > 0;
 
         // Pre-domain guard for early exit and validation before idempotency hash computation
-        long effectiveAmount;
         if (request.Amount.HasValue)
         {
             if (request.Amount.Value <= 0)
@@ -47,27 +46,16 @@ public sealed class RefundPaymentCommandHandler(
             {
                 throw new PaymentValidationException($"Refund amount {request.Amount.Value} exceeds remaining refundable balance {availableRefundable}.");
             }
+        }
 
-            effectiveAmount = request.Amount.Value;
-        }
-        else
-        {
-            effectiveAmount = payment.State switch
-            {
-                // For idempotent replay of already-refunded payments with omitted amount, match the original refunded amount in idempotency hash
-                PaymentState.Refunded => payment.RefundedAmount > 0 ? payment.RefundedAmount : captured,
-                PaymentState.PartiallyRefunded => availableRefundable,
-                PaymentState.Captured => availableRefundable,
-                PaymentState.Cancelled when captured > 0 => availableRefundable,
-                _ => payment.Amount
-            };
-        }
+        var effectiveAmount = request.Amount ?? availableRefundable;
+        var payloadAmount = request.Amount ?? 0L;
 
         var payloadHash = IdempotencyPayloadHasher.ComputeHash(
             "Refund",
             request.PaymentId,
             payment.PartyId,
-            effectiveAmount,
+            payloadAmount,
             payment.Currency,
             payment.SettlementChannel);
 

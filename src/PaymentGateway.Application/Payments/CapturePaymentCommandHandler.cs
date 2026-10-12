@@ -28,7 +28,6 @@ public sealed class CapturePaymentCommandHandler(
         }
 
         // Pre-domain guard for early exit and validation before idempotency hash computation
-        long effectiveAmount;
         if (request.Amount.HasValue)
         {
             if (request.Amount.Value <= 0)
@@ -41,25 +40,16 @@ public sealed class CapturePaymentCommandHandler(
             {
                 throw new PaymentValidationException($"Capture amount {request.Amount.Value} exceeds remaining authorized amount {payment.RemainingAuthorizedAmount}.");
             }
+        }
 
-            effectiveAmount = request.Amount.Value;
-        }
-        else
-        {
-            effectiveAmount = payment.State switch
-            {
-                // For idempotent replay of already-captured payments with omitted amount, match the original captured amount in idempotency hash
-                PaymentState.Captured => payment.CapturedAmount > 0 ? payment.CapturedAmount : payment.Amount,
-                PaymentState.PartiallyCaptured => payment.RemainingAuthorizedAmount,
-                _ => payment.Amount
-            };
-        }
+        var effectiveAmount = request.Amount ?? payment.RemainingAuthorizedAmount;
+        var payloadAmount = request.Amount ?? 0L;
 
         var payloadHash = IdempotencyPayloadHasher.ComputeHash(
             "Capture",
             request.PaymentId,
             payment.PartyId,
-            effectiveAmount,
+            payloadAmount,
             payment.Currency,
             payment.SettlementChannel);
 
