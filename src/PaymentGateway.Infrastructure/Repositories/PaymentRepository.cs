@@ -46,6 +46,37 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
             .ToListAsync(ct);
     }
 
+    public async Task<(IReadOnlyList<Payment> Items, int TotalCount)> GetUnresolvedPaginatedAsync(
+        DateTimeOffset createdBefore,
+        string? channel = null,
+        int page = 1,
+        int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var query = dbContext.Payments
+            .Where(p => (p.State == PaymentState.Pending || p.State == PaymentState.Unknown) &&
+                        p.CreatedAt <= createdBefore);
+
+        if (!string.IsNullOrWhiteSpace(channel))
+        {
+            var normalizedChannel = channel.Trim();
+            query = query.Where(p => EF.Functions.ILike(p.SettlementChannel, normalizedChannel));
+        }
+
+        var totalCount = await query.CountAsync(ct);
+
+        var safePage = page < 1 ? 1 : page;
+        var safePageSize = pageSize < 1 ? 50 : (pageSize > 100 ? 100 : pageSize);
+
+        var items = await query
+            .OrderBy(p => p.CreatedAt)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync(ct);
+
+        return (items, totalCount);
+    }
+
 
     private void DispatchDomainEventsToOutbox(Payment payment)
     {

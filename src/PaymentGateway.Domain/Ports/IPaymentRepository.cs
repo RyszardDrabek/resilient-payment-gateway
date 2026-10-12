@@ -10,6 +10,13 @@ public interface IPaymentRepository
     Task<Payment?> GetByChannelReferenceAsync(string channelReference, CancellationToken ct = default);
     Task<IReadOnlyList<Payment>> GetUnresolvedAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Payment>>([]);
+    Task<(IReadOnlyList<Payment> Items, int TotalCount)> GetUnresolvedPaginatedAsync(
+        DateTimeOffset createdBefore,
+        string? channel = null,
+        int page = 1,
+        int pageSize = 50,
+        CancellationToken ct = default) =>
+        Task.FromResult<(IReadOnlyList<Payment> Items, int TotalCount)>(([], 0));
 }
 
 

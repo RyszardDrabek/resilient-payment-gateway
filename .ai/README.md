@@ -12,12 +12,12 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-02](intake/02-2026-10-11-operational-hardening-and-partial-settlement/intake.md) |
-| Features | done (6 topics / 21 features; 16 done, 5 new) |
+| Features | done (6 topics / 21 features; 20 done, 1 new) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | done (16/16 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | in progress (20/21 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 

@@ -11,4 +11,6 @@ public static class PaymentProblemTypes
     public const string Conflict = "urn:rpg:problem:conflict";
     public const string ServerError = "urn:rpg:problem:server-error";
     public const string RateLimit = "urn:rpg:problem:rate-limit";
+    public const string Unauthorized = "urn:rpg:problem:unauthorized";
+    public const string Forbidden = "urn:rpg:problem:forbidden";
 }
