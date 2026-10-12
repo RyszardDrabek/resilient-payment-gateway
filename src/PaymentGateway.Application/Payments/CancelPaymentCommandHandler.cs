@@ -74,8 +74,8 @@ public sealed class CancelPaymentCommandHandler(
             await idempotencyRepository.AddAsync(record, ct);
         }
 
-        // AC-2, AC-4: State check before channel call — authorized & uncaptured only
-        if (payment.State != PaymentState.Authorized)
+        // AC-2, AC-4: State check before channel call — authorized & uncaptured or partially captured
+        if (payment.State != PaymentState.Authorized && payment.State != PaymentState.PartiallyCaptured)
         {
             record.Fail(409, "Invalid state for cancel");
             await idempotencyRepository.UpdateAsync(record, ct);

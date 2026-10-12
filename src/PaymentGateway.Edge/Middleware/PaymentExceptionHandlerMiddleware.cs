@@ -39,6 +39,15 @@ public sealed class PaymentExceptionHandlerMiddleware(
                 "Validation Failed",
                 ex.Message);
         }
+        catch (PaymentValidationException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.BadRequest,
+                PaymentProblemTypes.Validation,
+                "Validation Failed",
+                ex.Message);
+        }
         catch (IdempotencyConflictException ex)
         {
             await WriteProblemAsync(

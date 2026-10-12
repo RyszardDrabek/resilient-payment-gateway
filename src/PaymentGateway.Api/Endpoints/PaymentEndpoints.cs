@@ -94,7 +94,36 @@ public static class PaymentEndpoints
                     "Idempotency-Key is required on payment commands.");
             }
 
-            var result = await mediator.Send(new CapturePaymentCommand(id, idempotencyKey), ct);
+            long? amount = null;
+            if (httpContext.Request.ContentLength > 0)
+            {
+                try
+                {
+                    var body = await httpContext.Request.ReadFromJsonAsync<CapturePaymentRequest>(cancellationToken: ct);
+                    amount = body?.Amount;
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    return ProblemResult(
+                        httpContext,
+                        StatusCodes.Status400BadRequest,
+                        PaymentProblemTypes.Validation,
+                        "Validation Failed",
+                        "Invalid JSON payload.");
+                }
+            }
+
+            if (amount.HasValue && amount.Value <= 0)
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Capture amount must be greater than zero.");
+            }
+
+            var result = await mediator.Send(new CapturePaymentCommand(id, idempotencyKey, amount), ct);
             return Results.Ok(result);
         });
 

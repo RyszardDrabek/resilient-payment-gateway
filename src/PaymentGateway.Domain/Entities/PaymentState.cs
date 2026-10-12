@@ -7,6 +7,8 @@ public enum PaymentState
     Pending,
     Unknown,
     Captured,
+    PartiallyCaptured,
     Cancelled,
-    Refunded
+    Refunded,
+    PartiallyRefunded
 }

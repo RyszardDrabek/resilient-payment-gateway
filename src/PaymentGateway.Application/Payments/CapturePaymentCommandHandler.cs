@@ -27,11 +27,37 @@ public sealed class CapturePaymentCommandHandler(
             throw new PaymentNotFoundException(request.PaymentId);
         }
 
+        long effectiveAmount;
+        if (request.Amount.HasValue)
+        {
+            if (request.Amount.Value <= 0)
+            {
+                throw new PaymentValidationException("Capture amount must be greater than zero.");
+            }
+
+            if (payment.State is PaymentState.Authorized or PaymentState.PartiallyCaptured
+                && request.Amount.Value > payment.RemainingAuthorizedAmount)
+            {
+                throw new PaymentValidationException($"Capture amount {request.Amount.Value} exceeds remaining authorized amount {payment.RemainingAuthorizedAmount}.");
+            }
+
+            effectiveAmount = request.Amount.Value;
+        }
+        else
+        {
+            effectiveAmount = payment.State switch
+            {
+                PaymentState.Captured => payment.CapturedAmount > 0 ? payment.CapturedAmount : payment.Amount,
+                PaymentState.PartiallyCaptured => payment.RemainingAuthorizedAmount,
+                _ => payment.Amount
+            };
+        }
+
         var payloadHash = IdempotencyPayloadHasher.ComputeHash(
             "Capture",
             request.PaymentId,
             payment.PartyId,
-            payment.Amount,
+            effectiveAmount,
             payment.Currency,
             payment.SettlementChannel);
 
@@ -75,7 +101,7 @@ public sealed class CapturePaymentCommandHandler(
         }
 
         // AC-4: State check before channel call
-        if (payment.State != PaymentState.Authorized)
+        if (payment.State != PaymentState.Authorized && payment.State != PaymentState.PartiallyCaptured)
         {
             record.Fail(409, "Invalid state for capture");
             await idempotencyRepository.UpdateAsync(record, ct);
@@ -88,7 +114,7 @@ public sealed class CapturePaymentCommandHandler(
             settlement = await settlementPort.CaptureAsync(
                 payment.Id,
                 payment.ChannelReference ?? string.Empty,
-                payment.Amount,
+                effectiveAmount,
                 payment.Currency,
                 payment.SettlementChannel,
                 ct);
@@ -122,8 +148,8 @@ public sealed class CapturePaymentCommandHandler(
             throw new PaymentOperationFailedException("Capture", reason);
         }
 
-        // AC-1: Move to captured state with channel reference
-        payment.Capture(settlement.ChannelReference);
+        // AC-1: Move to captured/partially captured state with channel reference
+        payment.Capture(settlement.ChannelReference, effectiveAmount);
         await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "capture");
