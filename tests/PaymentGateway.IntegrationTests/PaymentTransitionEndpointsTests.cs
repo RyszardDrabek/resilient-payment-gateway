@@ -183,14 +183,22 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
         capResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Then refund
+        var idemKey = $"idem_ref_{Guid.NewGuid():N}";
         client.DefaultRequestHeaders.Remove("Idempotency-Key");
-        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_ref_{Guid.NewGuid():N}");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", idemKey);
         var refResponse = await client.PostAsync($"/payments/{authorized.PaymentId}/refund", null);
         refResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await refResponse.Content.ReadFromJsonAsync<PaymentDto>();
         result.Should().NotBeNull();
         result!.State.Should().Be("Refunded");
+
+        // Replay with identical key on now-Refunded payment (must return 200 with saved response)
+        var replayResponse = await client.PostAsync($"/payments/{authorized.PaymentId}/refund", null);
+        replayResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var replayResult = await replayResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        replayResult.Should().NotBeNull();
+        replayResult!.State.Should().Be("Refunded");
     }
 
     [Fact]

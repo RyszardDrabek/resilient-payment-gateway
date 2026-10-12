@@ -395,4 +395,54 @@ public sealed class PaymentTransitionsCommandHandlerTests
         await act.Should().ThrowAsync<PaymentInvalidStateException>();
         port.CallCount.Should().Be(0);
     }
+
+    [Fact]
+    public async Task Refund_ReplaySameKey_WithOmittedAmount_ReturnsExistingResponseWithoutCallingChannel()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        // Initial full refund with omitted amount
+        var firstResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_1"), CancellationToken.None);
+        firstResult.State.Should().Be("Refunded");
+        firstResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1);
+
+        // Replay with identical key and omitted amount on now-Refunded payment
+        var replayResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_1"), CancellationToken.None);
+        replayResult.State.Should().Be("Refunded");
+        replayResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1); // Port not called second time
+    }
+
+    [Fact]
+    public async Task Refund_ReplaySameKey_WithExplicitAmount_ReturnsExistingResponseWithoutCallingChannel()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        // Initial full refund with explicit amount
+        var firstResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_2", 5000), CancellationToken.None);
+        firstResult.State.Should().Be("Refunded");
+        firstResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1);
+
+        // Replay with identical key and explicit amount
+        var replayResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_2", 5000), CancellationToken.None);
+        replayResult.State.Should().Be("Refunded");
+        replayResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1); // Port not called second time
+    }
 }
