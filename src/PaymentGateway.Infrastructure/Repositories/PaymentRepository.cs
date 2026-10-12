@@ -59,8 +59,8 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
 
         if (!string.IsNullOrWhiteSpace(channel))
         {
-            var normalizedChannel = channel.Trim().ToUpperInvariant();
-            query = query.Where(p => p.SettlementChannel.ToUpper() == normalizedChannel);
+            var normalizedChannel = channel.Trim();
+            query = query.Where(p => EF.Functions.ILike(p.SettlementChannel, normalizedChannel));
         }
 
         var totalCount = await query.CountAsync(ct);
