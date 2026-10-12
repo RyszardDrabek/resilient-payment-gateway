@@ -152,6 +152,39 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                     b.ToTable("IdempotencyRecords", "pay");
                 });
 
+            modelBuilder.Entity("PaymentGateway.Domain.Entities.MerchantWebhookSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EndpointUrl")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("PartyId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SecretKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartyId");
+
+                    b.ToTable("MerchantWebhookSubscriptions", "pay");
+                });
+
             modelBuilder.Entity("PaymentGateway.Domain.Entities.Payment", b =>
                 {
                     b.Property<string>("Id")

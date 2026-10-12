@@ -1,7 +1,7 @@
 # Project status
 
 **Mode:** greenfield  
-**Status:** Specification complete — ready for implementation  
+**Status:** Implementation complete — all 21 features built and verified  
 **Current phase:** Phase 5 (operational-hardening-and-partial-settlement)  
 **Stack:** .NET 10 modular monolith (Clean + CQRS/MediatR), PostgreSQL/EF Core, RabbitMQ/MassTransit, Polly, JWT, compose-only MVP  
 **Order:** [build/orders/main.md](build/orders/main.md)  
@@ -12,12 +12,12 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-02](intake/02-2026-10-11-operational-hardening-and-partial-settlement/intake.md) |
-| Features | done (6 topics / 21 features; 20 done, 1 new) |
+| Features | done (6 topics / 21 features; 21 done, 0 new) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | in progress (20/21 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | complete (21/21 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 

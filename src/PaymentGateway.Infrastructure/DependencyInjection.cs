@@ -77,10 +77,17 @@ public static class DependencyInjection
         services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskContextStore, PaymentGateway.Infrastructure.Repositories.PartyRiskContextStore>();
         services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskScorer, PaymentGateway.Infrastructure.Risk.DeterministicRiskScorer>();
 
+        services.Configure<PaymentGateway.Infrastructure.Options.MerchantWebhookOptions>(
+            configuration.GetSection(PaymentGateway.Infrastructure.Options.MerchantWebhookOptions.SectionName));
+        services.AddSingleton<PaymentGateway.Application.Webhooks.IMerchantWebhookSigner, PaymentGateway.Application.Webhooks.HmacSha256WebhookSigner>();
+        services.AddScoped<PaymentGateway.Domain.Ports.IMerchantWebhookSubscriptionRepository, PaymentGateway.Infrastructure.Repositories.MerchantWebhookSubscriptionRepository>();
+        services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookDispatcher, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookDispatcher>();
+
         services.AddMassTransit(x =>
         {
             x.AddConsumer<PaymentGateway.Infrastructure.Events.PaymentLifecycleTestConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.PaymentLifecycleRiskConsumer>();
+            x.AddConsumer<PaymentGateway.Infrastructure.Consumers.MerchantWebhookDispatcherConsumer>();
 
             if (useInMemory)
             {
