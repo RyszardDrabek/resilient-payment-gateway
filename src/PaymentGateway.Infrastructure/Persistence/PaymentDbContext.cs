@@ -31,6 +31,10 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Ignore(p => p.RemainingAuthorizedAmount);
             b.Ignore(p => p.RemainingRefundableAmount);
             b.Ignore(p => p.DomainEvents);
+
+            b.HasIndex(p => new { p.CreatedAt, p.SettlementChannel })
+                .HasDatabaseName("IX_Payments_Unresolved")
+                .HasFilter("\"State\" IN ('Pending', 'Unknown')");
         });
 
         modelBuilder.Entity<OutboxMessageRecord>(b =>
