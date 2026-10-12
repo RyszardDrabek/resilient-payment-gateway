@@ -261,4 +261,61 @@ public sealed class PaymentTransitionsCommandHandlerTests
         result.State.Should().Be("Captured");
         port.CallCount.Should().Be(0);
     }
+
+    [Fact]
+    public async Task Capture_WithPartialAmount_UpdatesPaymentToPartiallyCaptured_AndRecordsBalance()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new CapturePaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        await repo.AddAsync(payment);
+
+        var result = await handler.Handle(new CapturePaymentCommand(payment.Id, "idem_part_1", 2000), CancellationToken.None);
+
+        result.State.Should().Be("PartiallyCaptured");
+        result.CapturedAmount.Should().Be(2000);
+        result.RemainingAuthorizedAmount.Should().Be(3000);
+        payment.CapturedAmount.Should().Be(2000);
+        port.CallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Capture_WithAmountExceedingRemaining_ThrowsPaymentValidationException()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new CapturePaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        await repo.AddAsync(payment);
+
+        var act = () => handler.Handle(new CapturePaymentCommand(payment.Id, "idem_part_bad", 5001), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PaymentValidationException>();
+        payment.State.Should().Be(PaymentState.Authorized);
+        payment.CapturedAmount.Should().Be(0);
+        port.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Capture_WithDifferentAmount_SameIdempotencyKey_ThrowsConflict()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new CapturePaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        await repo.AddAsync(payment);
+
+        await handler.Handle(new CapturePaymentCommand(payment.Id, "idem_key_shared", 2000), CancellationToken.None);
+
+        var act = () => handler.Handle(new CapturePaymentCommand(payment.Id, "idem_key_shared", 3000), CancellationToken.None);
+
+        await act.Should().ThrowAsync<IdempotencyConflictException>();
+    }
 }

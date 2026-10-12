@@ -14,6 +14,9 @@ public sealed class Payment
     public PaymentState State { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public int Version { get; private set; } = 1;
+    public long CapturedAmount { get; private set; }
+    public long RefundedAmount { get; private set; }
+    public long RemainingAuthorizedAmount => Math.Max(0L, Amount - CapturedAmount);
 
     private readonly List<Events.IDomainEvent> _domainEvents = [];
     public IReadOnlyCollection<Events.IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
@@ -40,7 +43,9 @@ public sealed class Payment
         PaymentState state,
         string? channelReference = null,
         string? declineReason = null,
-        int version = 1)
+        int version = 1,
+        long capturedAmount = 0,
+        long refundedAmount = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
@@ -64,6 +69,8 @@ public sealed class Payment
         DeclineReason = declineReason;
         CreatedAt = DateTimeOffset.UtcNow;
         Version = version > 0 ? version : 1;
+        CapturedAmount = Math.Max(0L, capturedAmount);
+        RefundedAmount = Math.Max(0L, refundedAmount);
     }
 
     public static Payment Authorize(
@@ -149,24 +156,40 @@ public sealed class Payment
         return payment;
     }
 
-    public void Capture(string channelReference)
+    public void Capture(string channelReference, long? amount = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);
 
-        if (State != PaymentState.Authorized)
+        if (State != PaymentState.Authorized && State != PaymentState.PartiallyCaptured)
         {
             throw new PaymentInvalidStateException(State, "Capture");
         }
 
-        State = PaymentState.Captured;
+        var effectiveAmount = amount ?? RemainingAuthorizedAmount;
+        if (effectiveAmount <= 0)
+        {
+            throw new PaymentValidationException("Capture amount must be greater than zero.");
+        }
+
+        if (effectiveAmount > RemainingAuthorizedAmount)
+        {
+            throw new PaymentValidationException($"Capture amount {effectiveAmount} exceeds remaining authorized amount {RemainingAuthorizedAmount}.");
+        }
+
+        CapturedAmount += effectiveAmount;
+        State = CapturedAmount == Amount ? PaymentState.Captured : PaymentState.PartiallyCaptured;
         ChannelReference = channelReference;
         Version++;
+
+        var outcome = State == PaymentState.Captured
+            ? Enums.PaymentLifecycleOutcome.Captured
+            : Enums.PaymentLifecycleOutcome.PartiallyCaptured;
 
         _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
             Id,
             PartyId,
-            Enums.PaymentLifecycleOutcome.Captured,
-            Amount,
+            outcome,
+            effectiveAmount,
             Currency,
             Version,
             DateTimeOffset.UtcNow));
@@ -176,12 +199,13 @@ public sealed class Payment
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);
 
-        // AC-2: Cancel when authorized and uncaptured
-        if (State != PaymentState.Authorized)
+        // AC-2 & AC-4: Cancel when authorized or partially captured (voids remaining uncaptured authorization)
+        if (State != PaymentState.Authorized && State != PaymentState.PartiallyCaptured)
         {
             throw new PaymentInvalidStateException(State, "Cancel");
         }
 
+        var uncapturedBalance = RemainingAuthorizedAmount;
         State = PaymentState.Cancelled;
         ChannelReference = channelReference;
         Version++;
@@ -190,7 +214,7 @@ public sealed class Payment
             Id,
             PartyId,
             Enums.PaymentLifecycleOutcome.Cancelled,
-            Amount,
+            uncapturedBalance,
             Currency,
             Version,
             DateTimeOffset.UtcNow));
@@ -207,6 +231,7 @@ public sealed class Payment
         }
 
         State = PaymentState.Refunded;
+        RefundedAmount = CapturedAmount > 0 ? CapturedAmount : Amount;
         ChannelReference = channelReference;
         Version++;
 
@@ -230,8 +255,10 @@ public sealed class Payment
             Enums.PaymentLifecycleOutcome.Authorized => PaymentState.Authorized,
             Enums.PaymentLifecycleOutcome.Declined => PaymentState.Declined,
             Enums.PaymentLifecycleOutcome.Captured => PaymentState.Captured,
+            Enums.PaymentLifecycleOutcome.PartiallyCaptured => PaymentState.PartiallyCaptured,
             Enums.PaymentLifecycleOutcome.Cancelled => PaymentState.Cancelled,
             Enums.PaymentLifecycleOutcome.Refunded => PaymentState.Refunded,
+            Enums.PaymentLifecycleOutcome.PartiallyRefunded => PaymentState.PartiallyRefunded,
             Enums.PaymentLifecycleOutcome.Pending => PaymentState.Pending,
             Enums.PaymentLifecycleOutcome.Unknown => PaymentState.Unknown,
             _ => (PaymentState?)null
@@ -255,8 +282,21 @@ public sealed class Payment
             return false;
         }
 
-        // Captured cannot revert to Authorized, Declined, Pending, or Unknown
-        if (State == PaymentState.Captured && targetState.Value is PaymentState.Authorized or PaymentState.Declined or PaymentState.Pending or PaymentState.Unknown)
+        // Captured cannot revert to Authorized, PartiallyCaptured, Declined, Pending, or Unknown
+        if (State == PaymentState.Captured
+            && (targetState.Value == PaymentState.Authorized
+                || targetState.Value == PaymentState.PartiallyCaptured
+                || targetState.Value == PaymentState.Declined
+                || targetState.Value == PaymentState.Pending
+                || targetState.Value == PaymentState.Unknown))
+        {
+            return false;
+        }
+
+        // PartiallyCaptured cannot revert to Authorized or Declined
+        if (State == PaymentState.PartiallyCaptured
+            && (targetState.Value == PaymentState.Authorized
+                || targetState.Value == PaymentState.Declined))
         {
             return false;
         }
@@ -269,6 +309,10 @@ public sealed class Payment
 
         // Valid transition applied
         State = targetState.Value;
+        if (targetState.Value == PaymentState.Captured && CapturedAmount == 0)
+        {
+            CapturedAmount = Amount;
+        }
         if (!string.IsNullOrWhiteSpace(channelReference))
         {
             ChannelReference = channelReference;

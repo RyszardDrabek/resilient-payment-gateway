@@ -248,4 +248,146 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
         doc.RootElement.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
         doc.RootElement.GetProperty("detail").GetString().Should().Contain("Authorized");
     }
+
+    [Fact]
+    public async Task Capture_PartialAmount_Returns200_WithPartiallyCapturedState()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_partial_{Guid.NewGuid():N}");
+        var captureResponse = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/capture",
+            new CapturePaymentRequest(2000));
+
+        captureResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await captureResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        dto.Should().NotBeNull();
+        dto!.State.Should().Be("PartiallyCaptured");
+        dto.CapturedAmount.Should().Be(2000);
+        dto.RemainingAuthorizedAmount.Should().Be(authorized.Amount - 2000);
+    }
+
+    [Fact]
+    public async Task Capture_MultiplePartialAmounts_ReachesFullCapture_Returns200_WithCapturedState()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_1_{Guid.NewGuid():N}");
+        var cap1Response = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/capture",
+            new CapturePaymentRequest(3000));
+        cap1Response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_2_{Guid.NewGuid():N}");
+        var cap2Response = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/capture",
+            new CapturePaymentRequest(authorized.Amount - 3000));
+
+        cap2Response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await cap2Response.Content.ReadFromJsonAsync<PaymentDto>();
+        dto.Should().NotBeNull();
+        dto!.State.Should().Be("Captured");
+        dto.CapturedAmount.Should().Be(authorized.Amount);
+        dto.RemainingAuthorizedAmount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Cancel_PartiallyCapturedPayment_Returns200_WithCancelledState()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_before_cancel_{Guid.NewGuid():N}");
+        var capResponse = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/capture",
+            new CapturePaymentRequest(2000));
+        capResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cnc_after_cap_{Guid.NewGuid():N}");
+        var cancelResponse = await client.PostAsync($"/payments/{authorized.PaymentId}/cancel", null);
+
+        cancelResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await cancelResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        dto.Should().NotBeNull();
+        dto!.State.Should().Be("Cancelled");
+        dto.CapturedAmount.Should().Be(2000);
+    }
+
+    [Fact]
+    public async Task Capture_AmountExceedingRemaining_Returns400ValidationProblem()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_excess_{Guid.NewGuid():N}");
+        var captureResponse = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/capture",
+            new CapturePaymentRequest(authorized.Amount + 1000));
+
+        captureResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        captureResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await captureResponse.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Validation);
+    }
+
+    [Fact]
+    public async Task Capture_WhenAlreadyCancelled_Returns409_ConflictProblem()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        // First cancel payment
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cnc_before_cap_{Guid.NewGuid():N}");
+        var cancelResponse = await client.PostAsync($"/payments/{authorized.PaymentId}/cancel", null);
+        cancelResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Attempt capture on cancelled payment
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_after_cnc_{Guid.NewGuid():N}");
+        var captureResponse = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/capture",
+            new CapturePaymentRequest(1000));
+
+        captureResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        captureResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await captureResponse.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
+        doc.RootElement.GetProperty("detail").GetString().Should().Contain("Cancelled");
+    }
 }

@@ -9,4 +9,7 @@ public record PaymentDto(
     string State,
     string? ChannelReference,
     string? DeclineReason,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    long CapturedAmount = 0,
+    long RemainingAuthorizedAmount = 0,
+    long RefundedAmount = 0);

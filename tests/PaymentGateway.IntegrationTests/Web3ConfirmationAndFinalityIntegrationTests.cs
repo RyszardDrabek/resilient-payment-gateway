@@ -127,7 +127,7 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
     {
         if (!_dockerAvailable) return;
 
-        using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
+        await using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
         using var client = CreateAuthenticatedClient(factory);
 
         // 1. Authorize USDC payment off-chain
@@ -194,7 +194,7 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
     {
         if (!_dockerAvailable) return;
 
-        using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
+        await using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
         using var client = CreateAuthenticatedClient(factory);
 
         // 1. Authorize
@@ -237,7 +237,7 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
     {
         if (!_dockerAvailable) return;
 
-        using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
+        await using var factory = CreateFactory(requiredConfirmations: 3, initialConfirmations: 1);
         using var client = CreateAuthenticatedClient(factory);
 
         // 1. Authorize USDC payment off-chain
@@ -287,7 +287,7 @@ public sealed class Web3ConfirmationAndFinalityIntegrationTests : IAsyncLifetime
     {
         if (!_dockerAvailable) return;
 
-        using var factory = CreateFactory();
+        await using var factory = CreateFactory();
         using var client = CreateAuthenticatedClient(factory);
 
         var sweepResponse = await client.PostAsync("/ops/web3/watch-all", null);

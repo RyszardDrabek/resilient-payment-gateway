@@ -71,23 +71,36 @@ public sealed class RiskScoringIntegrationTests : IAsyncLifetime
         }
     }
 
-    private WebApplicationFactory<Program> CreateFactory() =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureAppConfiguration((_, config) =>
+    private WebApplicationFactory<Program> CreateFactory()
+    {
+        var connectionString = _dockerAvailable && _postgres is not null
+            ? _postgres.GetConnectionString()
+            : "Host=localhost;Database=dummy;Username=dummy;Password=dummy";
+
+        return new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
             {
-                var dict = new Dictionary<string, string?>
+                builder.UseSetting("ConnectionStrings:PaymentDb", connectionString);
+                builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
+                builder.UseSetting("RabbitMq:UseInMemory", "true");
+                builder.UseSetting("Auth:JwtSigningKey", JwtKey);
+                builder.UseSetting("PaymentGateway:ActiveChannel", "MOCK");
+                builder.UseSetting("Risk:AnomalyAmountMultiplier", "5.0");
+                builder.ConfigureAppConfiguration((_, config) =>
                 {
-                    ["ConnectionStrings:PaymentDb"] = _postgres!.GetConnectionString(),
-                    ["ConnectionStrings:RiskDb"] = _postgres!.GetConnectionString(),
-                    ["Auth:JwtSigningKey"] = JwtKey,
-                    ["RabbitMq:UseInMemory"] = "true",
-                    ["PaymentGateway:ActiveChannel"] = "MOCK",
-                    ["Risk:AnomalyAmountMultiplier"] = "5.0"
-                };
-                config.AddInMemoryCollection(dict);
+                    var dict = new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:PaymentDb"] = connectionString,
+                        ["ConnectionStrings:RiskDb"] = connectionString,
+                        ["Auth:JwtSigningKey"] = JwtKey,
+                        ["RabbitMq:UseInMemory"] = "true",
+                        ["PaymentGateway:ActiveChannel"] = "MOCK",
+                        ["Risk:AnomalyAmountMultiplier"] = "5.0"
+                    };
+                    config.AddInMemoryCollection(dict);
+                });
             });
-        });
+    }
 
     private static string CreateJwtToken(string role = "merchant")
     {
@@ -110,7 +123,7 @@ public sealed class RiskScoringIntegrationTests : IAsyncLifetime
             return; // Skip if docker unavailable
         }
 
-        using var factory = CreateFactory();
+        await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwtToken("risk"));
 

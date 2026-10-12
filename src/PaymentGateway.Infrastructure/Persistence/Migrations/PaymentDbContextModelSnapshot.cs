@@ -160,6 +160,11 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                     b.Property<long>("Amount")
                         .HasColumnType("bigint");
 
+                    b.Property<long>("CapturedAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.Property<string>("ChannelReference")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -180,6 +185,11 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<long>("RefundedAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<string>("SettlementChannel")
                         .IsRequired()
