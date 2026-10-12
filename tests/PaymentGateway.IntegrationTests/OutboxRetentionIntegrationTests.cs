@@ -192,4 +192,66 @@ public sealed class OutboxRetentionIntegrationTests : IAsyncLifetime
         remaining.Should().HaveCount(1);
         remaining[0].Id.Should().Be(processed2DaysAgo.Id);
     }
+
+    [Fact]
+    public async Task CleanupExpiredOutboxMessagesAsync_WithCustomTimeProvider_CalculatesCutoffFromTimeProvider()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        await using var db = new PaymentDbContext(options);
+        await db.OutboxMessages.ExecuteDeleteAsync();
+
+        var fixedBaseTime = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+        var timeProvider = new FixedTimeProvider(fixedBaseTime);
+
+        // Processed 15 days before the fixed time (retention 14 days -> pruned)
+        var oldRecord = new OutboxMessageRecord
+        {
+            EventType = "PaymentTransitioned",
+            Payload = "{\"test\": 1}",
+            CreatedAt = fixedBaseTime.AddDays(-15),
+            ProcessedAt = fixedBaseTime.AddDays(-15),
+            DeliveryAttempts = 1
+        };
+
+        // Processed 10 days before the fixed time (within 14-day window -> retained)
+        var recentRecord = new OutboxMessageRecord
+        {
+            EventType = "PaymentTransitioned",
+            Payload = "{\"test\": 2}",
+            CreatedAt = fixedBaseTime.AddDays(-10),
+            ProcessedAt = fixedBaseTime.AddDays(-10),
+            DeliveryAttempts = 1
+        };
+
+        db.OutboxMessages.AddRange(oldRecord, recentRecord);
+        await db.SaveChangesAsync();
+
+        var outboxOptions = Microsoft.Extensions.Options.Options.Create(new OutboxOptions
+        {
+            RetentionDays = 14,
+            RetentionCleanupIntervalHours = 24
+        });
+
+        var service = new OutboxRetentionService(db, outboxOptions, NullLogger<OutboxRetentionService>.Instance, timeProvider);
+
+        var prunedCount = await service.CleanupExpiredOutboxMessagesAsync();
+
+        prunedCount.Should().Be(1);
+        var remaining = await db.OutboxMessages.ToListAsync();
+        remaining.Should().HaveCount(1);
+        remaining[0].Id.Should().Be(recentRecord.Id);
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 }

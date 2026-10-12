@@ -10,14 +10,16 @@ namespace PaymentGateway.Infrastructure.Services;
 public sealed class OutboxRetentionService(
     PaymentDbContext dbContext,
     IOptions<OutboxOptions> options,
-    ILogger<OutboxRetentionService> logger) : IOutboxRetentionService
+    ILogger<OutboxRetentionService> logger,
+    TimeProvider? timeProvider = null) : IOutboxRetentionService
 {
     private readonly OutboxOptions _options = options.Value;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<int> CleanupExpiredOutboxMessagesAsync(CancellationToken ct = default)
     {
         var retentionDays = _options.RetentionDays > 0 ? _options.RetentionDays : 14;
-        var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays);
+        var cutoff = _timeProvider.GetUtcNow().AddDays(-retentionDays);
 
         logger.LogInformation("Starting outbox retention cleanup for messages processed before {Cutoff} (retention: {RetentionDays} days)", cutoff, retentionDays);
 

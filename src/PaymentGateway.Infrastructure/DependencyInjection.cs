@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<PaymentGateway.Domain.Ports.ISettlementPort>(sp =>
             sp.GetRequiredService<PaymentGateway.Infrastructure.Services.RoutingSettlementPort>());
 
+        services.AddSingleton(TimeProvider.System);
         services.Configure<PaymentGateway.Infrastructure.Options.OutboxOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Options.OutboxOptions.SectionName));
         services.AddScoped<PaymentGateway.Application.Events.IOutboxRetentionService, PaymentGateway.Infrastructure.Services.OutboxRetentionService>();
         services.AddSingleton<PaymentGateway.Infrastructure.Events.ITestEventStore, PaymentGateway.Infrastructure.Events.InMemoryTestEventStore>();
