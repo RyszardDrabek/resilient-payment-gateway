@@ -318,4 +318,81 @@ public sealed class PaymentTransitionsCommandHandlerTests
 
         await act.Should().ThrowAsync<IdempotencyConflictException>();
     }
+
+    [Fact]
+    public async Task Refund_WithPartialAmount_UpdatesPaymentToPartiallyRefunded_AndCallsPortWithDelta()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        var result = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_refund_part", 2000), CancellationToken.None);
+
+        result.State.Should().Be("PartiallyRefunded");
+        result.RefundedAmount.Should().Be(2000);
+        result.RemainingRefundableAmount.Should().Be(3000);
+        payment.State.Should().Be(PaymentState.PartiallyRefunded);
+        port.CallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Refund_WithAmountExceedingCaptured_ThrowsPaymentValidationException()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        var act = () => handler.Handle(new RefundPaymentCommand(payment.Id, "idem_refund_bad", 5001), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PaymentValidationException>();
+        payment.State.Should().Be(PaymentState.Captured);
+        payment.RefundedAmount.Should().Be(0);
+        port.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Refund_WithDifferentAmount_SameIdempotencyKey_ThrowsConflict()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_shared", 2000), CancellationToken.None);
+
+        var act = () => handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_shared", 3000), CancellationToken.None);
+
+        await act.Should().ThrowAsync<IdempotencyConflictException>();
+    }
+
+    [Fact]
+    public async Task Refund_WhenUncaptured_ThrowsPaymentInvalidStateException()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        await repo.AddAsync(payment);
+
+        var act = () => handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_uncaptured", 1000), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PaymentInvalidStateException>();
+        port.CallCount.Should().Be(0);
+    }
 }

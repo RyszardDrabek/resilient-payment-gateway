@@ -28,6 +28,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.CapturedAmount).IsRequired().HasDefaultValue(0L);
             b.Property(p => p.RefundedAmount).IsRequired().HasDefaultValue(0L);
             b.Ignore(p => p.RemainingAuthorizedAmount);
+            b.Ignore(p => p.RemainingRefundableAmount);
             b.Ignore(p => p.DomainEvents);
         });
 

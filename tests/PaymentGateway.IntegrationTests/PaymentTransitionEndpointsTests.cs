@@ -390,4 +390,137 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
         doc.RootElement.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Conflict);
         doc.RootElement.GetProperty("detail").GetString().Should().Contain("Cancelled");
     }
+
+    [Fact]
+    public async Task Refund_WithPartialAmount_Returns200_WithPartiallyRefundedState()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        // Fully capture first
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_full_{Guid.NewGuid():N}");
+        var capResponse = await client.PostAsync($"/payments/{authorized.PaymentId}/capture", null);
+        capResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // First partial refund
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_ref_part_{Guid.NewGuid():N}");
+        var refResponse = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/refund",
+            new RefundPaymentRequest(authorized.Amount / 2));
+        refResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await refResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        result.Should().NotBeNull();
+        result!.State.Should().Be("PartiallyRefunded");
+        result.RefundedAmount.Should().Be(authorized.Amount / 2);
+        result.RemainingRefundableAmount.Should().Be(authorized.Amount - (authorized.Amount / 2));
+    }
+
+    [Fact]
+    public async Task Refund_SubsequentAmount_ReachingFullCaptured_Returns200_WithRefundedState()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        // Capture payment
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_for_ref_{Guid.NewGuid():N}");
+        await client.PostAsync($"/payments/{authorized.PaymentId}/capture", null);
+
+        var half = authorized.Amount / 2;
+        var remainder = authorized.Amount - half;
+
+        // Partial refund
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_ref_step1_{Guid.NewGuid():N}");
+        await client.PostAsJsonAsync($"/payments/{authorized.PaymentId}/refund", new RefundPaymentRequest(half));
+
+        // Complete remaining refund
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_ref_step2_{Guid.NewGuid():N}");
+        var finalRef = await client.PostAsJsonAsync($"/payments/{authorized.PaymentId}/refund", new RefundPaymentRequest(remainder));
+
+        finalRef.StatusCode.Should().Be(HttpStatusCode.OK);
+        var finalResult = await finalRef.Content.ReadFromJsonAsync<PaymentDto>();
+        finalResult.Should().NotBeNull();
+        finalResult!.State.Should().Be("Refunded");
+        finalResult.RefundedAmount.Should().Be(authorized.Amount);
+        finalResult.RemainingRefundableAmount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Refund_WhenRemainderCancelled_AllowsRefundOfCapturedFunds()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        // Partial capture of 2000
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_2000_{Guid.NewGuid():N}");
+        await client.PostAsJsonAsync($"/payments/{authorized.PaymentId}/capture", new CapturePaymentRequest(2000));
+
+        // Cancel remaining authorization
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cnc_remainder_{Guid.NewGuid():N}");
+        await client.PostAsync($"/payments/{authorized.PaymentId}/cancel", null);
+
+        // Refund 1000 of the 2000 captured funds
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_ref_cancelled_{Guid.NewGuid():N}");
+        var refResponse = await client.PostAsJsonAsync($"/payments/{authorized.PaymentId}/refund", new RefundPaymentRequest(1000));
+
+        refResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await refResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        result.Should().NotBeNull();
+        result!.State.Should().Be("PartiallyRefunded");
+        result.RefundedAmount.Should().Be(1000);
+        result.RemainingRefundableAmount.Should().Be(1000);
+    }
+
+    [Fact]
+    public async Task Refund_WithAmountExceedingCaptured_Returns400_ValidationProblem()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var authorized = await CreateAuthorizedPayment(client);
+
+        // Capture payment
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_cap_exceed_{Guid.NewGuid():N}");
+        await client.PostAsync($"/payments/{authorized.PaymentId}/capture", null);
+
+        // Attempt refund exceeding captured amount
+        client.DefaultRequestHeaders.Remove("Idempotency-Key");
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_ref_excess_{Guid.NewGuid():N}");
+        var refResponse = await client.PostAsJsonAsync(
+            $"/payments/{authorized.PaymentId}/refund",
+            new RefundPaymentRequest(authorized.Amount + 500));
+
+        refResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        refResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await refResponse.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.Validation);
+    }
 }

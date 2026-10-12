@@ -232,4 +232,128 @@ public sealed class PaymentTransitionTests
         payment.CapturedAmount.Should().Be(0);
         payment.RemainingAuthorizedAmount.Should().Be(5000);
     }
+
+    [Fact]
+    public void Refund_PartialAmount_TransitionsToPartiallyRefunded_UpdatesRefundedAmount_EmitsEvent()
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        payment.ClearDomainEvents();
+
+        payment.Refund("ref_ref_1", 2000);
+
+        payment.State.Should().Be(PaymentState.PartiallyRefunded);
+        payment.RefundedAmount.Should().Be(2000);
+        payment.RemainingRefundableAmount.Should().Be(3000);
+        payment.ChannelReference.Should().Be("ref_ref_1");
+        payment.Version.Should().Be(3);
+
+        payment.DomainEvents.Should().ContainSingle();
+        var evt = payment.DomainEvents.First() as PaymentTransitionDomainEvent;
+        evt.Should().NotBeNull();
+        evt!.Outcome.Should().Be(PaymentLifecycleOutcome.PartiallyRefunded);
+        evt.Amount.Should().Be(2000);
+        evt.Version.Should().Be(3);
+    }
+
+    [Fact]
+    public void Refund_SubsequentPartialAmount_PermitsRefundsUpToAvailableBalance()
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        payment.Refund("ref_ref_1", 2000);
+        payment.ClearDomainEvents();
+
+        payment.Refund("ref_ref_2", 1500);
+
+        payment.State.Should().Be(PaymentState.PartiallyRefunded);
+        payment.RefundedAmount.Should().Be(3500);
+        payment.RemainingRefundableAmount.Should().Be(1500);
+
+        var evt = payment.DomainEvents.First() as PaymentTransitionDomainEvent;
+        evt!.Outcome.Should().Be(PaymentLifecycleOutcome.PartiallyRefunded);
+        evt.Amount.Should().Be(1500);
+    }
+
+    [Fact]
+    public void Refund_FinalAmountReachingCapturedAmount_TransitionsToRefunded()
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        payment.Refund("ref_ref_1", 3500);
+        payment.ClearDomainEvents();
+
+        payment.Refund("ref_ref_3", 1500);
+
+        payment.State.Should().Be(PaymentState.Refunded);
+        payment.RefundedAmount.Should().Be(5000);
+        payment.RemainingRefundableAmount.Should().Be(0);
+
+        var evt = payment.DomainEvents.First() as PaymentTransitionDomainEvent;
+        evt!.Outcome.Should().Be(PaymentLifecycleOutcome.Refunded);
+        evt.Amount.Should().Be(1500);
+    }
+
+    [Fact]
+    public void Refund_WhenCancelledWithCapturedFunds_AllowsRefund()
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 3000);
+        payment.Cancel("ref_cnc_1");
+        payment.ClearDomainEvents();
+
+        payment.Refund("ref_ref_1", 1000);
+
+        payment.State.Should().Be(PaymentState.PartiallyRefunded);
+        payment.RefundedAmount.Should().Be(1000);
+        payment.RemainingRefundableAmount.Should().Be(2000);
+
+        var evt = payment.DomainEvents.First() as PaymentTransitionDomainEvent;
+        evt!.Outcome.Should().Be(PaymentLifecycleOutcome.PartiallyRefunded);
+        evt.Amount.Should().Be(1000);
+    }
+
+    [Fact]
+    public void Refund_ExceedingAvailableRefundable_ThrowsValidationException_WithoutMutatingState()
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        payment.Refund("ref_ref_1", 2000);
+
+        var act = () => payment.Refund("ref_ref_bad", 3001);
+
+        act.Should().Throw<PaymentValidationException>();
+        payment.State.Should().Be(PaymentState.PartiallyRefunded);
+        payment.RefundedAmount.Should().Be(2000);
+        payment.RemainingRefundableAmount.Should().Be(3000);
+    }
+
+    [Fact]
+    public void Refund_WhenPartiallyCapturedWithoutCancel_ThrowsPaymentInvalidStateException()
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 2000);
+
+        var act = () => payment.Refund("ref_ref_bad", 1000);
+
+        var ex = act.Should().Throw<PaymentInvalidStateException>().Which;
+        ex.CurrentState.Should().Be(PaymentState.PartiallyCaptured);
+        ex.RequestedTransition.Should().Be("Refund");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-500)]
+    public void Refund_NonPositiveAmount_ThrowsValidationException_WithoutMutatingState(long invalidAmount)
+    {
+        var payment = Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+
+        var act = () => payment.Refund("ref_ref_bad", invalidAmount);
+
+        act.Should().Throw<PaymentValidationException>();
+        payment.State.Should().Be(PaymentState.Captured);
+        payment.RefundedAmount.Should().Be(0);
+        payment.RemainingRefundableAmount.Should().Be(5000);
+    }
 }
