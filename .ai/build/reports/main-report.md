@@ -2,13 +2,13 @@
 
 **Order:** main
 **Order file:** .ai/build/orders/main.md
-**Generated:** 2026-10-10
+**Generated:** 2026-10-12
 
 ## Summary
 
 | Status    | Count |
 | --------- | ----- |
-| SUCCESS   | 16    |
+| SUCCESS   | 21    |
 | ESCALATED | 0     |
 | SKIPPED   | 0     |
 | ERROR     | 0     |
@@ -34,3 +34,8 @@
 | 14  | [F-WEB3-02](../../specs/features/F-WEB3-02/spec.md): On-chain confirmation and finality | WEB3 | — | SUCCESS | 6924eb4 | — |
 | 15  | [F-RISK-01](../../specs/features/F-RISK-01/spec.md): Off-path risk scoring and flagging | RISK | — | SUCCESS | a33ee2b | — |
 | 16  | [F-RISK-02](../../specs/features/F-RISK-02/spec.md): Risk flag review and disposition | RISK | — | SUCCESS | b0fc9fc | — |
+| 17  | [F-PAY-04](../../specs/features/F-PAY-04/spec.md): Balance tracking and partial capture | PAY | — | SUCCESS | 2824cf4 | — |
+| 18  | [F-PAY-05](../../specs/features/F-PAY-05/spec.md): Partial refund support | PAY | — | SUCCESS | bbb255f | — |
+| 19  | [F-EVT-02](../../specs/features/F-EVT-02/spec.md): Transactional outbox retention & pruning | EVT | — | SUCCESS | 311c1d9 | — |
+| 20  | [F-EDGE-04](../../specs/features/F-EDGE-04/spec.md): Unresolved payments operator query API | EDGE | — | SUCCESS | 879c5b2 | — |
+| 21  | [F-EDGE-05](../../specs/features/F-EDGE-05/spec.md): Merchant outbound webhook notification dispatch | EDGE | — | SUCCESS | Pending PR | — |

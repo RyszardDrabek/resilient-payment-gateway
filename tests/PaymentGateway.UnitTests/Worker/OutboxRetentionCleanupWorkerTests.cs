@@ -55,12 +55,12 @@ public sealed class OutboxRetentionCleanupWorkerTests
 
         var worker = new OutboxRetentionCleanupWorker(scopeFactory, options, NullLogger<OutboxRetentionCleanupWorker>.Instance);
 
-        // Cancel after short period to exit loop
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        // Cancel token source with timeout fallback
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         // Start worker task
         var executeTask = worker.StartAsync(cts.Token);
-        await Task.Delay(20);
+        await failingService.Attempted;
         cts.Cancel();
 
         // Worker should stop gracefully when cancelled without throwing the internal DB exception
@@ -82,11 +82,14 @@ public sealed class OutboxRetentionCleanupWorkerTests
 
     private sealed class FailingOutboxRetentionService : IOutboxRetentionService
     {
+        private readonly TaskCompletionSource<bool> _attemptedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Attempted => _attemptedTcs.Task;
         public int AttemptCount { get; private set; }
 
         public Task<int> CleanupExpiredOutboxMessagesAsync(CancellationToken ct = default)
         {
             AttemptCount++;
+            _attemptedTcs.TrySetResult(true);
             throw new InvalidOperationException("Simulated transient PostgreSQL connection failure.");
         }
     }

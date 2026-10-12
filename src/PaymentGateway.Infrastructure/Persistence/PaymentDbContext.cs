@@ -8,6 +8,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PaymentGateway.Domain.Entities.Payment> Payments => Set<PaymentGateway.Domain.Entities.Payment>();
     public DbSet<PaymentGateway.Domain.Entities.IdempotencyRecord> IdempotencyRecords => Set<PaymentGateway.Domain.Entities.IdempotencyRecord>();
     public DbSet<PaymentGateway.Domain.Entities.AdyenNotification> AdyenNotifications => Set<PaymentGateway.Domain.Entities.AdyenNotification>();
+    public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookSubscription> MerchantWebhookSubscriptions => Set<PaymentGateway.Domain.Entities.MerchantWebhookSubscription>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -30,6 +31,10 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Ignore(p => p.RemainingAuthorizedAmount);
             b.Ignore(p => p.RemainingRefundableAmount);
             b.Ignore(p => p.DomainEvents);
+
+            b.HasIndex(p => new { p.CreatedAt, p.SettlementChannel })
+                .HasDatabaseName("IX_Payments_Unresolved")
+                .HasFilter("\"State\" IN ('Pending', 'Unknown')");
         });
 
         modelBuilder.Entity<OutboxMessageRecord>(b =>
@@ -87,6 +92,20 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.HasIndex(n => new { n.PspReference, n.EventCode }).IsUnique();
             b.HasIndex(n => n.MerchantReference);
             b.HasIndex(n => n.CorrelatedPaymentId);
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.MerchantWebhookSubscription>(b =>
+        {
+            b.ToTable("MerchantWebhookSubscriptions");
+            b.HasKey(s => s.Id);
+            b.Property(s => s.PartyId).IsRequired().HasMaxLength(128);
+            b.Property(s => s.EndpointUrl).IsRequired().HasMaxLength(512);
+            b.Property(s => s.SecretKey).IsRequired().HasMaxLength(256);
+            b.Property(s => s.IsActive).IsRequired().HasDefaultValue(true);
+
+            b.HasIndex(s => s.PartyId)
+                .IsUnique()
+                .HasFilter("\"IsActive\" = true");
         });
     }
 }
