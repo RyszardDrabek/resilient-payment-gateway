@@ -31,7 +31,9 @@ public partial class AddMerchantWebhookSubscriptions : Migration
             name: "IX_MerchantWebhookSubscriptions_PartyId",
             schema: "pay",
             table: "MerchantWebhookSubscriptions",
-            column: "PartyId");
+            column: "PartyId",
+            unique: true,
+            filter: "\"IsActive\" = true");
     }
 
     /// <inheritdoc />

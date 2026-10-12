@@ -181,4 +181,44 @@ public sealed class MerchantWebhookDispatcherTests
         result.DeliveryAttempts.Should().Be(3);
         attempts.Should().Be(3);
     }
+
+    [Fact]
+    public async Task DispatchAsync_WhenCancellationTokenCancelled_ThrowsOperationCanceledExceptionDirectly()
+    {
+        var repo = new StubSubscriptionRepository(null);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel(); // cancelled prior to or during request
+
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var httpClient = new HttpClient(handler);
+        var signer = new HmacSha256WebhookSigner();
+        var options = Options.Create(new MerchantWebhookOptions
+        {
+            DefaultEndpointUrl = "https://cancel.example/hook",
+            DefaultSecretKey = "cancel_secret",
+            MaxRetryAttempts = 5,
+            InitialBackoffSeconds = 0
+        });
+
+        var dispatcher = new MerchantWebhookDispatcher(
+            repo,
+            httpClient,
+            signer,
+            options,
+            NullLogger<MerchantWebhookDispatcher>.Instance);
+
+        var evt = new PaymentLifecycleEvent(
+            EventId: "evt_cancel_1",
+            PaymentId: "pay_cancel_1",
+            PartyId: "party_cancel",
+            Outcome: "captured",
+            Amount: 1000,
+            Currency: "EUR",
+            Version: 1,
+            OccurredAt: DateTimeOffset.UtcNow);
+
+        var act = async () => await dispatcher.DispatchAsync(evt, cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
 }

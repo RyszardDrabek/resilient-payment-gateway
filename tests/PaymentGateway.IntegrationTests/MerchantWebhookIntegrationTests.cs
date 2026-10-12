@@ -350,4 +350,44 @@ public sealed class MerchantWebhookIntegrationTests : IAsyncLifetime, IDisposabl
         var expectedSignature = signer.ComputeSignature(request.Body!, defaultSecret);
         signature.Should().Be(expectedSignature);
     }
+
+    [Fact]
+    public async Task ActiveSubscription_UniqueIndex_RejectsDuplicateActivePartyId()
+    {
+        if (!_dockerAvailable) return;
+
+        await using var db1 = CreateDbContext();
+        var partyId = $"party_unique_test_{Guid.NewGuid():N}";
+        var sub1 = new MerchantWebhookSubscription(
+            Guid.NewGuid(),
+            partyId,
+            "https://merchant.example/active1",
+            "secret_123",
+            isActive: true);
+        db1.MerchantWebhookSubscriptions.Add(sub1);
+        await db1.SaveChangesAsync();
+
+        await using var db2 = CreateDbContext();
+        var sub2Duplicate = new MerchantWebhookSubscription(
+            Guid.NewGuid(),
+            partyId,
+            "https://merchant.example/active2",
+            "secret_456",
+            isActive: true);
+        db2.MerchantWebhookSubscriptions.Add(sub2Duplicate);
+        var actDuplicate = async () => await db2.SaveChangesAsync();
+        await actDuplicate.Should().ThrowAsync<DbUpdateException>();
+
+        // Inactive subscription for same party should succeed
+        await using var db3 = CreateDbContext();
+        var sub3Inactive = new MerchantWebhookSubscription(
+            Guid.NewGuid(),
+            partyId,
+            "https://merchant.example/inactive",
+            "secret_789",
+            isActive: false);
+        db3.MerchantWebhookSubscriptions.Add(sub3Inactive);
+        var actInactive = async () => await db3.SaveChangesAsync();
+        await actInactive.Should().NotThrowAsync();
+    }
 }

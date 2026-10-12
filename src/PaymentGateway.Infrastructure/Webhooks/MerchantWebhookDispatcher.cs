@@ -113,6 +113,11 @@ public sealed class MerchantWebhookDispatcher(
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
             {
+                if (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+
                 lastError = ex.Message;
                 logger.LogWarning(
                     ex,
@@ -128,7 +133,7 @@ public sealed class MerchantWebhookDispatcher(
 
                 if (delay > TimeSpan.Zero)
                 {
-                    await Task.Delay(delay, ct);
+                    await Task.Delay(delay, _timeProvider, ct);
                 }
             }
         }

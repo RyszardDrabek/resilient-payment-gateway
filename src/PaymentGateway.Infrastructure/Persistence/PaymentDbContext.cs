@@ -99,7 +99,9 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(s => s.SecretKey).IsRequired().HasMaxLength(256);
             b.Property(s => s.IsActive).IsRequired().HasDefaultValue(true);
 
-            b.HasIndex(s => s.PartyId);
+            b.HasIndex(s => s.PartyId)
+                .IsUnique()
+                .HasFilter("\"IsActive\" = true");
         });
     }
 }
