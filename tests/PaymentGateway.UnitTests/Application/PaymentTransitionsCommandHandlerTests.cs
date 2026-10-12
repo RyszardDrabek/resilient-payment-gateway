@@ -250,7 +250,7 @@ public sealed class PaymentTransitionsCommandHandlerTests
         await repo.AddAsync(payment);
 
         var payloadHash = PaymentGateway.Domain.Services.IdempotencyPayloadHasher.ComputeHash(
-            "Capture", payment.Id, "party_1", 3000, "EUR", "MOCK");
+            "Capture", payment.Id, "party_1", 0L, "EUR", "MOCK");
         var completedRecord = IdempotencyRecord.CreateInFlight("idem_replay", "Capture", payloadHash, payment.Id);
         var cachedDto = new PaymentDto(payment.Id, "party_1", 3000, "EUR", "MOCK", "Captured", "ref_cap_1", null, DateTimeOffset.UtcNow);
         completedRecord.Complete(200, System.Text.Json.JsonSerializer.Serialize(cachedDto), payment.Id);
@@ -317,5 +317,192 @@ public sealed class PaymentTransitionsCommandHandlerTests
         var act = () => handler.Handle(new CapturePaymentCommand(payment.Id, "idem_key_shared", 3000), CancellationToken.None);
 
         await act.Should().ThrowAsync<IdempotencyConflictException>();
+    }
+
+    [Fact]
+    public async Task Refund_WithPartialAmount_UpdatesPaymentToPartiallyRefunded_AndCallsPortWithDelta()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        var result = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_refund_part", 2000), CancellationToken.None);
+
+        result.State.Should().Be("PartiallyRefunded");
+        result.RefundedAmount.Should().Be(2000);
+        result.RemainingRefundableAmount.Should().Be(3000);
+        payment.State.Should().Be(PaymentState.PartiallyRefunded);
+        port.CallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Refund_WithAmountExceedingCaptured_ThrowsPaymentValidationException()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        var act = () => handler.Handle(new RefundPaymentCommand(payment.Id, "idem_refund_bad", 5001), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PaymentValidationException>();
+        payment.State.Should().Be(PaymentState.Captured);
+        payment.RefundedAmount.Should().Be(0);
+        port.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Refund_WithDifferentAmount_SameIdempotencyKey_ThrowsConflict()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_shared", 2000), CancellationToken.None);
+
+        var act = () => handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_shared", 3000), CancellationToken.None);
+
+        await act.Should().ThrowAsync<IdempotencyConflictException>();
+    }
+
+    [Fact]
+    public async Task Refund_WhenUncaptured_ThrowsPaymentInvalidStateException()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        await repo.AddAsync(payment);
+
+        var act = () => handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_uncaptured", 1000), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PaymentInvalidStateException>();
+        port.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Refund_ReplaySameKey_WithOmittedAmount_ReturnsExistingResponseWithoutCallingChannel()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        // Initial full refund with omitted amount
+        var firstResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_1"), CancellationToken.None);
+        firstResult.State.Should().Be("Refunded");
+        firstResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1);
+
+        // Replay with identical key and omitted amount on now-Refunded payment
+        var replayResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_1"), CancellationToken.None);
+        replayResult.State.Should().Be("Refunded");
+        replayResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1); // Port not called second time
+    }
+
+    [Fact]
+    public async Task Refund_ReplaySameKey_WithExplicitAmount_ReturnsExistingResponseWithoutCallingChannel()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        // Initial full refund with explicit amount
+        var firstResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_2", 5000), CancellationToken.None);
+        firstResult.State.Should().Be("Refunded");
+        firstResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1);
+
+        // Replay with identical key and explicit amount
+        var replayResult = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_ref_replay_2", 5000), CancellationToken.None);
+        replayResult.State.Should().Be("Refunded");
+        replayResult.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(1); // Port not called second time
+    }
+
+    [Fact]
+    public async Task Refund_MultiStepWithOmittedAmountRemainder_ReplaySucceedsWithoutConflict()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new RefundPaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        payment.Capture("ref_cap_1", 5000);
+        await repo.AddAsync(payment);
+
+        // Step 1: Partial refund 2000
+        var part1 = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_step_1", 2000), CancellationToken.None);
+        part1.State.Should().Be("PartiallyRefunded");
+        part1.RefundedAmount.Should().Be(2000);
+
+        // Step 2: Remainder refund with omitted amount (refunds remaining 3000 -> Refunded)
+        var part2 = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_step_2_omitted"), CancellationToken.None);
+        part2.State.Should().Be("Refunded");
+        part2.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(2);
+
+        // Step 3: Replay step 2 (omitted amount) on already Refunded payment (total Refunded is 5000, step 2 refunded 3000)
+        // With unified request hashing (0L for omitted amount), hash matches and returns cached result.
+        var replay = await handler.Handle(new RefundPaymentCommand(payment.Id, "idem_step_2_omitted"), CancellationToken.None);
+        replay.State.Should().Be("Refunded");
+        replay.RefundedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Capture_MultiStepWithOmittedAmountRemainder_ReplaySucceedsWithoutConflict()
+    {
+        var repo = new TestPaymentRepository();
+        var port = new TestSettlementPort();
+        var idem = new TestIdempotencyRepository();
+        var handler = new CapturePaymentCommandHandler(repo, port, idem);
+
+        var payment = Payment.Authorize("party_1", 5000, "EUR", "MOCK", "ref_auth_1");
+        await repo.AddAsync(payment);
+
+        // Step 1: Partial capture 2000
+        var part1 = await handler.Handle(new CapturePaymentCommand(payment.Id, "idem_cap_step_1", 2000), CancellationToken.None);
+        part1.State.Should().Be("PartiallyCaptured");
+        part1.CapturedAmount.Should().Be(2000);
+
+        // Step 2: Remainder capture with omitted amount (captures remaining 3000 -> Captured)
+        var part2 = await handler.Handle(new CapturePaymentCommand(payment.Id, "idem_cap_step_2_omitted"), CancellationToken.None);
+        part2.State.Should().Be("Captured");
+        part2.CapturedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(2);
+
+        // Step 3: Replay step 2 (omitted amount) on already Captured payment
+        var replay = await handler.Handle(new CapturePaymentCommand(payment.Id, "idem_cap_step_2_omitted"), CancellationToken.None);
+        replay.State.Should().Be("Captured");
+        replay.CapturedAmount.Should().Be(5000);
+        port.CallCount.Should().Be(2);
     }
 }

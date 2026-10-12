@@ -27,11 +27,35 @@ public sealed class RefundPaymentCommandHandler(
             throw new PaymentNotFoundException(request.PaymentId);
         }
 
+        var captured = payment.CapturedAmount > 0
+            ? payment.CapturedAmount
+            : (payment.State == PaymentState.Captured ? payment.Amount : 0L);
+        var availableRefundable = Math.Max(0L, captured - payment.RefundedAmount);
+        var isRemainderCancelled = payment.State == PaymentState.Cancelled && captured > 0;
+
+        // Pre-domain guard for early exit and validation before idempotency hash computation
+        if (request.Amount.HasValue)
+        {
+            if (request.Amount.Value <= 0)
+            {
+                throw new PaymentValidationException("Refund amount must be greater than zero.");
+            }
+
+            if ((payment.State is PaymentState.Captured or PaymentState.PartiallyRefunded || isRemainderCancelled)
+                && request.Amount.Value > availableRefundable)
+            {
+                throw new PaymentValidationException($"Refund amount {request.Amount.Value} exceeds remaining refundable balance {availableRefundable}.");
+            }
+        }
+
+        var effectiveAmount = request.Amount ?? availableRefundable;
+        var payloadAmount = request.Amount ?? 0L;
+
         var payloadHash = IdempotencyPayloadHasher.ComputeHash(
             "Refund",
             request.PaymentId,
             payment.PartyId,
-            payment.Amount,
+            payloadAmount,
             payment.Currency,
             payment.SettlementChannel);
 
@@ -74,10 +98,17 @@ public sealed class RefundPaymentCommandHandler(
             await idempotencyRepository.AddAsync(record, ct);
         }
 
-        // AC-3, AC-4: State check before channel call — captured payments only
-        if (payment.State != PaymentState.Captured)
+        // AC-5: If payment has zero captured balance or is in an uncaptured state, reject with conflict status
+        if (payment.State is not (PaymentState.Captured or PaymentState.PartiallyRefunded) && !isRemainderCancelled)
         {
             record.Fail(409, "Invalid state for refund");
+            await idempotencyRepository.UpdateAsync(record, ct);
+            throw new PaymentInvalidStateException(payment.State, "Refund");
+        }
+
+        if (availableRefundable <= 0)
+        {
+            record.Fail(409, "No refundable balance remaining");
             await idempotencyRepository.UpdateAsync(record, ct);
             throw new PaymentInvalidStateException(payment.State, "Refund");
         }
@@ -88,7 +119,7 @@ public sealed class RefundPaymentCommandHandler(
             settlement = await settlementPort.RefundAsync(
                 payment.Id,
                 payment.ChannelReference ?? string.Empty,
-                payment.Amount,
+                effectiveAmount,
                 payment.Currency,
                 payment.SettlementChannel,
                 ct);
@@ -122,7 +153,7 @@ public sealed class RefundPaymentCommandHandler(
             throw new PaymentOperationFailedException("Refund", reason);
         }
 
-        payment.Refund(settlement.ChannelReference);
+        payment.Refund(settlement.ChannelReference, effectiveAmount);
         await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "refund");

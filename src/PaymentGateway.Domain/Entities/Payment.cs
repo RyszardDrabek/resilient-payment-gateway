@@ -17,6 +17,7 @@ public sealed class Payment
     public long CapturedAmount { get; private set; }
     public long RefundedAmount { get; private set; }
     public long RemainingAuthorizedAmount => Math.Max(0L, Amount - CapturedAmount);
+    public long RemainingRefundableAmount => Math.Max(0L, (CapturedAmount > 0 ? CapturedAmount : (State == PaymentState.Captured ? Amount : 0L)) - RefundedAmount);
 
     private readonly List<Events.IDomainEvent> _domainEvents = [];
     public IReadOnlyCollection<Events.IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
@@ -220,26 +221,51 @@ public sealed class Payment
             DateTimeOffset.UtcNow));
     }
 
-    public void Refund(string channelReference)
+    public void Refund(string channelReference, long? amount = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);
 
-        // AC-3: Refund a captured payment
-        if (State != PaymentState.Captured)
+        if (State == PaymentState.Captured && CapturedAmount == 0)
+        {
+            CapturedAmount = Amount;
+        }
+
+        var isRemainderCancelled = State == PaymentState.Cancelled && CapturedAmount > 0;
+        if (State != PaymentState.Captured && State != PaymentState.PartiallyRefunded && !isRemainderCancelled)
         {
             throw new PaymentInvalidStateException(State, "Refund");
         }
 
-        State = PaymentState.Refunded;
-        RefundedAmount = CapturedAmount > 0 ? CapturedAmount : Amount;
+        var availableRefundable = (CapturedAmount > 0 ? CapturedAmount : Amount) - RefundedAmount;
+        if (availableRefundable <= 0)
+        {
+            throw new PaymentInvalidStateException(State, "Refund");
+        }
+
+        var effectiveAmount = amount ?? availableRefundable;
+        if (effectiveAmount <= 0)
+        {
+            throw new PaymentValidationException("Refund amount must be greater than zero.");
+        }
+
+        if (effectiveAmount > availableRefundable)
+        {
+            throw new PaymentValidationException($"Refund amount {effectiveAmount} exceeds remaining refundable balance {availableRefundable}.");
+        }
+
+        RefundedAmount += effectiveAmount;
+        var isFullyRefunded = RefundedAmount == (CapturedAmount > 0 ? CapturedAmount : Amount);
+        State = isFullyRefunded ? PaymentState.Refunded : PaymentState.PartiallyRefunded;
         ChannelReference = channelReference;
         Version++;
+
+        var outcome = isFullyRefunded ? Enums.PaymentLifecycleOutcome.Refunded : Enums.PaymentLifecycleOutcome.PartiallyRefunded;
 
         _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
             Id,
             PartyId,
-            Enums.PaymentLifecycleOutcome.Refunded,
-            Amount,
+            outcome,
+            effectiveAmount,
             Currency,
             Version,
             DateTimeOffset.UtcNow));
@@ -277,7 +303,32 @@ public sealed class Payment
 
         // AC-1: Out-of-order protection — acquirer truth progression:
         // Terminal states cannot be reverted:
-        if (State is PaymentState.Refunded or PaymentState.Cancelled or PaymentState.Declined)
+        if (State is PaymentState.Refunded or PaymentState.Declined)
+        {
+            return false;
+        }
+
+        // Cancelled cannot revert unless remainder-cancelled with captured balance being refunded
+        if (State == PaymentState.Cancelled)
+        {
+            if (CapturedAmount > 0 && targetState.Value is PaymentState.PartiallyRefunded or PaymentState.Refunded)
+            {
+                // Allowed
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        // PartiallyRefunded cannot revert to Captured, PartiallyCaptured, Authorized, Declined, Pending, or Unknown
+        if (State == PaymentState.PartiallyRefunded
+            && (targetState.Value == PaymentState.Captured
+                || targetState.Value == PaymentState.PartiallyCaptured
+                || targetState.Value == PaymentState.Authorized
+                || targetState.Value == PaymentState.Declined
+                || targetState.Value == PaymentState.Pending
+                || targetState.Value == PaymentState.Unknown))
         {
             return false;
         }
