@@ -34,10 +34,70 @@ builder.Services
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Auth:Issuer"] ?? "payment-gateway",
             ValidAudience = builder.Configuration["Auth:Audience"] ?? "payment-gateway",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            RoleClaimType = "role"
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/problem+json";
+                var correlationId = context.HttpContext.TraceIdentifier;
+                if (!context.Response.Headers.ContainsKey("X-Correlation-Id"))
+                {
+                    context.Response.Headers["X-Correlation-Id"] = correlationId;
+                }
+                var problem = new PaymentGateway.Edge.Problems.PaymentProblemDetails(
+                    Type: PaymentGateway.Edge.Problems.PaymentProblemTypes.Unauthorized,
+                    Title: "Unauthorized",
+                    Status: StatusCodes.Status401Unauthorized,
+                    Detail: "Authentication token is missing, invalid, or expired.",
+                    CorrelationId: correlationId);
+                await context.Response.WriteAsJsonAsync(
+                    problem,
+                    options: (System.Text.Json.JsonSerializerOptions?)null,
+                    contentType: "application/problem+json",
+                    cancellationToken: context.HttpContext.RequestAborted);
+            },
+            OnForbidden = async context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/problem+json";
+                var correlationId = context.HttpContext.TraceIdentifier;
+                if (!context.Response.Headers.ContainsKey("X-Correlation-Id"))
+                {
+                    context.Response.Headers["X-Correlation-Id"] = correlationId;
+                }
+                var problem = new PaymentGateway.Edge.Problems.PaymentProblemDetails(
+                    Type: PaymentGateway.Edge.Problems.PaymentProblemTypes.Forbidden,
+                    Title: "Forbidden",
+                    Status: StatusCodes.Status403Forbidden,
+                    Detail: "The caller does not have the required role to access this resource.",
+                    CorrelationId: correlationId);
+                await context.Response.WriteAsJsonAsync(
+                    problem,
+                    options: (System.Text.Json.JsonSerializerOptions?)null,
+                    contentType: "application/problem+json",
+                    cancellationToken: context.HttpContext.RequestAborted);
+            }
         };
     });
-builder.Services.AddAuthorization();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("UnresolvedPaymentsPolicy", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim(c =>
+                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role) &&
+                (string.Equals(c.Value, "merchant", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(c.Value, "risk", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase))));
+    });
+});
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
@@ -102,6 +162,7 @@ app.UseRateLimiter();
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
 app.MapPrometheusScrapingEndpoint().AllowAnonymous();
 app.MapPaymentEndpoints();
+app.MapUnresolvedPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();
 app.MapOpsWeb3Endpoints();
