@@ -36,7 +36,6 @@ builder.Services.AddOpenTelemetry()
         options.IncludeScopes = true;
     });
 
-builder.Services.AddHostedService<PaymentGateway.Worker.WorkerHeartbeat>();
 builder.Services.AddHostedService<PaymentGateway.Worker.Web3ConfirmationWatcherWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.OutboxRetentionCleanupWorker>();
 

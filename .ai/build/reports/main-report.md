@@ -8,7 +8,7 @@
 
 | Status    | Count |
 | --------- | ----- |
-| SUCCESS   | 21    |
+| SUCCESS   | 22    |
 | ESCALATED | 0     |
 | SKIPPED   | 0     |
 | ERROR     | 0     |
@@ -38,4 +38,5 @@
 | 18  | [F-PAY-05](../../specs/features/F-PAY-05/spec.md): Partial refund support | PAY | — | SUCCESS | bbb255f | — |
 | 19  | [F-EVT-02](../../specs/features/F-EVT-02/spec.md): Transactional outbox retention & pruning | EVT | — | SUCCESS | 311c1d9 | — |
 | 20  | [F-EDGE-04](../../specs/features/F-EDGE-04/spec.md): Unresolved payments operator query API | EDGE | — | SUCCESS | 879c5b2 | — |
-| 21  | [F-EDGE-05](../../specs/features/F-EDGE-05/spec.md): Merchant outbound webhook notification dispatch | EDGE | — | SUCCESS | Pending PR | — |
+| 21  | [F-EDGE-05](../../specs/features/F-EDGE-05/spec.md): Merchant outbound webhook notification dispatch | EDGE | — | SUCCESS | 91951f1 | — |
+| 22  | [F-PORTAL-01](../../specs/features/F-PORTAL-01/spec.md): Operator dashboard & unresolved payments console | PORTAL | — | SUCCESS | In working tree | — |

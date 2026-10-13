@@ -58,7 +58,7 @@ services:
       - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ./dashboards:/etc/grafana/dashboards:ro
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -123,6 +123,15 @@ services:
     entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545"]
     ports:
       - "8545:8545"
+
+  portal:
+    build:
+      context: ../src/PaymentGateway.Portal
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
 
 networks:
   default:

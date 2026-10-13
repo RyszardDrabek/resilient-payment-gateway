@@ -19,6 +19,20 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddEdge(builder.Configuration);
 
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:3000", "http://127.0.0.1:3000"];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("PortalPolicy", policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .WithExposedHeaders("X-Correlation-Id");
+    });
+});
+
 var jwtKey = builder.Configuration["Auth:JwtSigningKey"]
     ?? throw new InvalidOperationException("Auth:JwtSigningKey is required.");
 
@@ -154,6 +168,7 @@ if (builder.Configuration.GetValue<bool>("Database:AutoMigrate", false) ||
 }
 
 app.UseForwardedHeaders();
+app.UseCors("PortalPolicy");
 app.UseEdge();
 app.UseAuthentication();
 app.UseAuthorization();

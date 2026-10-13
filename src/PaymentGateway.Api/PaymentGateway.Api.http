@@ -1,6 +1,87 @@
-@PaymentGateway.Api_HostAddress = http://localhost:5108
+@Host = http://localhost:5080
+@MerchantToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtZXJjaF9hY21lIiwicm9sZSI6Im1lcmNoYW50IiwiaXNzIjoicGF5bWVudC1nYXRld2F5IiwiYXVkIjoicGF5bWVudC1nYXRld2F5IiwiZXhwIjoyMTA3MjM5NDMyfQ.zq5VF61xVkqpBzY6OAGlTFCj3BpDEUaUqensYU1JQzE
+@OpsToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJvcHNfdXNlciIsInJvbGUiOiJvcHMiLCJpc3MiOiJwYXltZW50LWdhdGV3YXkiLCJhdWQiOiJwYXltZW50LWdhdGV3YXkiLCJleHAiOjIxMDcyMzk0MzJ9.qbe7ZPZ1RXFj7ol_X2bBQTzSXBNjze2zRChJ0QO5Xds
+@RiskToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJyaXNrX3VzZXIiLCJyb2xlIjoicmlzayIsImlzcyI6InBheW1lbnQtZ2F0ZXdheSIsImF1ZCI6InBheW1lbnQtZ2F0ZXdheSIsImV4cCI6MjEwNzIzOTQzMn0.PaY6Xnfv2rkJjIpLRu6uyq_G4xnZVAU0ZlWQAbSL9y4
 
-GET {{PaymentGateway.Api_HostAddress}}/weatherforecast/
+### 1. Health & Root Info
+GET {{Host}}/health
 Accept: application/json
 
 ###
+GET {{Host}}/
+Accept: application/json
+
+### 2. Payments — Authorize Payment (Merchant Role)
+# @name authorizePayment
+POST {{Host}}/api/v1/payments
+Authorization: Bearer {{MerchantToken}}
+Idempotency-Key: idemp-http-test-001
+Content-Type: application/json
+Accept: application/json
+
+{
+  "partyId": "merch_acme",
+  "amount": 10000,
+  "currency": "EUR",
+  "settlementChannel": "adyen-wiremock"
+}
+
+### 3. Payments — Get Payment Details
+@paymentId = {{authorizePayment.response.body.paymentId}}
+GET {{Host}}/api/v1/payments/{{paymentId}}
+Authorization: Bearer {{MerchantToken}}
+Accept: application/json
+
+### 4. Payments — Capture Payment (Partial or Full)
+POST {{Host}}/api/v1/payments/{{paymentId}}/capture
+Authorization: Bearer {{MerchantToken}}
+Idempotency-Key: idemp-capture-001
+Content-Type: application/json
+Accept: application/json
+
+{
+  "amount": 5000
+}
+
+### 5. Payments — Refund Payment
+POST {{Host}}/api/v1/payments/{{paymentId}}/refund
+Authorization: Bearer {{MerchantToken}}
+Idempotency-Key: idemp-refund-001
+Content-Type: application/json
+Accept: application/json
+
+{
+  "amount": 2000
+}
+
+### 6. Payments — Cancel Payment
+POST {{Host}}/api/v1/payments/{{paymentId}}/cancel
+Authorization: Bearer {{MerchantToken}}
+Idempotency-Key: idemp-cancel-001
+Accept: application/json
+
+### 7. Operations — Query Unresolved Payments (Ops Role)
+GET {{Host}}/api/v1/payments/unresolved?channel=adyen-wiremock&ageMinutes=0&page=1&pageSize=20
+Authorization: Bearer {{OpsToken}}
+Accept: application/json
+
+### 8. Webhooks — Register Merchant Webhook Subscription
+POST {{Host}}/api/v1/webhooks/merchants/subscriptions
+Authorization: Bearer {{MerchantToken}}
+Idempotency-Key: idemp-webhook-sub-001
+Content-Type: application/json
+Accept: application/json
+
+{
+  "callbackUrl": "https://api.acme-store.com/webhooks/payments",
+  "eventTypes": [
+    "payment.authorized",
+    "payment.settled",
+    "payment.failed"
+  ]
+}
+
+### 9. Risk — List Flagged Payments (Risk Role)
+GET {{Host}}/api/v1/risk/flags?status=Flagged&page=1&pageSize=20
+Authorization: Bearer {{RiskToken}}
+Accept: application/json
