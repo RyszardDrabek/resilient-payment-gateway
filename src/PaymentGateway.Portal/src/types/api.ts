@@ -40,3 +40,35 @@ export interface PaymentProblemDetails {
   correlationId?: string;
   invalidParams?: Array<{ name: string; reason: string }>;
 }
+
+export interface MerchantWebhookSubscriptionDto {
+  id: string;
+  partyId: string;
+  endpointUrl: string;
+  secretKey: string;
+  isActive: boolean;
+}
+
+export interface UpdateWebhookSubscriptionRequest {
+  endpointUrl: string;
+  isActive: boolean;
+}
+
+export interface TestWebhookDispatchRequest {
+  endpointUrl?: string;
+  eventType?: string;
+}
+
+export interface TestWebhookDispatchResultDto {
+  success: boolean;
+  statusCode: number | null;
+  latencyMs: number;
+  endpointUrl: string;
+  eventId: string;
+  timestamp: string;
+  signature: string;
+  requestHeaders: Record<string, string>;
+  requestPayload: string;
+  responseBody: string | null;
+  errorMessage: string | null;
+}

@@ -111,6 +111,16 @@ builder.Services.AddAuthorization(options =>
                  string.Equals(c.Value, "risk", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase))));
     });
+
+    options.AddPolicy("MerchantWebhookPolicy", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim(c =>
+                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role) &&
+                (string.Equals(c.Value, "merchant", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase))));
+    });
 });
 
 builder.Services.AddOpenTelemetry()
@@ -182,6 +192,7 @@ app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();
 app.MapOpsWeb3Endpoints();
 app.MapRiskEndpoints();
+app.MapMerchantWebhookEndpoints();
 app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);

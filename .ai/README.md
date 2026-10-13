@@ -12,12 +12,12 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-03](intake/03-2026-10-12-merchant-and-operator-portal/intake.md) |
-| Features | done (7 topics / 24 features; 21 done, 3 new) |
+| Features | done (7 topics / 24 features; 22 done, 2 new) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | in progress (21/24 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | in progress (22/24 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 
