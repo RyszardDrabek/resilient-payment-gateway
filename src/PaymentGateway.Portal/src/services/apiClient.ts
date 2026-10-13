@@ -1,7 +1,11 @@
 import {
+  DispositionRiskFlagRequest,
   MerchantWebhookSubscriptionDto,
+  OpenRiskFlagsResponse,
   PaymentDto,
   PaymentProblemDetails,
+  RiskFlagDto,
+  RiskVerdictDto,
   TestWebhookDispatchRequest,
   TestWebhookDispatchResultDto,
   UnresolvedPaymentsResponse,
@@ -173,3 +177,62 @@ export async function dispatchTestWebhook(
 
   return handleResponse<TestWebhookDispatchResultDto>(response);
 }
+
+export async function fetchOpenRiskFlags(
+  token: string,
+  page = 1,
+  pageSize = 50
+): Promise<OpenRiskFlagsResponse> {
+  const url = `${API_BASE_URL}/api/v1/risk/flags?page=${page}&pageSize=${pageSize}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<OpenRiskFlagsResponse>(response);
+}
+
+export async function fetchRiskVerdict(
+  token: string,
+  identifier: string
+): Promise<RiskVerdictDto> {
+  const url = `${API_BASE_URL}/api/v1/risk/verdicts/${encodeURIComponent(identifier)}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<RiskVerdictDto>(response);
+}
+
+export async function submitRiskDisposition(
+  token: string,
+  flagId: string,
+  data: DispositionRiskFlagRequest
+): Promise<RiskFlagDto> {
+  const url = `${API_BASE_URL}/api/v1/risk/flags/${encodeURIComponent(flagId)}/disposition`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<RiskFlagDto>(response);
+}
+

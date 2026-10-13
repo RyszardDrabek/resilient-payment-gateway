@@ -255,4 +255,54 @@ public sealed class RiskFlagDispositionIntegrationTests : IAsyncLifetime
         flag2After!.Status.Should().Be("Open");
         flag2After.Disposition.Should().BeNull();
     }
+
+    [Fact]
+    public async Task AC4_RiskEndpoints_WithoutToken_Returns401Unauthorized()
+    {
+        if (!_dockerAvailable) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/risk/flags");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var legacyResponse = await client.GetAsync("/risk/flags");
+        legacyResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AC4_RiskEndpoints_WithMerchantRole_Returns403Forbidden()
+    {
+        if (!_dockerAvailable) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwtToken(role: "merchant"));
+
+        var response = await client.GetAsync("/api/v1/risk/flags");
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var dispResponse = await client.PostAsJsonAsync("/api/v1/risk/flags/any-flag/disposition", new DispositionRiskFlagRequest("confirmed", null));
+        dispResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Theory]
+    [InlineData("risk")]
+    [InlineData("ops")]
+    public async Task RiskEndpoints_WithPrivilegedRole_AllowsAccessUnderBothRoutes(string role)
+    {
+        if (!_dockerAvailable) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwtToken(role: role));
+
+        var responseV1 = await client.GetAsync("/api/v1/risk/flags");
+        responseV1.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var responseLegacy = await client.GetAsync("/risk/flags");
+        responseLegacy.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
 }
+

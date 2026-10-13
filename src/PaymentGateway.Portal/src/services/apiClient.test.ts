@@ -154,5 +154,121 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('fetches open risk flags with pagination params', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedInit: RequestInit | undefined;
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedInit = init;
+        return new Response(JSON.stringify({
+          items: [{
+            id: 'flag_101',
+            paymentId: 'pay_101',
+            partyId: 'party_acme',
+            eventId: 'evt_101',
+            reason: 'High velocity spike',
+            status: 'Open',
+            disposition: null,
+            createdAt: '2026-10-13T10:00:00Z',
+            dispositionedAt: null,
+            reviewerNotes: null
+          }],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchOpenRiskFlags } = await import('./apiClient');
+      const result = await fetchOpenRiskFlags('risk-token', 1, 20);
+
+      expect(capturedUrl).toContain('/api/v1/risk/flags?page=1&pageSize=20');
+      expect((capturedInit?.headers as Record<string, string>)?.Authorization).toBe('Bearer risk-token');
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].id).toBe('flag_101');
+      expect(result.totalCount).toBe(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('fetches risk verdict by identifier', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        capturedUrl = input.toString();
+        return new Response(JSON.stringify({
+          id: 'v_101',
+          eventId: 'evt_101',
+          paymentId: 'pay_101',
+          partyId: 'party_acme',
+          status: 'Flagged',
+          reason: 'Amount exceeds threshold',
+          flagId: 'flag_101',
+          scoredAt: '2026-10-13T10:00:00Z'
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchRiskVerdict } = await import('./apiClient');
+      const result = await fetchRiskVerdict('risk-token', 'v_101');
+
+      expect(capturedUrl).toContain('/api/v1/risk/verdicts/v_101');
+      expect(result.status).toBe('Flagged');
+      expect(result.flagId).toBe('flag_101');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('submits risk flag disposition and parses result', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedMethod = '';
+      let capturedBody = '';
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedMethod = init?.method ?? '';
+        capturedBody = init?.body?.toString() ?? '';
+        return new Response(JSON.stringify({
+          id: 'flag_101',
+          paymentId: 'pay_101',
+          partyId: 'party_acme',
+          eventId: 'evt_101',
+          reason: 'High velocity spike',
+          status: 'Dispositioned',
+          disposition: 'confirmed',
+          createdAt: '2026-10-13T10:00:00Z',
+          dispositionedAt: '2026-10-13T11:00:00Z',
+          reviewerNotes: 'Confirmed fraudulent pattern'
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { submitRiskDisposition } = await import('./apiClient');
+      const result = await submitRiskDisposition('risk-token', 'flag_101', {
+        disposition: 'confirmed',
+        notes: 'Confirmed fraudulent pattern'
+      });
+
+      expect(capturedMethod).toBe('POST');
+      expect(capturedUrl).toContain('/api/v1/risk/flags/flag_101/disposition');
+      expect(JSON.parse(capturedBody)).toEqual({
+        disposition: 'confirmed',
+        notes: 'Confirmed fraudulent pattern'
+      });
+      expect(result.status).toBe('Dispositioned');
+      expect(result.disposition).toBe('confirmed');
+      expect(result.reviewerNotes).toBe('Confirmed fraudulent pattern');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
+
 
