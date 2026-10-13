@@ -1,0 +1,85 @@
+import { PaymentDto, PaymentProblemDetails, UnresolvedPaymentsResponse } from '../types/api';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+export class ApiError extends Error {
+  public status: number;
+  public problem?: PaymentProblemDetails;
+
+  constructor(status: number, message: string, problem?: PaymentProblemDetails) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.problem = problem;
+  }
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (response.ok) {
+    return (await response.json()) as T;
+  }
+
+  let problem: PaymentProblemDetails | undefined;
+  let message = `API request failed with status ${response.status}`;
+
+  try {
+    const errorJson = await response.json();
+    if (errorJson && (errorJson.type || errorJson.title || errorJson.detail)) {
+      problem = errorJson as PaymentProblemDetails;
+      message = problem.detail || problem.title || message;
+    }
+  } catch {
+    // Non-JSON error body
+  }
+
+  throw new ApiError(response.status, message, problem);
+}
+
+export interface UnresolvedQueryParams {
+  channel?: string;
+  ageMinutes?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function fetchUnresolvedPayments(
+  token: string,
+  params: UnresolvedQueryParams = {}
+): Promise<UnresolvedPaymentsResponse> {
+  const query = new URLSearchParams();
+  if (params.channel) query.set('channel', params.channel);
+  if (params.ageMinutes !== undefined && params.ageMinutes > 0) query.set('ageMinutes', params.ageMinutes.toString());
+  if (params.page !== undefined) query.set('page', params.page.toString());
+  if (params.pageSize !== undefined) query.set('pageSize', params.pageSize.toString());
+
+  const url = `${API_BASE_URL}/api/v1/payments/unresolved?${query.toString()}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<UnresolvedPaymentsResponse>(response);
+}
+
+export async function fetchPaymentById(
+  token: string,
+  paymentId: string
+): Promise<PaymentDto> {
+  const url = `${API_BASE_URL}/api/v1/payments/${encodeURIComponent(paymentId)}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<PaymentDto>(response);
+}

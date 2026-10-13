@@ -124,6 +124,15 @@ services:
     ports:
       - "8545:8545"
 
+  portal:
+    build:
+      context: ../src/PaymentGateway.Portal
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
 networks:
   default:
     name: payment-gateway

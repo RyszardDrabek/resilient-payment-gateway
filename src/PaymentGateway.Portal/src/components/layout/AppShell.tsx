@@ -1,0 +1,81 @@
+import React from 'react';
+import { Header } from './Header';
+import { AlertCircle, Radio, ShieldCheck, Activity } from 'lucide-react';
+
+interface AppShellProps {
+  children: React.ReactNode;
+  activeTab: 'unresolved' | 'webhooks' | 'risk';
+  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk') => void;
+}
+
+export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabChange }) => {
+  return (
+    <div className="min-h-screen flex flex-col bg-[#0b0f19] text-[#f9fafb]">
+      <Header />
+
+      <div className="flex-1 flex flex-col md:flex-row">
+        {/* Navigation Rail */}
+        <aside className="w-full md:w-64 bg-[#111827] border-b md:border-b-0 md:border-r border-[#374151] p-4 flex flex-col shrink-0">
+          <div className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 px-3">
+            Operations Consoles
+          </div>
+          <nav className="flex flex-col gap-1">
+            <button
+              onClick={() => onTabChange('unresolved')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-left ${
+                activeTab === 'unresolved'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-300 hover:bg-[#1f2937] hover:text-white'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Unresolved Payments</span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('webhooks')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-left ${
+                activeTab === 'webhooks'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-300 hover:bg-[#1f2937] hover:text-white'
+              }`}
+            >
+              <Radio className="w-4 h-4 shrink-0" />
+              <span>Merchant Webhooks</span>
+              <span className="ml-auto text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-mono">
+                F-02
+              </span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('risk')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-left ${
+                activeTab === 'risk'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-300 hover:bg-[#1f2937] hover:text-white'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>Risk Review Queue</span>
+              <span className="ml-auto text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-mono">
+                F-03
+              </span>
+            </button>
+          </nav>
+
+          <div className="mt-auto pt-6 border-t border-[#374151] hidden md:block">
+            <div className="flex items-center gap-2 text-xs text-gray-400 px-3">
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Gateway: Online (200 OK)</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
