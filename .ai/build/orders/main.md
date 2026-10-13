@@ -28,3 +28,8 @@
 | 22  | [F-PORTAL-01](../../specs/features/F-PORTAL-01/spec.md): Operator dashboard & unresolved payments console | PORTAL | 6     | #20, #4         |
 | 23  | [F-PORTAL-02](../../specs/features/F-PORTAL-02/spec.md): Merchant webhook self-service & event simulator | PORTAL | 6     | #21, #22        |
 | 24  | [F-PORTAL-03](../../specs/features/F-PORTAL-03/spec.md): Compliance risk flags review & disposition console | PORTAL | 6     | #15, #16, #22   |
+| 25  | [F-EDGE-06](../../specs/features/F-EDGE-06/spec.md): Merchant API Key authentication & scoped permissions | EDGE  | 7     | #1, #4          |
+| 26  | [F-EDGE-07](../../specs/features/F-EDGE-07/spec.md): Webhook DLQ inspection & manual replay API | EDGE  | 7     | #21             |
+| 27  | [F-PORTAL-04](../../specs/features/F-PORTAL-04/spec.md): Merchant API Keys management console | PORTAL | 7     | #25, #22        |
+| 28  | [F-PORTAL-05](../../specs/features/F-PORTAL-05/spec.md): Webhook DLQ delivery logs & manual replay console | PORTAL | 7     | #26, #23        |
+

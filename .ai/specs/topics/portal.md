@@ -32,6 +32,9 @@
 | [F-PORTAL-01](../features/F-PORTAL-01/spec.md) | Operator dashboard & unresolved payments console | Explicit | USER-VISIBLE |
 | [F-PORTAL-02](../features/F-PORTAL-02/spec.md) | Merchant webhook self-service & event simulator | Explicit | USER-VISIBLE |
 | [F-PORTAL-03](../features/F-PORTAL-03/spec.md) | Compliance risk flags review & disposition console | Explicit | USER-VISIBLE |
+| [F-PORTAL-04](../features/F-PORTAL-04/spec.md) | Merchant API Keys management console | Explicit | USER-VISIBLE |
+| [F-PORTAL-05](../features/F-PORTAL-05/spec.md) | Webhook DLQ delivery logs & manual replay console | Explicit | USER-VISIBLE |
+
 
 ## Dependencies
 

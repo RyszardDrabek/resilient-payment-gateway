@@ -9,6 +9,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PaymentGateway.Domain.Entities.IdempotencyRecord> IdempotencyRecords => Set<PaymentGateway.Domain.Entities.IdempotencyRecord>();
     public DbSet<PaymentGateway.Domain.Entities.AdyenNotification> AdyenNotifications => Set<PaymentGateway.Domain.Entities.AdyenNotification>();
     public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookSubscription> MerchantWebhookSubscriptions => Set<PaymentGateway.Domain.Entities.MerchantWebhookSubscription>();
+    public DbSet<PaymentGateway.Domain.Entities.MerchantApiKey> MerchantApiKeys => Set<PaymentGateway.Domain.Entities.MerchantApiKey>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -106,6 +107,29 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.HasIndex(s => s.PartyId)
                 .IsUnique()
                 .HasFilter("\"IsActive\" = true");
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.MerchantApiKey>(b =>
+        {
+            b.ToTable("MerchantApiKeys");
+            b.HasKey(k => k.Id);
+            b.Property(k => k.MerchantId).IsRequired().HasMaxLength(128);
+            b.Property(k => k.Name).IsRequired().HasMaxLength(128);
+            b.Property(k => k.Prefix).IsRequired().HasMaxLength(64);
+            b.Property(k => k.KeyHash).IsRequired().HasMaxLength(256);
+            b.Property(k => k.Salt).IsRequired().HasMaxLength(128);
+            b.Property(k => k.CreatedAt).IsRequired();
+            b.Property(k => k.IsRevoked).IsRequired().HasDefaultValue(false);
+            b.Property(k => k.RevokedAt);
+
+            b.Property(k => k.Scopes)
+                .HasConversion(
+                    v => string.Join(',', v),
+                    v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList())
+                .HasMaxLength(256);
+
+            b.HasIndex(k => k.Prefix);
+            b.HasIndex(k => new { k.MerchantId, k.IsRevoked });
         });
     }
 }

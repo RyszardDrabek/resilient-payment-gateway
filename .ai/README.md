@@ -1,8 +1,8 @@
 # Project status
 
 **Mode:** greenfield  
-**Status:** Implementation complete — all 24 features built and verified  
-**Current phase:** Phase 6 (merchant-and-operator-portal)  
+**Status:** In progress — Phase 7 (3 new features planned, 25 completed)  
+**Current phase:** Phase 7 (merchant-api-keys-and-webhook-dlq)  
 **Stack:** .NET 10 modular monolith (Clean + CQRS/MediatR), PostgreSQL/EF Core, RabbitMQ/MassTransit, Polly, JWT, React 19/Vite/Tailwind portal, compose-only MVP  
 *Order:* [build/orders/main.md](build/orders/main.md)  
 *Scaffold:* ✓ → [build/scaffold-report.md](build/scaffold-report.md)
@@ -12,22 +12,22 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-03](intake/03-2026-10-12-merchant-and-operator-portal/intake.md) |
-| Features | done (7 topics / 24 features; 24 done, 0 new) |
+| Features | active (7 topics / 28 features; 25 done, 3 new) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | complete (24/24 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | in progress (25/28 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 
 - [x] PAY (5 features) → [topics/pay.md](specs/topics/pay.md)
-- [x] EDGE (5 features) → [topics/edge.md](specs/topics/edge.md)
+- [x] EDGE (7 features) → [topics/edge.md](specs/topics/edge.md)
 - [x] EVT (2 features) → [topics/evt.md](specs/topics/evt.md)
 - [x] ADYEN (5 features) → [topics/adyen.md](specs/topics/adyen.md)
 - [x] WEB3 (2 features) → [topics/web3.md](specs/topics/web3.md)
 - [x] RISK (2 features) → [topics/risk.md](specs/topics/risk.md)
-- [x] PORTAL (3 features) → [topics/portal.md](specs/topics/portal.md)
+- [x] PORTAL (5 features) → [topics/portal.md](specs/topics/portal.md)
 
 ## Architecture Decisions
 

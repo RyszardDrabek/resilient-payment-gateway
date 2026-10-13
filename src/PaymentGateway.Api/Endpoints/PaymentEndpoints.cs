@@ -23,6 +23,16 @@ public static class PaymentEndpoints
 
         group.MapPost("/", async (HttpContext httpContext, AuthorizePaymentRequest request, ISender mediator, CancellationToken ct) =>
         {
+            if (!HasRequiredScope(httpContext, "payments:write"))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status403Forbidden,
+                    PaymentProblemTypes.Forbidden,
+                    "Forbidden",
+                    "The API key lacks the required 'payments:write' scope.");
+            }
+
             var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
@@ -67,6 +77,16 @@ public static class PaymentEndpoints
 
         group.MapGet("/{id}", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
         {
+            if (!HasRequiredScope(httpContext, "payments:read"))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status403Forbidden,
+                    PaymentProblemTypes.Forbidden,
+                    "Forbidden",
+                    "The API key lacks the required 'payments:read' scope.");
+            }
+
             var result = await mediator.Send(new GetPaymentByIdQuery(id), ct);
             if (result is null)
             {
@@ -83,6 +103,16 @@ public static class PaymentEndpoints
 
         group.MapPost("/{id}/capture", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
         {
+            if (!HasRequiredScope(httpContext, "payments:write"))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status403Forbidden,
+                    PaymentProblemTypes.Forbidden,
+                    "Forbidden",
+                    "The API key lacks the required 'payments:write' scope.");
+            }
+
             var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
@@ -129,6 +159,16 @@ public static class PaymentEndpoints
 
         group.MapPost("/{id}/cancel", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
         {
+            if (!HasRequiredScope(httpContext, "payments:write"))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status403Forbidden,
+                    PaymentProblemTypes.Forbidden,
+                    "Forbidden",
+                    "The API key lacks the required 'payments:write' scope.");
+            }
+
             var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
@@ -146,6 +186,16 @@ public static class PaymentEndpoints
 
         group.MapPost("/{id}/refund", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
         {
+            if (!HasRequiredScope(httpContext, "payments:write"))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status403Forbidden,
+                    PaymentProblemTypes.Forbidden,
+                    "Forbidden",
+                    "The API key lacks the required 'payments:write' scope.");
+            }
+
             var idempotencyKey = httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
@@ -191,6 +241,17 @@ public static class PaymentEndpoints
         });
 
         return app;
+    }
+
+    private static bool HasRequiredScope(HttpContext httpContext, string requiredScope)
+    {
+        var authMethod = httpContext.User.FindFirst("auth_method")?.Value;
+        if (string.Equals(authMethod, "api_key", StringComparison.OrdinalIgnoreCase))
+        {
+            return httpContext.User.HasClaim(c => c.Type == "scope" && string.Equals(c.Value, requiredScope, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return true;
     }
 
     private static IResult ProblemResult(
