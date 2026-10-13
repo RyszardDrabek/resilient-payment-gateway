@@ -24,7 +24,12 @@ public sealed class MerchantWebhookDispatcherTests
         public Task<MerchantWebhookSubscription?> GetActiveByPartyIdAsync(string partyId, CancellationToken ct = default) =>
             Task.FromResult(subscription);
 
+        public Task<MerchantWebhookSubscription?> GetByPartyIdAsync(string partyId, CancellationToken ct = default) =>
+            Task.FromResult(subscription);
+
         public Task AddAsync(MerchantWebhookSubscription sub, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task UpsertAsync(MerchantWebhookSubscription sub, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler

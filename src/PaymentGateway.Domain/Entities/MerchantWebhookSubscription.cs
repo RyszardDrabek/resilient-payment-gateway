@@ -27,4 +27,17 @@ public sealed class MerchantWebhookSubscription
         SecretKey = secretKey;
         IsActive = isActive;
     }
+
+    public void UpdateEndpoint(string endpointUrl, bool isActive)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpointUrl);
+        EndpointUrl = endpointUrl;
+        IsActive = isActive;
+    }
+
+    public void RotateSecretKey(string newSecretKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newSecretKey);
+        SecretKey = newSecretKey;
+    }
 }

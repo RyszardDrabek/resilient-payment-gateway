@@ -82,6 +82,7 @@ public static class DependencyInjection
         services.AddSingleton<PaymentGateway.Application.Webhooks.IMerchantWebhookSigner, PaymentGateway.Application.Webhooks.HmacSha256WebhookSigner>();
         services.AddScoped<PaymentGateway.Domain.Ports.IMerchantWebhookSubscriptionRepository, PaymentGateway.Infrastructure.Repositories.MerchantWebhookSubscriptionRepository>();
         services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookDispatcher, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookDispatcher>();
+        services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookSimulator, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookSimulator>();
 
         services.AddMassTransit(x =>
         {

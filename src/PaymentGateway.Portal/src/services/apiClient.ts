@@ -1,4 +1,12 @@
-import { PaymentDto, PaymentProblemDetails, UnresolvedPaymentsResponse } from '../types/api';
+import {
+  MerchantWebhookSubscriptionDto,
+  PaymentDto,
+  PaymentProblemDetails,
+  TestWebhookDispatchRequest,
+  TestWebhookDispatchResultDto,
+  UnresolvedPaymentsResponse,
+  UpdateWebhookSubscriptionRequest,
+} from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5080';
 
@@ -82,4 +90,86 @@ export async function fetchPaymentById(
   });
 
   return handleResponse<PaymentDto>(response);
+}
+
+export async function fetchWebhookSubscription(
+  token: string,
+  partyId?: string
+): Promise<MerchantWebhookSubscriptionDto> {
+  const query = partyId ? `?partyId=${encodeURIComponent(partyId)}` : '';
+  const url = `${API_BASE_URL}/api/v1/webhooks/merchants/subscription${query}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<MerchantWebhookSubscriptionDto>(response);
+}
+
+export async function updateWebhookSubscription(
+  token: string,
+  data: UpdateWebhookSubscriptionRequest,
+  partyId?: string
+): Promise<MerchantWebhookSubscriptionDto> {
+  const query = partyId ? `?partyId=${encodeURIComponent(partyId)}` : '';
+  const url = `${API_BASE_URL}/api/v1/webhooks/merchants/subscription${query}`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<MerchantWebhookSubscriptionDto>(response);
+}
+
+export async function rotateWebhookSecret(
+  token: string,
+  partyId?: string
+): Promise<MerchantWebhookSubscriptionDto> {
+  const query = partyId ? `?partyId=${encodeURIComponent(partyId)}` : '';
+  const url = `${API_BASE_URL}/api/v1/webhooks/merchants/subscription/rotate-secret${query}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<MerchantWebhookSubscriptionDto>(response);
+}
+
+export async function dispatchTestWebhook(
+  token: string,
+  data: TestWebhookDispatchRequest = {},
+  partyId?: string
+): Promise<TestWebhookDispatchResultDto> {
+  const query = partyId ? `?partyId=${encodeURIComponent(partyId)}` : '';
+  const url = `${API_BASE_URL}/api/v1/webhooks/merchants/test-dispatch${query}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<TestWebhookDispatchResultDto>(response);
 }
