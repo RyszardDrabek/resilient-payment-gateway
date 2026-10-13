@@ -257,6 +257,41 @@ public sealed class MerchantWebhookEndpointsIntegrationTests : IAsyncLifetime, I
     }
 
     [Fact]
+    public async Task RotateSecret_WhenSubscriptionNotConfigured_Returns400BadRequest()
+    {
+        if (!_dockerAvailable) return;
+
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken("merchant", "merch_unconfigured_rotate"));
+
+        var response = await client.PostAsync("/api/v1/webhooks/merchants/subscription/rotate-secret", null);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task TestDispatch_WhenEndpointIsCloudMetadata_ReturnsSsrfBlockedError()
+    {
+        if (!_dockerAvailable) return;
+
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var partyId = "merch_ssrf_test";
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken("merchant", partyId));
+
+        await client.PutAsJsonAsync("/api/v1/webhooks/merchants/subscription", new UpdateWebhookSubscriptionRequest("https://example.com/webhook", true));
+
+        var dispatchRequest = new TestWebhookDispatchRequest("http://169.254.169.254/latest/meta-data/", "payment.settled");
+        var response = await client.PostAsJsonAsync("/api/v1/webhooks/merchants/test-dispatch", dispatchRequest);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<TestMerchantWebhookDispatchResultDto>(JsonOptions);
+        result.Should().NotBeNull();
+        result!.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("SSRF protection");
+    }
+
+    [Fact]
     public async Task AC3_TestDispatch_DeliversSimulatedEvent_AndReturnsLatencyAndHmac()
     {
         if (!_dockerAvailable) return;

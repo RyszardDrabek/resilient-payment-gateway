@@ -29,7 +29,7 @@ export const WebhooksConsole: React.FC = () => {
 
   const isAuthorized = role === 'merchant' || role === 'ops';
 
-  const partyId = role === 'merchant' ? 'merch_acme' : 'merch_acme';
+  const partyId = user.merchantId || 'merch_acme';
 
   const loadSubscription = useCallback(async () => {
     if (!token || !isAuthorized) {

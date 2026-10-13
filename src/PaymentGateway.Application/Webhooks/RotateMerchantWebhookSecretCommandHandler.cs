@@ -17,26 +17,13 @@ public sealed class RotateMerchantWebhookSecretCommandHandler(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PartyId);
 
         var existing = await repository.GetByPartyIdAsync(request.PartyId, cancellationToken);
-        var newSecretKey = "whsec_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-
         if (existing is null)
         {
-            var newSubscription = new MerchantWebhookSubscription(
-                Guid.NewGuid(),
-                request.PartyId,
-                "https://example.com/webhook",
-                newSecretKey,
-                isActive: false);
-
-            await repository.AddAsync(newSubscription, cancellationToken);
-            return new MerchantWebhookSubscriptionDto(
-                newSubscription.Id,
-                newSubscription.PartyId,
-                newSubscription.EndpointUrl,
-                newSubscription.SecretKey,
-                newSubscription.IsActive);
+            throw new InvalidOperationException(
+                $"Cannot rotate webhook secret key for party '{request.PartyId}' because no subscription exists. Please configure an endpoint URL first.");
         }
 
+        var newSecretKey = "whsec_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         existing.RotateSecretKey(newSecretKey);
         await repository.UpsertAsync(existing, cancellationToken);
 

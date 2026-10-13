@@ -146,6 +146,18 @@ public sealed class MerchantWebhookHandlersTests
     }
 
     [Fact]
+    public async Task RotateSecretCommandHandler_Throws_WhenSubscriptionDoesNotExist()
+    {
+        var repo = new InMemorySubscriptionRepository();
+        var handler = new RotateMerchantWebhookSecretCommandHandler(repo);
+
+        var act = () => handler.Handle(new RotateMerchantWebhookSecretCommand("merch_nonexistent"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*no subscription exists*");
+    }
+
+    [Fact]
     public async Task TestDispatchCommandHandler_Throws_WhenNoEndpointAvailable()
     {
         var repo = new InMemorySubscriptionRepository();

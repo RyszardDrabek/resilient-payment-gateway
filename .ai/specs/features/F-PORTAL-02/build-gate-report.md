@@ -16,7 +16,7 @@
 
 3. **Backend Test Suite:**
    - `PaymentGateway.ArchitectureTests`: **3/3 PASSED** (Clean architecture rules and layer dependencies intact).
-   - `PaymentGateway.UnitTests`: **343/343 PASSED** (Includes 7 new handler test cases in `MerchantWebhookHandlersTests`).
-   - `PaymentGateway.IntegrationTests`: **107/107 PASSED** (Includes 8 new integration test cases in `MerchantWebhookEndpointsIntegrationTests`).
+   - `PaymentGateway.UnitTests`: **344/344 PASSED** (Includes 8 handler test cases in `MerchantWebhookHandlersTests`).
+   - `PaymentGateway.IntegrationTests`: **109/109 PASSED** (Includes 10 integration test cases in `MerchantWebhookEndpointsIntegrationTests`).
 
 ### Overall Verdict: GREEN

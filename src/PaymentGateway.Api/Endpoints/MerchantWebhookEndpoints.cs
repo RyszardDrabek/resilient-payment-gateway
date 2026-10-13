@@ -117,8 +117,20 @@ public static class MerchantWebhookEndpoints
                     "Unable to resolve merchant party identifier from token claims.");
             }
 
-            var result = await mediator.Send(new RotateMerchantWebhookSecretCommand(resolvedPartyId), ct);
-            return Results.Ok(result);
+            try
+            {
+                var result = await mediator.Send(new RotateMerchantWebhookSecretCommand(resolvedPartyId), ct);
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    ex.Message);
+            }
         });
 
         group.MapPost("/test-dispatch", async (
@@ -151,13 +163,25 @@ public static class MerchantWebhookEndpoints
                     "Provided EndpointUrl must be a valid absolute HTTP or HTTPS URL.");
             }
 
-            var command = new TestMerchantWebhookDispatchCommand(
-                PartyId: resolvedPartyId,
-                EndpointUrl: request?.EndpointUrl,
-                EventType: request?.EventType);
+            try
+            {
+                var command = new TestMerchantWebhookDispatchCommand(
+                    PartyId: resolvedPartyId,
+                    EndpointUrl: request?.EndpointUrl,
+                    EventType: request?.EventType);
 
-            var result = await mediator.Send(command, ct);
-            return Results.Ok(result);
+                var result = await mediator.Send(command, ct);
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    ex.Message);
+            }
         });
 
         return app;

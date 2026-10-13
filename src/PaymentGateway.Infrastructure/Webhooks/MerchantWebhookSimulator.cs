@@ -54,6 +54,22 @@ public sealed class MerchantWebhookSimulator(
             ["Content-Type"] = "application/json"
         };
 
+        if (Uri.TryCreate(endpointUrl, UriKind.Absolute, out var parsedUri) && IsBlockedSsrfHost(parsedUri.Host))
+        {
+            return new TestMerchantWebhookDispatchResultDto(
+                Success: false,
+                StatusCode: 400,
+                LatencyMs: 0,
+                EndpointUrl: endpointUrl,
+                EventId: eventId,
+                Timestamp: timestamp,
+                Signature: signature,
+                RequestHeaders: requestHeaders,
+                RequestPayload: payloadJson,
+                ResponseBody: null,
+                ErrorMessage: "Blocked request to cloud metadata or link-local address (SSRF protection).");
+        }
+
         var stopwatch = Stopwatch.StartNew();
         int? statusCode = null;
         string? responseBody = null;
@@ -113,5 +129,12 @@ public sealed class MerchantWebhookSimulator(
             RequestPayload: payloadJson,
             ResponseBody: responseBody,
             ErrorMessage: errorMessage);
+    }
+
+    private static bool IsBlockedSsrfHost(string host)
+    {
+        return string.Equals(host, "169.254.169.254", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(host, "metadata.google.internal", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(host, "instance-data", StringComparison.OrdinalIgnoreCase);
     }
 }

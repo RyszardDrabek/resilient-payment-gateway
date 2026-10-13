@@ -44,11 +44,12 @@ Endpoints registered under `/api/v1/webhooks/merchants` (with `/webhooks/merchan
 
 3. **`POST /api/v1/webhooks/merchants/subscription/rotate-secret`**
    - **Authorization:** `MerchantOrOpsPolicy`.
-   - **Behavior:** Generates a new cryptographically secure random key (`whsec_` + 32-byte hex), updates the subscription record, and returns the updated subscription.
-   - **Response:** `200 OK` with `MerchantWebhookSubscriptionDto`.
+   - **Behavior:** Validates that an active or existing webhook subscription exists for the merchant. If no subscription exists, returns `400 Bad Request` with problem details instructing the merchant to configure an endpoint URL first. Generates a new cryptographically secure random key (`whsec_` + 32-byte hex), updates the subscription record, and returns the updated subscription.
+   - **Response:** `200 OK` with `MerchantWebhookSubscriptionDto` (or `400 Bad Request` if unconfigured).
 
 4. **`POST /api/v1/webhooks/merchants/test-dispatch`**
    - **Authorization:** `MerchantOrOpsPolicy`.
+   - **SSRF Protection:** Rejects requests targeting cloud metadata / link-local addresses (e.g. `169.254.169.254`, `metadata.google.internal`, `instance-data`) with a clean diagnostic response. Allows localhost, Docker host, and external domains.
    - **Request Body:**
      ```json
      {
