@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('F-PORTAL-02: Merchant Webhook Self-Service & Event Simulator', () => {
   test.beforeEach(async ({ page }) => {
     // Mock webhook subscription endpoint
-    await page.route('**/api/v1/webhooks/merchants/subscription*', async (route) => {
+    await page.route('**/api/v1/webhooks/merchants/subscription**', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -83,5 +83,22 @@ test.describe('F-PORTAL-02: Merchant Webhook Self-Service & Event Simulator', ()
     await expect(page.getByText('200').first()).toBeVisible();
     await expect(page.getByText('45 ms')).toBeVisible();
     await expect(page.getByText('sha256_mock_sig_123')).toBeVisible();
+  });
+
+  test('prompts confirmation modal and rotates webhook signing key', async ({ page }) => {
+    await page.goto('/');
+
+    await page.locator('button:has-text("Webhooks")').click();
+    await expect(page.getByText('Merchant Webhooks & Diagnostics')).toBeVisible();
+
+    // Click Rotate Secret Key
+    await page.locator('button:has-text("Rotate Secret Key")').click();
+    await expect(page.getByText('Rotate Signing Secret Key?')).toBeVisible();
+
+    // Confirm rotation
+    await page.locator('button:has-text("Yes, Rotate Secret")').click();
+
+    // Verify notification
+    await expect(page.getByText('Secret key rotated successfully')).toBeVisible();
   });
 });

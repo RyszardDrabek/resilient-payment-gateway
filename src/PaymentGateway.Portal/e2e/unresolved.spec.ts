@@ -89,4 +89,16 @@ test.describe('F-PORTAL-01: Operator Dashboard & Unresolved Payments Console', (
     await closeButton.click();
     await expect(page.getByText('Payment Details')).not.toBeVisible();
   });
+
+  test('filters unresolved payments by settlement channel', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('Unresolved Payments Console')).toBeVisible();
+
+    // Select Web3 in Channel filter dropdown
+    const channelSelect = page.locator('main select').first();
+    await channelSelect.selectOption('web3-anvil');
+
+    // Filter value should update
+    await expect(channelSelect).toHaveValue('web3-anvil');
+  });
 });

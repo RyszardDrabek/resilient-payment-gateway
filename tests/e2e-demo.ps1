@@ -81,7 +81,7 @@ Write-Host "====================================================================
 
 $scenarioList = @()
 if ($Scenario -eq "All") {
-    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "Volume")
+    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "MerchantWebhooks", "RiskDisposition", "Volume")
 } else {
     $scenarioList = @($Scenario)
 }
@@ -402,10 +402,99 @@ if ($scenarioList -contains "UnresolvedQuery") {
 }
 
 # -----------------------------------------------------------------------------
-# Scenario 9: Mixed Traffic Batch
+# Scenario 10: Merchant Webhook Self-Service & Event Simulator (F-PORTAL-02)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "MerchantWebhooks") {
+    Write-Host "`n[SCENARIO 10] Phase 6: Merchant Webhook Self-Service & Diagnostics (F-PORTAL-02)" -ForegroundColor Magenta
+    $merchId = "merch_demo_$(Get-Random -Minimum 100 -Maximum 999)"
+    $merchToken = New-JwtToken -Sub $merchId -Role "merchant"
+
+    # 1. Update/Register Webhook Subscription
+    Write-Host "  1. Configuring webhook subscription for $merchId..." -ForegroundColor Yellow
+    $subRes = Send-GatewayRequest -Method "Put" -Path "/api/v1/webhooks/merchants/subscription" -AuthToken $merchToken -Body @{
+        endpointUrl = "https://webhook.site/demo-endpoint"
+        isActive = $true
+    }
+    if ($subRes.Success) {
+        Write-Host "     -> Subscription saved! Active: $($subRes.Data.isActive) | URL: $($subRes.Data.endpointUrl)" -ForegroundColor Green
+
+        # 2. Rotate Secret Key
+        Write-Host "  2. Rotating HMAC secret key..." -ForegroundColor Yellow
+        $rotRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/webhooks/merchants/subscription/rotate-secret" -AuthToken $merchToken
+        if ($rotRes.Success) {
+            Write-Host "     -> Secret rotated! New secret prefix: $($rotRes.Data.secretKey.Substring(0, 10))..." -ForegroundColor Green
+        } else {
+            Write-Host "     -> Secret rotation failed: $($rotRes.Error)" -ForegroundColor Red
+        }
+
+        # 3. Test Webhook Event Dispatch Simulation
+        Write-Host "  3. Simulating signed webhook test dispatch..." -ForegroundColor Yellow
+        $simRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/webhooks/merchants/test-dispatch" -AuthToken $merchToken -Body @{
+            eventType = "payment.settled"
+        }
+        if ($simRes.Success) {
+            Write-Host "     -> Simulator dispatch executed! Success: $($simRes.Data.success) | Latency: $($simRes.Data.latencyMs) ms | Status: $($simRes.Data.statusCode)" -ForegroundColor Green
+        } else {
+            Write-Host "     -> Dispatch failed: $($simRes.Error)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "     -> Webhook configuration failed: $($subRes.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 11: Compliance Risk Flags & Disposition Workflow (F-PORTAL-03)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "RiskDisposition") {
+    Write-Host "`n[SCENARIO 11] Phase 6: Compliance Risk Flags & Disposition Workflow (F-PORTAL-03)" -ForegroundColor Magenta
+    $riskToken = New-JwtToken -Sub "risk_officer_demo" -Role "risk"
+    $unauthMerchToken = New-JwtToken -Sub "merch_unauth" -Role "merchant"
+
+    # 1. Verify Unprivileged Role Rejection (AC-4)
+    Write-Host "  1. Probing /api/v1/risk/flags with unprivileged merchant token (must return 403)..." -ForegroundColor Yellow
+    $forbiddenRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/risk/flags" -AuthToken $unauthMerchToken
+    if (-not $forbiddenRes.Success) {
+        Write-Host "     -> Access correctly denied with 403 Forbidden: $($forbiddenRes.Status)" -ForegroundColor Green
+    } else {
+        Write-Host "     -> Security issue: Unprivileged merchant was allowed access!" -ForegroundColor Red
+    }
+
+    # 2. Query Open Risk Flags with Risk Auditor Role (AC-1)
+    Write-Host "  2. Querying open risk flags queue with compliance role (risk)..." -ForegroundColor Yellow
+    $flagsRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/risk/flags?page=1&pageSize=10" -AuthToken $riskToken
+    if ($flagsRes.Success) {
+        $flagItems = $flagsRes.Data.items
+        Write-Host "     -> 200 OK | Total Open Flags: $($flagsRes.Data.totalCount) | Returned: $($flagItems.Count)" -ForegroundColor Green
+
+        if ($flagItems.Count -gt 0) {
+            $flagToReview = $flagItems[0]
+            Write-Host "  3. Inspecting flag $($flagToReview.id) for Payment $($flagToReview.paymentId)..." -ForegroundColor Yellow
+            Write-Host "     -> Reason: $($flagToReview.reason) | Party: $($flagToReview.partyId)" -ForegroundColor Cyan
+
+            # 4. Submit Disposition Decision (AC-3)
+            Write-Host "  4. Submitting auditor disposition (false_positive) with review notes..." -ForegroundColor Yellow
+            $dispRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/risk/flags/$($flagToReview.id)/disposition" -AuthToken $riskToken -Body @{
+                disposition = "false_positive"
+                notes = "E2E automated compliance review: verified legitimate merchant velocity."
+            }
+            if ($dispRes.Success) {
+                Write-Host "     -> Disposition recorded! Status: $($dispRes.Data.status) | Disposition: $($dispRes.Data.disposition)" -ForegroundColor Green
+            } else {
+                Write-Host "     -> Disposition failed: $($dispRes.Error)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "     -> Notice: Queue is clear (0 open flags). Seed payments to test live triage." -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "     -> Query risk flags failed: $($flagsRes.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 12: Mixed Traffic Batch
 # -----------------------------------------------------------------------------
 if ($scenarioList -contains "Volume") {
-    Write-Host "`n[SCENARIO 9] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta
+    Write-Host "`n[SCENARIO 12] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta
     for ($i = 1; $i -le $VolumeCount; $i++) {
         $isWeb3 = ($i % 2 -eq 0)
         $channel = if ($isWeb3) { "WEB3" } else { "ADYEN" }

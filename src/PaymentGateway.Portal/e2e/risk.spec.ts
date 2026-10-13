@@ -125,4 +125,27 @@ test.describe('F-PORTAL-03: Compliance Risk Flags Review & Disposition Console',
     await expect(page.getByText('has been successfully recorded as confirmed fraud')).toBeVisible();
     await expect(page.getByText('No open flags found')).toBeVisible();
   });
+
+  test('dispositions case as false positive and removes it from queue', async ({ page }) => {
+    await page.goto('/');
+
+    // 1. Switch to Risk role and open Risk tab
+    const roleSelect = page.locator('header select');
+    await roleSelect.selectOption('risk');
+    await page.locator('button:has-text("Risk")').click();
+
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible();
+
+    // 2. Click False Positive button
+    await page.locator('button:has-text("False Positive")').click();
+    await expect(page.getByText('Mark as False Positive')).toBeVisible();
+
+    // 3. Enter notes and confirm
+    await page.locator('textarea').fill('Verified legitimate customer high-volume purchase.');
+    await page.locator('button:has-text("Approve as False Positive")').click();
+
+    // 4. Verify queue is cleared and notification shows false positive
+    await expect(page.getByText('has been successfully recorded as false positive')).toBeVisible();
+    await expect(page.getByText('No open flags found')).toBeVisible();
+  });
 });
