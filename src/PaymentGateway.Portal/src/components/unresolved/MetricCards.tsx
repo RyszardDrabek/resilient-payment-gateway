@@ -33,7 +33,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ items, totalCount }) =
       {/* State Breakdown */}
       <div className="bg-[#111827] border border-[#374151] rounded-lg p-4 shadow-sm">
         <div className="flex items-center justify-between text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Status Breakdown</span>
+          <span>Status Breakdown <span className="text-[10px] text-gray-500 font-normal lowercase">(page)</span></span>
           <ShieldQuestion className="w-4 h-4 text-blue-400" />
         </div>
         <div className="flex items-baseline gap-3 mb-1">
@@ -47,14 +47,14 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ items, totalCount }) =
           </div>
         </div>
         <div className="text-xs text-gray-400">
-          Awaiting provider reconciliation
+          Current page view ({items.length} items)
         </div>
       </div>
 
       {/* Channel Distribution */}
       <div className="bg-[#111827] border border-[#374151] rounded-lg p-4 shadow-sm">
         <div className="flex items-center justify-between text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Channel Split</span>
+          <span>Channel Split <span className="text-[10px] text-gray-500 font-normal lowercase">(page)</span></span>
           <Layers className="w-4 h-4 text-purple-400" />
         </div>
         <div className="flex items-baseline gap-3 mb-1">
@@ -68,21 +68,21 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ items, totalCount }) =
           </div>
         </div>
         <div className="text-xs text-gray-400">
-          Acquirer vs. on-chain finality
+          Current page view ({items.length} items)
         </div>
       </div>
 
       {/* Oldest Duration */}
       <div className="bg-[#111827] border border-[#374151] rounded-lg p-4 shadow-sm">
         <div className="flex items-center justify-between text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
-          <span>Oldest In-Flight</span>
+          <span>Oldest In-Flight <span className="text-[10px] text-gray-500 font-normal lowercase">(page)</span></span>
           <Clock className="w-4 h-4 text-rose-400" />
         </div>
         <div className="text-2xl font-bold text-white mb-1">
           {maxAgeMinutes > 0 ? `${maxAgeMinutes}m` : '0m'}
         </div>
         <div className="text-xs text-gray-400">
-          {maxAgeMinutes > 60 ? 'Requires operator investigation' : 'Within tolerance window'}
+          {maxAgeMinutes > 60 ? 'Requires operator investigation' : 'Current page oldest item'}
         </div>
       </div>
     </div>

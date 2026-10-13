@@ -29,7 +29,7 @@ The project adopts a decoupled Single Page Application (SPA) architecture for th
    - Uses a multi-stage `Dockerfile`:
      - Stage 1: `node:22-alpine` runs `npm ci` and `npm run build`.
      - Stage 2: `nginx:alpine` serves static assets on port `3000` with SPA fallback routing (`try_files $uri $uri/ /index.html;`).
-   - `PaymentGateway.Api` remains running on port `5000` / `5001`.
+   - `PaymentGateway.Api` remains running on port `5080`.
 
 3. **CORS Configuration in `PaymentGateway.Api`:**
    - ASP.NET Core `AddCors` is configured with a named policy (e.g., `"PortalPolicy"`) allowing origins configured in `Cors:AllowedOrigins` (defaulting in development to `http://localhost:3000` and `http://127.0.0.1:3000`).
@@ -46,7 +46,7 @@ The project adopts a decoupled Single Page Application (SPA) architecture for th
 ## Consequences
 
 - (+) **Clean Decoupling:** API backend and frontend UI have separated lifecycles, dependencies, and deployment containers.
-- (+) **Browser Security Parity:** Running on distinct origins (`:3000` vs `:5000`) validates real-world CORS and preflight behavior.
+- (+) **Browser Security Parity:** Running on distinct origins (`:3000` vs `:5080`) validates real-world CORS and preflight behavior.
 - (+) **Developer Experience:** Instant role toggling in the portal simplifies manual testing of permissions without requiring an external IdP (Identity Provider) during development.
 - (-) **Two Toolchains:** The repository now requires both .NET 10 SDK and Node.js 22 LTS (for frontend builds).
 - (-) **Docker Compose Footprint:** Adds a container to `docker-compose.yml` and increases cold build time.
