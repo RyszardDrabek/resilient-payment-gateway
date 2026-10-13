@@ -8,7 +8,7 @@
 
 | Status    | Count |
 | --------- | ----- |
-| SUCCESS   | 23    |
+| SUCCESS   | 24    |
 | ESCALATED | 0     |
 | SKIPPED   | 0     |
 | ERROR     | 0     |
@@ -40,4 +40,6 @@
 | 20  | [F-EDGE-04](../../specs/features/F-EDGE-04/spec.md): Unresolved payments operator query API | EDGE | — | SUCCESS | 879c5b2 | — |
 | 21  | [F-EDGE-05](../../specs/features/F-EDGE-05/spec.md): Merchant outbound webhook notification dispatch | EDGE | — | SUCCESS | 91951f1 | — |
 | 22  | [F-PORTAL-01](../../specs/features/F-PORTAL-01/spec.md): Operator dashboard & unresolved payments console | PORTAL | — | SUCCESS | eddf945 | — |
-| 23  | [F-PORTAL-02](../../specs/features/F-PORTAL-02/spec.md): Merchant webhook self-service & event simulator | PORTAL | — | SUCCESS | In working tree | — |
+| 23  | [F-PORTAL-02](../../specs/features/F-PORTAL-02/spec.md): Merchant webhook self-service & event simulator | PORTAL | — | SUCCESS | 736dd92 | — |
+| 24  | [F-PORTAL-03](../../specs/features/F-PORTAL-03/spec.md): Compliance risk flags review & disposition console | PORTAL | — | SUCCESS | In working tree | — |
+

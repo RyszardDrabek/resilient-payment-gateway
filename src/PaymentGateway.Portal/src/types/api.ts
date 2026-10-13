@@ -72,3 +72,42 @@ export interface TestWebhookDispatchResultDto {
   responseBody: string | null;
   errorMessage: string | null;
 }
+
+export type RiskDisposition = 'confirmed' | 'false_positive' | 'escalated';
+
+export interface RiskFlagDto {
+  id: string;
+  paymentId: string;
+  partyId: string;
+  eventId: string;
+  reason: string;
+  status: string;
+  disposition: string | null;
+  createdAt: string;
+  dispositionedAt: string | null;
+  reviewerNotes: string | null;
+}
+
+export interface OpenRiskFlagsResponse {
+  items: RiskFlagDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface RiskVerdictDto {
+  id: string;
+  eventId: string;
+  paymentId: string;
+  partyId: string;
+  status: string;
+  reason: string;
+  flagId: string | null;
+  scoredAt: string;
+}
+
+export interface DispositionRiskFlagRequest {
+  disposition: RiskDisposition;
+  notes?: string | null;
+}
+
