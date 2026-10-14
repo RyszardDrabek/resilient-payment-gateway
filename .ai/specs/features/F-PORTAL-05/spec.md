@@ -2,7 +2,7 @@
 id: F-PORTAL-05
 topic: PORTAL
 phase: merchant-api-keys-and-webhook-dlq
-status: new
+status: done
 ---
 
 # F-PORTAL-05: Webhook DLQ delivery logs & manual replay console

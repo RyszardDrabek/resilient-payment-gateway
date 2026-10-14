@@ -374,6 +374,77 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('fetches merchant webhook DLQ records with status filter and pagination', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
+        return new Response(JSON.stringify([
+          {
+            id: 'dlq_1',
+            eventId: 'evt_dlq_test',
+            paymentId: 'pay_dlq_test',
+            merchantId: 'merch_acme',
+            destinationUrl: 'https://webhook.site/test',
+            payloadJson: '{"amount":5000}',
+            deliveryAttempts: 5,
+            lastErrorMessage: 'HTTP 504 Gateway Timeout',
+            lastStatusCode: 504,
+            status: 'exhausted',
+            failedAt: '2026-10-14T09:00:00Z',
+            replayedAt: null
+          }
+        ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchMerchantWebhookDlq } = await import('./apiClient');
+      const records = await fetchMerchantWebhookDlq('auth-token', 'merch_acme', 'exhausted', 1, 25);
+
+      expect(capturedUrl).toContain('/api/v1/merchants/merch_acme/webhooks/dlq?status=exhausted&page=1&pageSize=25');
+      expect(capturedHeaders.Authorization).toBe('Bearer auth-token');
+      expect(records.length).toBe(1);
+      expect(records[0].eventId).toBe('evt_dlq_test');
+      expect(records[0].lastStatusCode).toBe(504);
+      expect(records[0].status).toBe('exhausted');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('triggers manual replay of DLQ entry and parses replay result', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedMethod = '';
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedMethod = init?.method ?? '';
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Webhook replayed successfully.',
+          statusCode: 200,
+          replayedAt: '2026-10-14T11:00:00Z'
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { replayMerchantWebhookDlqEntry } = await import('./apiClient');
+      const result = await replayMerchantWebhookDlqEntry('auth-token', 'merch_acme', 'dlq_entry_456');
+
+      expect(capturedMethod).toBe('POST');
+      expect(capturedUrl).toContain('/api/v1/merchants/merch_acme/webhooks/dlq/dlq_entry_456/replay');
+      expect(result.success).toBe(true);
+      expect(result.statusCode).toBe(200);
+      expect(result.replayedAt).toBe('2026-10-14T11:00:00Z');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 

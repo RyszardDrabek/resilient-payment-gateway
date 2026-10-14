@@ -15,10 +15,12 @@ import { WebhookConfigCard } from './WebhookConfigCard';
 import { SecretKeyCard } from './SecretKeyCard';
 import { EventSimulatorPanel } from './EventSimulatorPanel';
 import { CardSkeleton } from '../common/LoadingSkeleton';
+import { WebhookDlqConsole } from './WebhookDlqConsole';
 
 export const WebhooksConsole: React.FC = () => {
   const { user, token, setRole } = useAuth();
   const role = user.role;
+  const [subTab, setSubTab] = useState<'config' | 'dlq'>('config');
   const [subscription, setSubscription] = useState<MerchantWebhookSubscriptionDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -173,77 +175,109 @@ export const WebhooksConsole: React.FC = () => {
         </div>
       </div>
 
-      {/* Notifications */}
-      {successNotice && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 flex items-center justify-between animate-in fade-in-0">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span>{successNotice}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSuccessNotice(null)}
-            className="text-emerald-400/80 hover:text-emerald-300 cursor-pointer"
-          >
-            &times;
-          </button>
-        </div>
-      )}
+      {/* Sub-navigation Tabs */}
+      <div className="flex border-b border-gray-800 gap-6">
+        <button
+          type="button"
+          onClick={() => setSubTab('config')}
+          className={`pb-3 text-xs font-semibold tracking-wider transition-colors border-b-2 cursor-pointer ${
+            subTab === 'config'
+              ? 'border-blue-500 text-blue-400'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          Configuration &amp; Simulator
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab('dlq')}
+          className={`pb-3 text-xs font-semibold tracking-wider transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
+            subTab === 'dlq'
+              ? 'border-amber-500 text-amber-400'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <span>Dead-Letter Queue (DLQ)</span>
+        </button>
+      </div>
 
-      {globalError && (
-        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center justify-between animate-in fade-in-0">
-          <span>{globalError}</span>
-          <button
-            type="button"
-            onClick={() => setGlobalError(null)}
-            className="text-rose-400/80 hover:text-rose-300 cursor-pointer"
-          >
-            &times;
-          </button>
-        </div>
-      )}
-
-      {/* Main Split-Panel Content */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <CardSkeleton />
-            <CardSkeleton />
-          </div>
-          <CardSkeleton />
-        </div>
+      {subTab === 'dlq' ? (
+        <WebhookDlqConsole />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Panel: Configuration and Secret Key */}
-          <div className="space-y-6">
-            <WebhookConfigCard
-              partyId={partyId}
-              initialEndpointUrl={subscription?.endpointUrl || ''}
-              initialIsActive={subscription?.isActive ?? true}
-              isLoading={isLoading}
-              isSaving={isSaving}
-              onSave={handleSave}
-            />
+        <>
+          {/* Notifications */}
+          {successNotice && (
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 flex items-center justify-between animate-in fade-in-0">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{successNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessNotice(null)}
+                className="text-emerald-400/80 hover:text-emerald-300 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+          )}
 
-            <SecretKeyCard
-              secretKey={subscription?.secretKey || ''}
-              isLoading={isLoading}
-              isRotating={isRotating}
-              onRotate={handleRotate}
-            />
-          </div>
+          {globalError && (
+            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center justify-between animate-in fade-in-0">
+              <span>{globalError}</span>
+              <button
+                type="button"
+                onClick={() => setGlobalError(null)}
+                className="text-rose-400/80 hover:text-rose-300 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+          )}
 
-          {/* Right Panel: Interactive Event Simulator */}
-          <div>
-            <EventSimulatorPanel
-              configuredEndpointUrl={subscription?.endpointUrl || ''}
-              isDispatching={isDispatching}
-              onDispatch={handleDispatch}
-            />
-          </div>
-        </div>
+          {/* Main Split-Panel Content */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <CardSkeleton />
+                <CardSkeleton />
+              </div>
+              <CardSkeleton />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Panel: Configuration and Secret Key */}
+              <div className="space-y-6">
+                <WebhookConfigCard
+                  partyId={partyId}
+                  initialEndpointUrl={subscription?.endpointUrl || ''}
+                  initialIsActive={subscription?.isActive ?? true}
+                  isLoading={isLoading}
+                  isSaving={isSaving}
+                  onSave={handleSave}
+                />
+
+                <SecretKeyCard
+                  secretKey={subscription?.secretKey || ''}
+                  isLoading={isLoading}
+                  isRotating={isRotating}
+                  onRotate={handleRotate}
+                />
+              </div>
+
+              {/* Right Panel: Interactive Event Simulator */}
+              <div>
+                <EventSimulatorPanel
+                  configuredEndpointUrl={subscription?.endpointUrl || ''}
+                  isDispatching={isDispatching}
+                  onDispatch={handleDispatch}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 import {
   DispositionRiskFlagRequest,
   MerchantWebhookSubscriptionDto,
+  MerchantWebhookDeadLetterDto,
+  ReplayMerchantWebhookResult,
   MerchantApiKeyDto,
   CreateApiKeyRequest,
   MerchantApiKeyCreatedDto,
@@ -296,4 +298,51 @@ export async function revokeMerchantApiKey(
 
   return handleResponse<{ message: string }>(response);
 }
+
+export async function fetchMerchantWebhookDlq(
+  token: string,
+  merchantId: string,
+  status?: string,
+  page = 1,
+  pageSize = 50
+): Promise<MerchantWebhookDeadLetterDto[]> {
+  const query = new URLSearchParams();
+  if (status && status !== 'all') query.set('status', status);
+  if (page) query.set('page', page.toString());
+  if (pageSize) query.set('pageSize', pageSize.toString());
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  const url = `${API_BASE_URL}/api/v1/merchants/${encodeURIComponent(merchantId)}/webhooks/dlq${queryString}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<MerchantWebhookDeadLetterDto[]>(response);
+}
+
+export async function replayMerchantWebhookDlqEntry(
+  token: string,
+  merchantId: string,
+  dlqEntryId: string
+): Promise<ReplayMerchantWebhookResult> {
+  const url = `${API_BASE_URL}/api/v1/merchants/${encodeURIComponent(merchantId)}/webhooks/dlq/${encodeURIComponent(dlqEntryId)}/replay`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<ReplayMerchantWebhookResult>(response);
+}
+
 

@@ -1,11 +1,11 @@
 import React from 'react';
 import { Header } from './Header';
-import { AlertCircle, Radio, ShieldCheck, Activity, Key } from 'lucide-react';
+import { AlertCircle, Radio, ShieldCheck, Activity, Key, AlertTriangle } from 'lucide-react';
 
 interface AppShellProps {
   children: React.ReactNode;
-  activeTab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys';
-  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys') => void;
+  activeTab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq';
+  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq') => void;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabChange }) => {
@@ -74,6 +74,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabCh
               <span>Merchant API Keys</span>
               <span className="ml-auto text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-mono">
                 F-04
+              </span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('webhook-dlq')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-left ${
+                activeTab === 'webhook-dlq'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-300 hover:bg-[#1f2937] hover:text-white'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>Webhook DLQ</span>
+              <span className="ml-auto text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-mono">
+                F-05
               </span>
             </button>
           </nav>
