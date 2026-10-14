@@ -37,8 +37,25 @@ var jwtKey = builder.Configuration["Auth:JwtSigningKey"]
     ?? throw new InvalidOperationException("Auth:JwtSigningKey is required.");
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddAuthentication(options =>
+    {
+        options.DefaultScheme = "SmartScheme";
+        options.DefaultChallengeScheme = "SmartScheme";
+    })
+    .AddPolicyScheme("SmartScheme", "SmartScheme", options =>
+    {
+        options.ForwardDefaultSelector = context =>
+        {
+            if (context.Request.Headers.ContainsKey(PaymentGateway.Api.Auth.ApiKeyDefaults.HeaderName))
+            {
+                return PaymentGateway.Api.Auth.ApiKeyDefaults.AuthenticationScheme;
+            }
+            return JwtBearerDefaults.AuthenticationScheme;
+        };
+    })
+    .AddScheme<PaymentGateway.Api.Auth.ApiKeyAuthenticationOptions, PaymentGateway.Api.Auth.ApiKeyAuthenticationHandler>(
+        PaymentGateway.Api.Auth.ApiKeyDefaults.AuthenticationScheme, _ => { })
+    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -203,6 +220,7 @@ app.MapOpsReconciliationEndpoints();
 app.MapOpsWeb3Endpoints();
 app.MapRiskEndpoints();
 app.MapMerchantWebhookEndpoints();
+app.MapMerchantApiKeyEndpoints();
 app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);
