@@ -111,3 +111,30 @@ export interface DispositionRiskFlagRequest {
   notes?: string | null;
 }
 
+export interface MerchantApiKeyDto {
+  id: string;
+  merchantId: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  createdAt: string;
+  isRevoked: boolean;
+  revokedAt: string | null;
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  scopes: string[];
+  isLive?: boolean;
+}
+
+export interface MerchantApiKeyCreatedDto {
+  id: string;
+  merchantId: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  createdAt: string;
+  rawKey: string;
+}
+

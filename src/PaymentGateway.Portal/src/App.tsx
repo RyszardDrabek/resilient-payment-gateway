@@ -4,9 +4,10 @@ import { AppShell } from './components/layout/AppShell';
 import { UnresolvedConsole } from './components/unresolved/UnresolvedConsole';
 import { WebhooksConsole } from './components/webhooks/WebhooksConsole';
 import { RiskConsole } from './components/risk/RiskConsole';
+import { ApiKeysConsole } from './components/apikeys/ApiKeysConsole';
 
 function PortalContent() {
-  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk'>('unresolved');
+  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys'>('unresolved');
 
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
@@ -15,6 +16,8 @@ function PortalContent() {
       {activeTab === 'webhooks' && <WebhooksConsole />}
 
       {activeTab === 'risk' && <RiskConsole />}
+
+      {activeTab === 'api-keys' && <ApiKeysConsole />}
     </AppShell>
   );
 }

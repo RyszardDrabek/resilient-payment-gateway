@@ -269,6 +269,112 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('fetches merchant API keys and parses collection', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
+        return new Response(JSON.stringify([
+          {
+            id: 'key_1',
+            merchantId: 'merch_acme',
+            name: 'Backend Live',
+            prefix: 'rpg_live_ab12cd',
+            scopes: ['payments:write', 'payments:read'],
+            createdAt: '2026-10-14T10:00:00Z',
+            isRevoked: false,
+            revokedAt: null
+          }
+        ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchMerchantApiKeys } = await import('./apiClient');
+      const keys = await fetchMerchantApiKeys('auth-token', 'merch_acme');
+
+      expect(capturedUrl).toContain('/api/v1/merchants/merch_acme/api-keys');
+      expect(capturedHeaders.Authorization).toBe('Bearer auth-token');
+      expect(keys.length).toBe(1);
+      expect(keys[0].name).toBe('Backend Live');
+      expect(keys[0].prefix).toBe('rpg_live_ab12cd');
+      expect(keys[0].scopes).toContain('payments:write');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('creates a new merchant API key with scopes and receives raw key', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedMethod = '';
+      let capturedBody = '';
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedMethod = init?.method ?? '';
+        capturedBody = init?.body?.toString() ?? '';
+        return new Response(JSON.stringify({
+          id: 'key_new',
+          merchantId: 'merch_acme',
+          name: 'Microservice Key',
+          prefix: 'rpg_live_123456',
+          scopes: ['payments:write'],
+          createdAt: '2026-10-14T11:00:00Z',
+          rawKey: 'rpg_live_123456_supersecretkeyrawvalue'
+        }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { createMerchantApiKey } = await import('./apiClient');
+      const result = await createMerchantApiKey('auth-token', 'merch_acme', {
+        name: 'Microservice Key',
+        scopes: ['payments:write'],
+        isLive: true
+      });
+
+      expect(capturedMethod).toBe('POST');
+      expect(capturedUrl).toContain('/api/v1/merchants/merch_acme/api-keys');
+      expect(JSON.parse(capturedBody)).toEqual({
+        name: 'Microservice Key',
+        scopes: ['payments:write'],
+        isLive: true
+      });
+      expect(result.rawKey).toBe('rpg_live_123456_supersecretkeyrawvalue');
+      expect(result.prefix).toBe('rpg_live_123456');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('revokes an API key via POST /revoke', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedMethod = '';
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedMethod = init?.method ?? '';
+        return new Response(JSON.stringify({ message: 'API key revoked successfully.' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }) as typeof fetch;
+
+      const { revokeMerchantApiKey } = await import('./apiClient');
+      await revokeMerchantApiKey('auth-token', 'merch_acme', 'key_to_revoke');
+
+      expect(capturedMethod).toBe('POST');
+      expect(capturedUrl).toContain('/api/v1/merchants/merch_acme/api-keys/key_to_revoke/revoke');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
+
 
 
