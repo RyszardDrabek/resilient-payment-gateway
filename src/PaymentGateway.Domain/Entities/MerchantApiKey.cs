@@ -39,7 +39,7 @@ public sealed class MerchantApiKey
         var secretHex = Convert.ToHexString(randomBytes).ToLowerInvariant();
 
         var prefixBase = isLive ? "rpg_live_" : "rpg_test_";
-        var prefix = prefixBase + secretHex[..6];
+        var prefix = prefixBase + secretHex[..10];
         var rawKey = $"{prefix}_{secretHex}";
 
         var saltBytes = new byte[16];

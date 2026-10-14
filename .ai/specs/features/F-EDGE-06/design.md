@@ -30,10 +30,12 @@
 - `RevokedAt: DateTimeOffset?`
 
 ### Key Generation & Cryptography
-- Raw key format: `{prefix}_{random32BytesHex}` (e.g., `rpg_live_8f3d...`)
+- Raw key format: `{prefix}_{random32BytesHex}` (e.g., `rpg_live_8f3d1a2b3c...`)
+- Prefix entropy: Environment prefix (`rpg_live_` or `rpg_test_`) + 10 hex characters (40 bits of entropy ~ 1.1 trillion combinations) ensuring collision-free fast indexed database lookups.
 - Salt: 16 bytes random `RandomNumberGenerator.GetBytes(16)`
 - Hash: `SHA256.HashData(salt + Encoding.UTF8.GetBytes(rawKey))`
 - Verification: Constant-time byte equality comparison via `CryptographicOperations.FixedTimeEquals` to prevent timing attacks.
+- Revocation Audit: `RevokedAt` timestamp is recorded upon revocation. (Future audit enhancement: capture `RevokedBy` operator/user identity if full user-level compliance lineage is required).
 
 ---
 
