@@ -2,7 +2,7 @@
 id: F-EDGE-07
 topic: EDGE
 phase: merchant-api-keys-and-webhook-dlq
-status: new
+status: done
 ---
 
 # F-EDGE-07: Webhook DLQ inspection & manual replay API

@@ -1,7 +1,7 @@
 # Project status
 
 **Mode:** greenfield  
-**Status:** In progress — Phase 7 (3 new features planned, 25 completed)  
+**Status:** In progress — Phase 7 (2 new features planned, 26 completed)  
 **Current phase:** Phase 7 (merchant-api-keys-and-webhook-dlq)  
 **Stack:** .NET 10 modular monolith (Clean + CQRS/MediatR), PostgreSQL/EF Core, RabbitMQ/MassTransit, Polly, JWT, React 19/Vite/Tailwind portal, compose-only MVP  
 *Order:* [build/orders/main.md](build/orders/main.md)  
@@ -12,12 +12,12 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-03](intake/03-2026-10-12-merchant-and-operator-portal/intake.md) |
-| Features | active (7 topics / 28 features; 25 done, 3 new) |
+| Features | active (7 topics / 28 features; 26 done, 2 new) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | in progress (25/28 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | in progress (26/28 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 

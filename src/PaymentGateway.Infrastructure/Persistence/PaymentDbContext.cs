@@ -10,6 +10,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PaymentGateway.Domain.Entities.AdyenNotification> AdyenNotifications => Set<PaymentGateway.Domain.Entities.AdyenNotification>();
     public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookSubscription> MerchantWebhookSubscriptions => Set<PaymentGateway.Domain.Entities.MerchantWebhookSubscription>();
     public DbSet<PaymentGateway.Domain.Entities.MerchantApiKey> MerchantApiKeys => Set<PaymentGateway.Domain.Entities.MerchantApiKey>();
+    public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter> MerchantWebhookDeadLetters => Set<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -130,6 +131,26 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 
             b.HasIndex(k => k.Prefix);
             b.HasIndex(k => new { k.MerchantId, k.IsRevoked });
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter>(b =>
+        {
+            b.ToTable("MerchantWebhookDeadLetters");
+            b.HasKey(d => d.Id);
+            b.Property(d => d.EventId).IsRequired().HasMaxLength(128);
+            b.Property(d => d.PaymentId).IsRequired().HasMaxLength(128);
+            b.Property(d => d.MerchantId).IsRequired().HasMaxLength(128);
+            b.Property(d => d.DestinationUrl).IsRequired().HasMaxLength(512);
+            b.Property(d => d.PayloadJson).IsRequired();
+            b.Property(d => d.DeliveryAttempts).IsRequired();
+            b.Property(d => d.LastErrorMessage).IsRequired().HasMaxLength(1024);
+            b.Property(d => d.LastStatusCode);
+            b.Property(d => d.Status).IsRequired().HasMaxLength(64);
+            b.Property(d => d.FailedAt).IsRequired();
+            b.Property(d => d.ReplayedAt);
+
+            b.HasIndex(d => new { d.MerchantId, d.Status });
+            b.HasIndex(d => d.FailedAt);
         });
     }
 }

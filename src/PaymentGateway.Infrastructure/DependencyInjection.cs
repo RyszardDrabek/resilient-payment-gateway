@@ -82,14 +82,17 @@ public static class DependencyInjection
         services.AddSingleton<PaymentGateway.Application.Webhooks.IMerchantWebhookSigner, PaymentGateway.Application.Webhooks.HmacSha256WebhookSigner>();
         services.AddScoped<PaymentGateway.Domain.Ports.IMerchantWebhookSubscriptionRepository, PaymentGateway.Infrastructure.Repositories.MerchantWebhookSubscriptionRepository>();
         services.AddScoped<PaymentGateway.Domain.Ports.IMerchantApiKeyRepository, PaymentGateway.Infrastructure.Repositories.MerchantApiKeyRepository>();
+        services.AddScoped<PaymentGateway.Domain.Ports.IMerchantWebhookDeadLetterRepository, PaymentGateway.Infrastructure.Repositories.MerchantWebhookDeadLetterRepository>();
         services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookDispatcher, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookDispatcher>();
         services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookSimulator, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookSimulator>();
+        services.AddHttpClient<PaymentGateway.Application.Webhooks.ReplayMerchantWebhookCommandHandler>();
 
         services.AddMassTransit(x =>
         {
             x.AddConsumer<PaymentGateway.Infrastructure.Events.PaymentLifecycleTestConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.PaymentLifecycleRiskConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.MerchantWebhookDispatcherConsumer>();
+            x.AddConsumer<PaymentGateway.Infrastructure.Consumers.MerchantWebhookDeadLetterConsumer>();
 
             if (useInMemory)
             {
