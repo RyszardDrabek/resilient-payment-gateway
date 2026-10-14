@@ -37,11 +37,14 @@ function Send-GatewayRequest {
         [hashtable]$Body = $null,
         [string]$IdempotencyKey = $null,
         [string]$AuthToken = $token,
+        [string]$ApiKey = $null,
         [switch]$NoAuth
     )
 
     $headers = @{}
-    if (-not $NoAuth -and $AuthToken) {
+    if ($ApiKey) {
+        $headers["X-API-Key"] = $ApiKey
+    } elseif (-not $NoAuth -and $AuthToken) {
         $headers["Authorization"] = "Bearer $AuthToken"
     }
     if ($IdempotencyKey) {
@@ -81,7 +84,7 @@ Write-Host "====================================================================
 
 $scenarioList = @()
 if ($Scenario -eq "All") {
-    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "MerchantWebhooks", "RiskDisposition", "Volume")
+    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "MerchantWebhooks", "RiskDisposition", "MerchantApiKeys", "WebhookDlq", "Volume")
 } else {
     $scenarioList = @($Scenario)
 }
@@ -491,10 +494,121 @@ if ($scenarioList -contains "RiskDisposition") {
 }
 
 # -----------------------------------------------------------------------------
-# Scenario 12: Mixed Traffic Batch
+# Scenario 11: Merchant API Keys & Scoped Authentication (F-EDGE-06)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "MerchantApiKeys") {
+    Write-Host "`n[SCENARIO 11] Merchant API Keys: Scoped Key Generation & Authentication" -ForegroundColor Magenta
+    $merchantId = "merchant_demo"
+    $keyName = "E2E Automated Checkout Service"
+
+    # 1. Generate new API Key
+    Write-Host "  1. Generating scoped API Key for $merchantId (payments:write, payments:read)..." -ForegroundColor Yellow
+    $createKeyRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/merchants/$merchantId/api-keys" -Body @{
+        name = $keyName
+        scopes = @("payments:write", "payments:read")
+        isLive = $true
+    }
+
+    if ($createKeyRes.Success) {
+        $rawKey = $createKeyRes.Data.rawKey
+        $keyId = $createKeyRes.Data.id
+        $prefix = $createKeyRes.Data.prefix
+        Write-Host "     -> Key created! ID: $keyId | Prefix: $prefix" -ForegroundColor Green
+        Write-Host "     -> Raw Token: $($rawKey.Substring(0, 15))... (length: $($rawKey.Length))" -ForegroundColor Cyan
+
+        # 2. Authorize Payment using X-API-Key
+        Write-Host "  2. Authorizing payment using generated X-API-Key..." -ForegroundColor Yellow
+        $authIdemp = [Guid]::NewGuid().ToString()
+        $payRes = Send-GatewayRequest -Method "Post" -Path "/payments" -ApiKey $rawKey -IdempotencyKey $authIdemp -Body @{
+            partyId = "customer_apikey_$(Get-Random -Minimum 100 -Maximum 999)"
+            amount = 3500 # 35.00 EUR
+            currency = "EUR"
+            settlementChannel = "ADYEN"
+        }
+
+        if ($payRes.Success) {
+            Write-Host "     -> Payment Authorized via API Key! Status: $($payRes.Data.state) | PaymentId: $($payRes.Data.paymentId)" -ForegroundColor Green
+        } else {
+            Write-Host "     -> Authorization via API Key Failed: $($payRes.Error)" -ForegroundColor Red
+        }
+
+        # 3. Query Merchant API Keys list
+        Write-Host "  3. Querying active merchant API keys list..." -ForegroundColor Yellow
+        $listRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/merchants/$merchantId/api-keys"
+        if ($listRes.Success) {
+            $keyCount = @($listRes.Data).Count
+            Write-Host "     -> Found $keyCount registered API key(s) for $merchantId" -ForegroundColor Green
+        }
+
+        # 4. Revoke API Key
+        Write-Host "  4. Revoking API key $keyId..." -ForegroundColor Yellow
+        $revokeRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/merchants/$merchantId/api-keys/$keyId/revoke"
+        if ($revokeRes.Success) {
+            Write-Host "     -> Key successfully revoked! (isRevoked: $($revokeRes.Data.isRevoked))" -ForegroundColor Green
+
+            # 5. Verify rejected payment with revoked key
+            Write-Host "  5. Verifying payment attempt with revoked API key is rejected (401)..." -ForegroundColor Yellow
+            $rejectedPay = Send-GatewayRequest -Method "Post" -Path "/payments" -ApiKey $rawKey -IdempotencyKey ([Guid]::NewGuid().ToString()) -Body @{
+                partyId = "customer_rejected_key"
+                amount = 2000
+                currency = "EUR"
+                settlementChannel = "ADYEN"
+            }
+            if (-not $rejectedPay.Success) {
+                Write-Host "     -> Correctly rejected! Status: $($rejectedPay.Status)" -ForegroundColor Green
+            } else {
+                Write-Host "     -> UNEXPECTED: Revoked key was allowed!" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "     -> Key revocation failed: $($revokeRes.Error)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "     -> API Key creation failed: $($createKeyRes.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 12: Webhook Dead-Letter Queue & Manual Replay (F-EDGE-07)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "WebhookDlq") {
+    Write-Host "`n[SCENARIO 12] Webhook Dead-Letter Queue: Delivery Logs & Manual Replay" -ForegroundColor Magenta
+    $merchantId = "merchant_demo"
+
+    # 1. Query Webhook DLQ records
+    Write-Host "  1. Querying DLQ records for merchant $merchantId (status: exhausted)..." -ForegroundColor Yellow
+    $dlqRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/merchants/$merchantId/webhooks/dlq?status=exhausted&page=1&pageSize=10"
+
+    if ($dlqRes.Success) {
+        $dlqItems = @($dlqRes.Data)
+        Write-Host "     -> Retrieved $($dlqItems.Count) exhausted dead-letter record(s)" -ForegroundColor Green
+
+        if ($dlqItems.Count -gt 0) {
+            $dlqEntry = $dlqItems[0]
+            Write-Host "  2. Inspecting DLQ Entry $($dlqEntry.id)..." -ForegroundColor Yellow
+            Write-Host "     -> EventId: $($dlqEntry.eventId) | Destination: $($dlqEntry.destinationUrl)" -ForegroundColor Cyan
+            Write-Host "     -> Attempts: $($dlqEntry.deliveryAttempts) | Last Error: $($dlqEntry.lastErrorMessage)" -ForegroundColor Cyan
+
+            # 3. Trigger manual replay
+            Write-Host "  3. Triggering manual replay re-dispatch for entry $($dlqEntry.id)..." -ForegroundColor Yellow
+            $replayRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/merchants/$merchantId/webhooks/dlq/$($dlqEntry.id)/replay"
+            if ($replayRes.Success) {
+                Write-Host "     -> Replay result: $($replayRes.Data.message) | Success: $($replayRes.Data.success)" -ForegroundColor Green
+            } else {
+                Write-Host "     -> Replay request failed: $($replayRes.Error)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "     -> DLQ is currently clean (0 exhausted records). System delivery health is 100%." -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "     -> Query DLQ records failed: $($dlqRes.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 13: Mixed Traffic Batch
 # -----------------------------------------------------------------------------
 if ($scenarioList -contains "Volume") {
-    Write-Host "`n[SCENARIO 12] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta
+    Write-Host "`n[SCENARIO 13] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta
     for ($i = 1; $i -le $VolumeCount; $i++) {
         $isWeb3 = ($i % 2 -eq 0)
         $channel = if ($isWeb3) { "WEB3" } else { "ADYEN" }
