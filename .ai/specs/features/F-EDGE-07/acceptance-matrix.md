@@ -1,0 +1,8 @@
+# Acceptance Matrix — F-EDGE-07: Webhook DLQ inspection & manual replay API
+
+| AC | Acceptance Criteria Summary | Test Suite & Method | Status |
+|---|---|---|---|
+| AC-1 | Persist dead-letter record containing event ID, merchant ID, destination URL, failure status code/error message, payload, attempt count, and last attempted timestamp upon retry exhaustion | `MerchantWebhookDeadLetterTests.Create_WithValidParameters_ReturnsConfiguredEntity`, `MerchantWebhookDlqHandlersTests.RecordMerchantWebhookDeadLetterCommandHandler_PersistsRecord` | PASS |
+| AC-2 | Query endpoint `GET /api/v1/merchants/{merchantId}/webhooks/dlq` with status filtering (`exhausted`, `replayed`) returning paginated dead-letter records | `MerchantWebhookDlqHandlersTests.ListMerchantWebhookDlqQueryHandler_ReturnsRecordsFilteredByStatus`, `MerchantWebhookDlqIntegrationTests.ListDlqEntries_AsAuthorizedMerchant_ReturnsEntriesFilteredByStatus` | PASS |
+| AC-3 | Replay endpoint `POST /api/v1/merchants/{merchantId}/webhooks/dlq/{dlqEntryId}/replay` immediately re-dispatches with fresh HMAC signing and updates record status to `replayed` | `MerchantWebhookDlqHandlersTests.ReplayMerchantWebhookCommandHandler_SuccessfulReplay_MarksRecordReplayed`, `MerchantWebhookDlqIntegrationTests.ReplayDlqEntry_WhenAuthorizedAndFound_ReplaysSuccessfully` | PASS |
+| AC-4 | Non-existent DLQ record or unauthorized merchant access returns RFC 7807 problem document (404 Not Found or 403 Forbidden) | `MerchantWebhookDlqIntegrationTests.AccessDlq_WhenDifferentMerchant_ReturnsForbidden`, `MerchantWebhookDlqIntegrationTests.ReplayDlqEntry_WhenNotFound_ReturnsNotFound` | PASS |

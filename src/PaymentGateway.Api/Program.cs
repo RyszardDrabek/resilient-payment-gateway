@@ -221,6 +221,7 @@ app.MapOpsWeb3Endpoints();
 app.MapRiskEndpoints();
 app.MapMerchantWebhookEndpoints();
 app.MapMerchantApiKeyEndpoints();
+app.MapMerchantWebhookDlqEndpoints();
 app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);
