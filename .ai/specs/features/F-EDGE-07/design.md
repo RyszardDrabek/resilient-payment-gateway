@@ -77,3 +77,10 @@
 - Routes:
   - `GET /` — query DLQ entries with optional `status` filter (`exhausted`, `replayed`).
   - `POST /{dlqEntryId:guid}/replay` — triggers redelivery and marks DLQ entry as `replayed`.
+
+---
+
+## Architectural Notes & Future Enhancements (Non-blocking)
+
+1. **Webhook Signing Key Fallback Warning:** In `ReplayMerchantWebhookCommandHandler`, if no active subscription or secret key exists for the target merchant, an explicit warning log is recorded (`logger.LogWarning`) before falling back to the default signing key, ensuring operational visibility during manual replays.
+2. **Replay Attempt Counter & Diagnostics:** In the current phase, failed re-dispatches leave the record in `exhausted` state and return the failure reason to the caller. A future enhancement can add `ReplayAttemptCount`, `LastReplayedAt`, and `LastReplayError` directly to the `pay.MerchantWebhookDeadLetters` schema to track repeated replay attempts over time.

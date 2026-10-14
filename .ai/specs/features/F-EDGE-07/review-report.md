@@ -18,3 +18,7 @@
 
 ## Review Verdict: APPROVED
 All acceptance criteria are satisfied with robust automated test coverage.
+
+### Non-blocking Observations & Resolutions
+1. **Fallback signing key observability:** Addressed in `ReplayMerchantWebhookCommandHandler`. When replaying without an active subscription or secret key, a warning log is recorded with context (`DlqEntryId`, `MerchantId`).
+2. **Replay attempt counter & diagnostics:** Noted for future iteration. In the current phase, failed replays leave the record in `exhausted` state and return the failure reason to the caller. A future enhancement can add `ReplayAttemptCount`, `LastReplayedAt`, and `LastReplayError` directly to the `pay.MerchantWebhookDeadLetters` schema.

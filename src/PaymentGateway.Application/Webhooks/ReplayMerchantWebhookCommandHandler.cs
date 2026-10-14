@@ -1,5 +1,6 @@
 using System.Text;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Application.Webhooks;
@@ -9,6 +10,7 @@ public sealed class ReplayMerchantWebhookCommandHandler(
     IMerchantWebhookSubscriptionRepository subscriptionRepository,
     IMerchantWebhookSigner signer,
     HttpClient httpClient,
+    ILogger<ReplayMerchantWebhookCommandHandler>? logger = null,
     TimeProvider? timeProvider = null)
     : IRequestHandler<ReplayMerchantWebhookCommand, ReplayMerchantWebhookResult?>
 {
@@ -29,7 +31,16 @@ public sealed class ReplayMerchantWebhookCommandHandler(
         var subscription = await subscriptionRepository.GetActiveByPartyIdAsync(command.MerchantId, ct)
                            ?? await subscriptionRepository.GetByPartyIdAsync(command.MerchantId, ct);
 
-        var secretKey = subscription?.SecretKey ?? "webhook-secret";
+        var secretKey = subscription?.SecretKey;
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            logger?.LogWarning(
+                "Replaying webhook for DLQ entry {DlqEntryId} (merchant {MerchantId}) without active webhook subscription or secret key; falling back to default signing key.",
+                command.DlqEntryId,
+                command.MerchantId);
+            secretKey = "webhook-secret";
+        }
+
         var signature = signer.ComputeSignature(record.PayloadJson, secretKey);
         var timestamp = _timeProvider.GetUtcNow().ToUnixTimeSeconds().ToString();
 
@@ -48,6 +59,12 @@ public sealed class ReplayMerchantWebhookCommandHandler(
 
             if (response.IsSuccessStatusCode)
             {
+                logger?.LogInformation(
+                    "Webhook replayed successfully for DLQ entry {DlqEntryId} (merchant {MerchantId}, status code {StatusCode}).",
+                    command.DlqEntryId,
+                    command.MerchantId,
+                    (int)response.StatusCode);
+
                 record.MarkReplayed();
                 await dlqRepository.UpdateAsync(record, ct);
                 return new ReplayMerchantWebhookResult(
@@ -56,6 +73,13 @@ public sealed class ReplayMerchantWebhookCommandHandler(
                     StatusCode: (int)response.StatusCode,
                     ReplayedAt: record.ReplayedAt);
             }
+
+            logger?.LogWarning(
+                "Webhook replay failed for DLQ entry {DlqEntryId} (merchant {MerchantId}, HTTP {StatusCode} {ReasonPhrase}).",
+                command.DlqEntryId,
+                command.MerchantId,
+                (int)response.StatusCode,
+                response.ReasonPhrase);
 
             return new ReplayMerchantWebhookResult(
                 Success: false,
@@ -68,6 +92,13 @@ public sealed class ReplayMerchantWebhookCommandHandler(
             {
                 throw;
             }
+
+            logger?.LogWarning(
+                ex,
+                "Webhook replay encountered exception for DLQ entry {DlqEntryId} (merchant {MerchantId}): {Message}",
+                command.DlqEntryId,
+                command.MerchantId,
+                ex.Message);
 
             return new ReplayMerchantWebhookResult(
                 Success: false,
