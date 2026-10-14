@@ -1,6 +1,9 @@
 import {
   DispositionRiskFlagRequest,
   MerchantWebhookSubscriptionDto,
+  MerchantApiKeyDto,
+  CreateApiKeyRequest,
+  MerchantApiKeyCreatedDto,
   OpenRiskFlagsResponse,
   PaymentDto,
   PaymentProblemDetails,
@@ -234,5 +237,63 @@ export async function submitRiskDisposition(
   });
 
   return handleResponse<RiskFlagDto>(response);
+}
+
+export async function fetchMerchantApiKeys(
+  token: string,
+  merchantId: string
+): Promise<MerchantApiKeyDto[]> {
+  const url = `${API_BASE_URL}/api/v1/merchants/${encodeURIComponent(merchantId)}/api-keys`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<MerchantApiKeyDto[]>(response);
+}
+
+export async function createMerchantApiKey(
+  token: string,
+  merchantId: string,
+  data: CreateApiKeyRequest
+): Promise<MerchantApiKeyCreatedDto> {
+  const url = `${API_BASE_URL}/api/v1/merchants/${encodeURIComponent(merchantId)}/api-keys`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<MerchantApiKeyCreatedDto>(response);
+}
+
+export async function revokeMerchantApiKey(
+  token: string,
+  merchantId: string,
+  keyId: string
+): Promise<{ message: string }> {
+  const url = `${API_BASE_URL}/api/v1/merchants/${encodeURIComponent(merchantId)}/api-keys/${encodeURIComponent(keyId)}/revoke`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<{ message: string }>(response);
 }
 

@@ -2,7 +2,7 @@
 id: F-PORTAL-04
 topic: PORTAL
 phase: merchant-api-keys-and-webhook-dlq
-status: new
+status: done
 ---
 
 # F-PORTAL-04: Merchant API Keys management console
