@@ -5,9 +5,10 @@ import { UnresolvedConsole } from './components/unresolved/UnresolvedConsole';
 import { WebhooksConsole } from './components/webhooks/WebhooksConsole';
 import { RiskConsole } from './components/risk/RiskConsole';
 import { ApiKeysConsole } from './components/apikeys/ApiKeysConsole';
+import { WebhookDlqConsole } from './components/webhooks/WebhookDlqConsole';
 
 function PortalContent() {
-  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys'>('unresolved');
+  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq'>('unresolved');
 
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
@@ -18,6 +19,8 @@ function PortalContent() {
       {activeTab === 'risk' && <RiskConsole />}
 
       {activeTab === 'api-keys' && <ApiKeysConsole />}
+
+      {activeTab === 'webhook-dlq' && <WebhookDlqConsole />}
     </AppShell>
   );
 }

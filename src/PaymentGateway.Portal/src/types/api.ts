@@ -138,3 +138,28 @@ export interface MerchantApiKeyCreatedDto {
   rawKey: string;
 }
 
+export interface MerchantWebhookDeadLetterDto {
+  id: string;
+  eventId: string;
+  paymentId: string;
+  merchantId: string;
+  destinationUrl: string;
+  payloadJson: string;
+  deliveryAttempts: number;
+  lastErrorMessage: string;
+  lastStatusCode: number | null;
+  status: string;
+  failedAt: string;
+  replayedAt: string | null;
+  attemptCount?: number;
+  lastError?: string;
+  lastAttemptedAt?: string;
+}
+
+export interface ReplayMerchantWebhookResult {
+  success: boolean;
+  message: string;
+  statusCode: number | null;
+  replayedAt: string | null;
+}
+
