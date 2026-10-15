@@ -65,7 +65,7 @@ public sealed class ReplayMerchantWebhookCommandHandler(
                     command.MerchantId,
                     (int)response.StatusCode);
 
-                record.MarkReplayed();
+                record.RecordReplayAttempt(successful: true, statusCode: (int)response.StatusCode, timestamp: _timeProvider.GetUtcNow());
                 await dlqRepository.UpdateAsync(record, ct);
                 return new ReplayMerchantWebhookResult(
                     Success: true,
@@ -80,6 +80,9 @@ public sealed class ReplayMerchantWebhookCommandHandler(
                 command.MerchantId,
                 (int)response.StatusCode,
                 response.ReasonPhrase);
+
+            record.RecordReplayAttempt(successful: false, statusCode: (int)response.StatusCode);
+            await dlqRepository.UpdateAsync(record, ct);
 
             return new ReplayMerchantWebhookResult(
                 Success: false,
@@ -99,6 +102,19 @@ public sealed class ReplayMerchantWebhookCommandHandler(
                 command.DlqEntryId,
                 command.MerchantId,
                 ex.Message);
+
+            record.RecordReplayAttempt(successful: false, statusCode: null);
+            try
+            {
+                await dlqRepository.UpdateAsync(record, CancellationToken.None);
+            }
+            catch (Exception updateEx)
+            {
+                logger?.LogWarning(
+                    updateEx,
+                    "Failed to persist replay attempt status for DLQ entry {DlqEntryId}.",
+                    command.DlqEntryId);
+            }
 
             return new ReplayMerchantWebhookResult(
                 Success: false,

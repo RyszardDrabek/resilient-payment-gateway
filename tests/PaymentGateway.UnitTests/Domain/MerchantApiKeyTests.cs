@@ -91,7 +91,27 @@ public sealed class MerchantApiKeyTests
         // Assert
         Assert.True(entity.IsRevoked);
         Assert.NotNull(entity.RevokedAt);
+        Assert.Null(entity.RevokedBy);
         Assert.False(entity.VerifyKey(rawKey));
+    }
+
+    [Fact]
+    public void Revoke_WithRevokedBy_RecordsAuditedCaller()
+    {
+        // Arrange
+        var (entity, _) = MerchantApiKey.Create(
+            merchantId: "merch_acme",
+            name: "Backend Server",
+            scopes: ["payments:write"],
+            isLive: true);
+
+        // Act
+        entity.Revoke("operator_bob@example.com");
+
+        // Assert
+        Assert.True(entity.IsRevoked);
+        Assert.NotNull(entity.RevokedAt);
+        Assert.Equal("operator_bob@example.com", entity.RevokedBy);
     }
 
     [Fact]

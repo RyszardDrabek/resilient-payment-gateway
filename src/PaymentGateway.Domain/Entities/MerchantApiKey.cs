@@ -15,6 +15,7 @@ public sealed class MerchantApiKey
     public DateTimeOffset CreatedAt { get; private set; }
     public bool IsRevoked { get; private set; }
     public DateTimeOffset? RevokedAt { get; private set; }
+    public string? RevokedBy { get; private set; }
 
     private MerchantApiKey() { } // EF Core
 
@@ -59,7 +60,8 @@ public sealed class MerchantApiKey
             Scopes = scopes.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList(),
             CreatedAt = DateTimeOffset.UtcNow,
             IsRevoked = false,
-            RevokedAt = null
+            RevokedAt = null,
+            RevokedBy = null
         };
 
         return (entity, rawKey);
@@ -85,12 +87,13 @@ public sealed class MerchantApiKey
             Encoding.UTF8.GetBytes(computedHash));
     }
 
-    public void Revoke()
+    public void Revoke(string? revokedBy = null)
     {
         if (!IsRevoked)
         {
             IsRevoked = true;
             RevokedAt = DateTimeOffset.UtcNow;
+            RevokedBy = string.IsNullOrWhiteSpace(revokedBy) ? null : revokedBy.Trim();
         }
     }
 

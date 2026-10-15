@@ -12,7 +12,9 @@ public sealed record MerchantWebhookDeadLetterDto(
     int? LastStatusCode,
     string Status,
     DateTimeOffset FailedAt,
-    DateTimeOffset? ReplayedAt)
+    DateTimeOffset? ReplayedAt,
+    int ReplayAttemptCount = 0,
+    int? LastReplayStatusCode = null)
 {
     public int AttemptCount => DeliveryAttempts;
     public string LastError => LastErrorMessage;

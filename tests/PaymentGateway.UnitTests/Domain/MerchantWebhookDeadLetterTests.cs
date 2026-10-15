@@ -78,5 +78,31 @@ public sealed class MerchantWebhookDeadLetterTests
         Assert.Equal("replayed", dlq.Status);
         Assert.NotNull(dlq.ReplayedAt);
         Assert.True(dlq.ReplayedAt <= DateTimeOffset.UtcNow);
+        Assert.Equal(1, dlq.ReplayAttemptCount);
+        Assert.Equal(200, dlq.LastReplayStatusCode);
+    }
+
+    [Fact]
+    public void RecordReplayAttempt_WhenFailed_IncrementsCountAndRecordsStatusCodeWithoutChangingStatus()
+    {
+        // Arrange
+        var dlq = MerchantWebhookDeadLetter.Create(
+            "evt_123",
+            "pay_456",
+            "merch_acme",
+            "https://example.com/webhook",
+            "{}",
+            5,
+            "Timeout",
+            null);
+
+        // Act
+        dlq.RecordReplayAttempt(successful: false, statusCode: 502);
+
+        // Assert
+        Assert.Equal("exhausted", dlq.Status);
+        Assert.Null(dlq.ReplayedAt);
+        Assert.Equal(1, dlq.ReplayAttemptCount);
+        Assert.Equal(502, dlq.LastReplayStatusCode);
     }
 }

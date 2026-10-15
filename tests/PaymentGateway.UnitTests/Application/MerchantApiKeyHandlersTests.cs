@@ -93,19 +93,20 @@ public sealed class MerchantApiKeyHandlersTests
         // Assert
         Assert.Equal(2, result.Count);
         Assert.False(result[0].IsRevoked);
+        Assert.Null(result[0].RevokedBy);
         Assert.True(result[1].IsRevoked);
         Assert.NotNull(result[1].RevokedAt);
     }
 
     [Fact]
-    public async Task RevokeMerchantApiKeyCommandHandler_RevokesExistingKey()
+    public async Task RevokeMerchantApiKeyCommandHandler_RevokesExistingKeyWithAuditedCaller()
     {
         // Arrange
         var (key, _) = MerchantApiKey.Create("merch_acme", "Key 1", ["payments:read"], true);
         await _repository.AddAsync(key);
 
         var handler = new RevokeMerchantApiKeyCommandHandler(_repository);
-        var command = new RevokeMerchantApiKeyCommand("merch_acme", key.Id);
+        var command = new RevokeMerchantApiKeyCommand("merch_acme", key.Id, "admin_user_42");
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -113,6 +114,7 @@ public sealed class MerchantApiKeyHandlersTests
         // Assert
         Assert.True(result);
         Assert.True(key.IsRevoked);
+        Assert.Equal("admin_user_42", key.RevokedBy);
     }
 
     [Fact]

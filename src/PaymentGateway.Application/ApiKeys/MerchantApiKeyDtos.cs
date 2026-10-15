@@ -17,7 +17,8 @@ public sealed record MerchantApiKeySummaryDto(
     IReadOnlyList<string> Scopes,
     DateTimeOffset CreatedAt,
     bool IsRevoked,
-    DateTimeOffset? RevokedAt);
+    DateTimeOffset? RevokedAt,
+    string? RevokedBy = null);
 
 public sealed record ValidatedApiKeyDto(
     bool IsValid,

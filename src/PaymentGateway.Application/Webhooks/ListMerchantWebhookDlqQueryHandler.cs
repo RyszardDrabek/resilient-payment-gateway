@@ -36,5 +36,7 @@ public sealed class ListMerchantWebhookDlqQueryHandler(IMerchantWebhookDeadLette
             r.LastStatusCode,
             r.Status,
             r.FailedAt,
-            r.ReplayedAt);
+            r.ReplayedAt,
+            r.ReplayAttemptCount,
+            r.LastReplayStatusCode);
 }
