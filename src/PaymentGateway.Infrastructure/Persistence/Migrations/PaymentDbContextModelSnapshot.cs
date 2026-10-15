@@ -189,6 +189,10 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RevokedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("Salt")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -235,6 +239,9 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<int?>("LastReplayStatusCode")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("LastStatusCode")
                         .HasColumnType("integer");
 
@@ -251,6 +258,11 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<int>("ReplayAttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTimeOffset?>("ReplayedAt")
                         .HasColumnType("timestamp with time zone");

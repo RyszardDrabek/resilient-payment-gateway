@@ -23,6 +23,7 @@ public sealed class ListMerchantApiKeysQueryHandler(IMerchantApiKeyRepository re
             Scopes: k.Scopes,
             CreatedAt: k.CreatedAt,
             IsRevoked: k.IsRevoked,
-            RevokedAt: k.RevokedAt)).ToList();
+            RevokedAt: k.RevokedAt,
+            RevokedBy: k.RevokedBy)).ToList();
     }
 }

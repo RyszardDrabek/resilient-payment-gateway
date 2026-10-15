@@ -195,12 +195,53 @@ public sealed class MerchantWebhookDlqHandlersTests
         Assert.True(result!.Success);
         Assert.Equal("replayed", record.Status);
         Assert.NotNull(record.ReplayedAt);
+        Assert.Equal(1, record.ReplayAttemptCount);
+        Assert.Equal(200, record.LastReplayStatusCode);
 
         // Verify headers
         Assert.NotNull(httpHandler.CapturedRequest);
         Assert.True(httpHandler.CapturedRequest!.Headers.Contains("X-Signature-SHA256"));
         Assert.True(httpHandler.CapturedRequest.Headers.Contains("X-Event-Id"));
         Assert.True(httpHandler.CapturedRequest.Headers.Contains("X-Timestamp"));
+    }
+
+    [Fact]
+    public async Task ReplayMerchantWebhookCommandHandler_FailedReplay_RecordsAttemptAndStatusCode()
+    {
+        // Arrange
+        var record = MerchantWebhookDeadLetter.Create(
+            "evt_replay_fail",
+            "pay_replay_fail",
+            "merch_acme",
+            "https://merchant.example.com/webhook",
+            "{\"amount\":1200}",
+            5,
+            "Timeout",
+            null);
+
+        await _dlqRepository.AddAsync(record);
+
+        var httpHandler = new FakeHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var httpClient = new HttpClient(httpHandler);
+
+        var handler = new ReplayMerchantWebhookCommandHandler(
+            _dlqRepository,
+            _subscriptionRepository,
+            _signer,
+            httpClient);
+
+        var command = new ReplayMerchantWebhookCommand("merch_acme", record.Id);
+
+        // Act
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result!.Success);
+        Assert.Equal("exhausted", record.Status);
+        Assert.Null(record.ReplayedAt);
+        Assert.Equal(1, record.ReplayAttemptCount);
+        Assert.Equal(500, record.LastReplayStatusCode);
     }
 
     [Fact]

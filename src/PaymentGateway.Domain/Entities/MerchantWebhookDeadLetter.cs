@@ -14,6 +14,8 @@ public sealed class MerchantWebhookDeadLetter
     public string Status { get; private set; } = "exhausted";
     public DateTimeOffset FailedAt { get; private set; }
     public DateTimeOffset? ReplayedAt { get; private set; }
+    public int ReplayAttemptCount { get; private set; }
+    public int? LastReplayStatusCode { get; private set; }
 
     private MerchantWebhookDeadLetter() { } // EF Core
 
@@ -46,13 +48,25 @@ public sealed class MerchantWebhookDeadLetter
             LastStatusCode = lastStatusCode,
             Status = "exhausted",
             FailedAt = failedAt ?? DateTimeOffset.UtcNow,
-            ReplayedAt = null
+            ReplayedAt = null,
+            ReplayAttemptCount = 0,
+            LastReplayStatusCode = null
         };
+    }
+
+    public void RecordReplayAttempt(bool successful, int? statusCode = null, DateTimeOffset? timestamp = null)
+    {
+        ReplayAttemptCount++;
+        LastReplayStatusCode = statusCode;
+        if (successful)
+        {
+            Status = "replayed";
+            ReplayedAt = timestamp ?? DateTimeOffset.UtcNow;
+        }
     }
 
     public void MarkReplayed(DateTimeOffset? replayedAt = null)
     {
-        Status = "replayed";
-        ReplayedAt = replayedAt ?? DateTimeOffset.UtcNow;
+        RecordReplayAttempt(successful: true, statusCode: 200, timestamp: replayedAt);
     }
 }

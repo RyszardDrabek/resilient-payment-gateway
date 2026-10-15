@@ -3,7 +3,7 @@ using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Application.ApiKeys;
 
-public sealed record RevokeMerchantApiKeyCommand(string MerchantId, Guid KeyId)
+public sealed record RevokeMerchantApiKeyCommand(string MerchantId, Guid KeyId, string? RevokedBy = null)
     : IRequest<bool>;
 
 public sealed class RevokeMerchantApiKeyCommandHandler(IMerchantApiKeyRepository repository)
@@ -17,7 +17,7 @@ public sealed class RevokeMerchantApiKeyCommandHandler(IMerchantApiKeyRepository
             return false;
         }
 
-        key.Revoke();
+        key.Revoke(request.RevokedBy);
         await repository.UpdateAsync(key, ct);
         return true;
     }

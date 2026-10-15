@@ -120,6 +120,7 @@ export interface MerchantApiKeyDto {
   createdAt: string;
   isRevoked: boolean;
   revokedAt: string | null;
+  revokedBy?: string | null;
 }
 
 export interface CreateApiKeyRequest {
@@ -151,6 +152,8 @@ export interface MerchantWebhookDeadLetterDto {
   status: string;
   failedAt: string;
   replayedAt: string | null;
+  replayAttemptCount?: number;
+  lastReplayStatusCode?: number | null;
   attemptCount?: number;
   lastError?: string;
   lastAttemptedAt?: string;

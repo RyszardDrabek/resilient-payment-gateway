@@ -122,6 +122,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(k => k.CreatedAt).IsRequired();
             b.Property(k => k.IsRevoked).IsRequired().HasDefaultValue(false);
             b.Property(k => k.RevokedAt);
+            b.Property(k => k.RevokedBy).HasMaxLength(128);
 
             b.Property(k => k.Scopes)
                 .HasConversion(
@@ -148,6 +149,8 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(d => d.Status).IsRequired().HasMaxLength(64);
             b.Property(d => d.FailedAt).IsRequired();
             b.Property(d => d.ReplayedAt);
+            b.Property(d => d.ReplayAttemptCount).IsRequired().HasDefaultValue(0);
+            b.Property(d => d.LastReplayStatusCode);
 
             b.HasIndex(d => new { d.MerchantId, d.Status });
             b.HasIndex(d => d.FailedAt);

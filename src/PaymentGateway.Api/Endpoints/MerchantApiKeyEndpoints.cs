@@ -102,7 +102,11 @@ public static class MerchantApiKeyEndpoints
                     $"Caller is not authorized to revoke API keys for merchant '{merchantId}'.");
             }
 
-            var revoked = await mediator.Send(new RevokeMerchantApiKeyCommand(merchantId, keyId), ct);
+            var revokedBy = httpContext.User.FindFirst("sub")?.Value
+                ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.User.Identity?.Name;
+
+            var revoked = await mediator.Send(new RevokeMerchantApiKeyCommand(merchantId, keyId, revokedBy), ct);
             if (!revoked)
             {
                 return ProblemResult(
