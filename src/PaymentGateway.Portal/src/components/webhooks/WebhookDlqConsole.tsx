@@ -389,7 +389,12 @@ export const WebhookDlqConsole: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-gray-300 font-medium">
-                        {e.deliveryAttempts}x
+                        <div>{e.deliveryAttempts}x</div>
+                        {(e.replayAttemptCount !== undefined && e.replayAttemptCount > 0) && (
+                          <div className="text-[10px] text-blue-400 font-normal">
+                            {e.replayAttemptCount} replay{e.replayAttemptCount > 1 ? 's' : ''}
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4">

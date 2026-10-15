@@ -29,6 +29,8 @@ test.describe('F-PORTAL-05: Webhook DLQ Delivery Logs & Manual Replay Console', 
       status: 'replayed',
       failedAt: '2026-10-13T16:00:00Z',
       replayedAt: '2026-10-14T07:30:00Z',
+      replayAttemptCount: 2,
+      lastReplayStatusCode: 200,
     },
   ];
 
@@ -83,6 +85,7 @@ test.describe('F-PORTAL-05: Webhook DLQ Delivery Logs & Manual Replay Console', 
     await expect(page.getByText('evt_pay_settled_102')).toBeVisible();
     await expect(page.getByText('HTTP 504')).toBeVisible();
     await expect(page.getByText('5x').first()).toBeVisible();
+    await expect(page.getByText('2 replays')).toBeVisible();
   });
 
   test('filters DLQ records by status and searches by Event ID', async ({ page }) => {

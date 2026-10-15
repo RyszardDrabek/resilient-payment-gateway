@@ -544,7 +544,17 @@ if ($scenarioList -contains "MerchantApiKeys") {
         Write-Host "  4. Revoking API key $keyId..." -ForegroundColor Yellow
         $revokeRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/merchants/$merchantId/api-keys/$keyId/revoke"
         if ($revokeRes.Success) {
-            Write-Host "     -> Key successfully revoked! (isRevoked: $($revokeRes.Data.isRevoked))" -ForegroundColor Green
+            Write-Host "     -> Key successfully revoked! (Message: $($revokeRes.Data.message))" -ForegroundColor Green
+
+            # 4b. Verify audit trail in list
+            Write-Host "  4b. Verifying audit trail in merchant API keys list..." -ForegroundColor Yellow
+            $postRevokeList = Send-GatewayRequest -Method "Get" -Path "/api/v1/merchants/$merchantId/api-keys"
+            if ($postRevokeList.Success) {
+                $revokedKey = @($postRevokeList.Data) | Where-Object { $_.id -eq $keyId }
+                if ($revokedKey -and $revokedKey.isRevoked) {
+                    Write-Host "     -> Audit Trail Verified! RevokedBy: $($revokedKey.revokedBy) | RevokedAt: $($revokedKey.revokedAt)" -ForegroundColor Cyan
+                }
+            }
 
             # 5. Verify rejected payment with revoked key
             Write-Host "  5. Verifying payment attempt with revoked API key is rejected (401)..." -ForegroundColor Yellow
@@ -586,18 +596,29 @@ if ($scenarioList -contains "WebhookDlq") {
             $dlqEntry = $dlqItems[0]
             Write-Host "  2. Inspecting DLQ Entry $($dlqEntry.id)..." -ForegroundColor Yellow
             Write-Host "     -> EventId: $($dlqEntry.eventId) | Destination: $($dlqEntry.destinationUrl)" -ForegroundColor Cyan
-            Write-Host "     -> Attempts: $($dlqEntry.deliveryAttempts) | Last Error: $($dlqEntry.lastErrorMessage)" -ForegroundColor Cyan
+            Write-Host "     -> Delivery Attempts: $($dlqEntry.deliveryAttempts) | Last Error: $($dlqEntry.lastErrorMessage)" -ForegroundColor Cyan
+            Write-Host "     -> Current Replay Attempts: $($dlqEntry.replayAttemptCount) | Last Replay HTTP: $($dlqEntry.lastReplayStatusCode)" -ForegroundColor Cyan
 
             # 3. Trigger manual replay
             Write-Host "  3. Triggering manual replay re-dispatch for entry $($dlqEntry.id)..." -ForegroundColor Yellow
             $replayRes = Send-GatewayRequest -Method "Post" -Path "/api/v1/merchants/$merchantId/webhooks/dlq/$($dlqEntry.id)/replay"
             if ($replayRes.Success) {
                 Write-Host "     -> Replay result: $($replayRes.Data.message) | Success: $($replayRes.Data.success)" -ForegroundColor Green
+
+                # 4. Verify updated replay diagnostics
+                Write-Host "  4. Verifying updated replay diagnostics in DLQ..." -ForegroundColor Yellow
+                $updatedDlqRes = Send-GatewayRequest -Method "Get" -Path "/api/v1/merchants/$merchantId/webhooks/dlq?status=all&page=1&pageSize=10"
+                if ($updatedDlqRes.Success) {
+                    $updatedEntry = @($updatedDlqRes.Data) | Where-Object { $_.id -eq $dlqEntry.id }
+                    if ($updatedEntry) {
+                        Write-Host "     -> Diagnostics Updated! ReplayAttemptCount: $($updatedEntry.replayAttemptCount) | LastReplayStatusCode: $($updatedEntry.lastReplayStatusCode) | Status: $($updatedEntry.status)" -ForegroundColor Cyan
+                    }
+                }
             } else {
                 Write-Host "     -> Replay request failed: $($replayRes.Error)" -ForegroundColor Red
             }
         } else {
-            Write-Host "     -> DLQ is currently clean (0 exhausted records). System delivery health is 100%." -ForegroundColor Gray
+            Write-Host "     -> DLQ is currently clean (0 exhausted records). Outbound delivery health is 100%." -ForegroundColor Gray
         }
     } else {
         Write-Host "     -> Query DLQ records failed: $($dlqRes.Error)" -ForegroundColor Red
