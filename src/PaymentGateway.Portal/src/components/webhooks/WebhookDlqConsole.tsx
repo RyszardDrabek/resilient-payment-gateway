@@ -86,25 +86,41 @@ export const WebhookDlqConsole: React.FC = () => {
       const result = await replayMerchantWebhookDlqEntry(token, merchantId, entryId);
       if (result.success) {
         showNotification(result.message || 'Webhook replayed successfully.');
+
+        // Update entry state locally and update modal if open
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === entryId
+              ? { ...e, status: 'replayed', replayedAt: result.replayedAt || new Date().toISOString() }
+              : e
+          )
+        );
+
+        if (selectedEntry && selectedEntry.id === entryId) {
+          setSelectedEntry((prev) =>
+            prev
+              ? { ...prev, status: 'replayed', replayedAt: result.replayedAt || new Date().toISOString() }
+              : null
+          );
+        }
       } else {
         setGlobalError(result.message || 'Replay attempt failed.');
-      }
-
-      // Update entry state locally and close modal if open
-      setEntries((prev) =>
-        prev.map((e) =>
-          e.id === entryId
-            ? { ...e, status: 'replayed', replayedAt: result.replayedAt || new Date().toISOString() }
-            : e
-        )
-      );
-
-      if (selectedEntry && selectedEntry.id === entryId) {
-        setSelectedEntry((prev) =>
-          prev
-            ? { ...prev, status: 'replayed', replayedAt: result.replayedAt || new Date().toISOString() }
-            : null
-        );
+        if (result.statusCode) {
+          setEntries((prev) =>
+            prev.map((e) =>
+              e.id === entryId
+                ? { ...e, lastStatusCode: result.statusCode, lastErrorMessage: result.message }
+                : e
+            )
+          );
+          if (selectedEntry && selectedEntry.id === entryId) {
+            setSelectedEntry((prev) =>
+              prev
+                ? { ...prev, lastStatusCode: result.statusCode, lastErrorMessage: result.message }
+                : null
+            );
+          }
+        }
       }
     } catch (err: unknown) {
       if (err instanceof Error) {
