@@ -223,6 +223,7 @@ public sealed class Phase5OperationalHardeningEndToEndTests : IAsyncLifetime
         if (!_dockerAvailable || _postgres is null) return;
 
         await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         var retentionService = scope.ServiceProvider.GetRequiredService<IOutboxRetentionService>();
