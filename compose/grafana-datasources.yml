@@ -41,3 +41,14 @@ datasources:
         filterBySpanId: false
         customQuery: true
         query: '{service_name=~".+"} |= "${__trace.traceId}"'
+
+  - name: Alertmanager
+    type: alertmanager
+    uid: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    isDefault: false
+    editable: true
+    jsonData:
+      implementation: prometheus
+

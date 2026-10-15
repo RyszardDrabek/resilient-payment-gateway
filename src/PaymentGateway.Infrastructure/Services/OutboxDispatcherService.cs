@@ -70,7 +70,28 @@ public sealed class OutboxDispatcherService(
                     var evt = JsonSerializer.Deserialize<PaymentLifecycleEvent>(message.Payload);
                     if (evt is not null)
                     {
+                        System.Diagnostics.ActivityContext parentContext = default;
+                        if (!string.IsNullOrWhiteSpace(evt.TraceParent) &&
+                            System.Diagnostics.ActivityContext.TryParse(evt.TraceParent, null, out var parsed))
+                        {
+                            parentContext = parsed;
+                        }
+
+                        using var activity = PaymentGateway.Application.Common.PaymentTracing.ActivitySource.StartActivity(
+                            "Outbox.Dispatch",
+                            System.Diagnostics.ActivityKind.Producer,
+                            parentContext);
+
+                        activity?.SetTag("outbox.message_id", message.Id.ToString());
+                        activity?.SetTag("payment.id", evt.PaymentId);
+                        activity?.SetTag("payment.party_id", evt.PartyId);
+
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
                         await publishEndpoint.Publish(evt, ct);
+                        sw.Stop();
+
+                        PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDispatch("success");
+                        PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDuration(sw.Elapsed.TotalSeconds);
                     }
                 }
 
@@ -79,6 +100,7 @@ public sealed class OutboxDispatcherService(
             }
             catch (Exception ex)
             {
+                PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDispatch("failure");
                 logger.LogError(
                     ex,
                     "Failed to dispatch outbox message {MessageId} (Attempt {Attempt}/{MaxAttempts})",
@@ -90,6 +112,7 @@ public sealed class OutboxDispatcherService(
 
                 if (message.DeliveryAttempts >= _options.MaxDeliveryAttempts)
                 {
+                    PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDeadLettered();
                     logger.LogCritical(
                         "Outbox message {MessageId} exceeded max delivery attempts ({MaxAttempts}) and is dead-lettered.",
                         message.Id,

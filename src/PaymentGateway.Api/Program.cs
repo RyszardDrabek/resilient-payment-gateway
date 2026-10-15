@@ -154,6 +154,7 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Api"))
     .WithTracing(t => t
         .AddAspNetCoreInstrumentation()
+        .AddSource(PaymentGateway.Application.Common.PaymentTracing.ActivitySourceName)
         .AddSource("MassTransit")
         .AddSource("Npgsql")
         .AddSource("System.Net.Http")

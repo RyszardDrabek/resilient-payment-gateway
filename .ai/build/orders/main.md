@@ -34,4 +34,6 @@
 | 28  | [F-PORTAL-05](../../specs/features/F-PORTAL-05/spec.md): Webhook DLQ delivery logs & manual replay console | PORTAL | 7     | #26, #23        |
 | 29  | [F-EDGE-08](../../specs/features/F-EDGE-08/spec.md): Financial volume, channel latencies & webhook DLQ Prometheus metrics | EDGE   | 8     | #1, #21, #26    |
 | 30  | [F-PORTAL-06](../../specs/features/F-PORTAL-06/spec.md): Operational Grafana cockpits for business volume, latency percentiles & DLQ health | PORTAL | 8     | #29             |
+| 31  | [F-EDGE-09](../../specs/features/F-EDGE-09/spec.md): Prometheus Alerting Rules & Alertmanager operational alerting | EDGE   | 9     | #29             |
+| 32  | [F-EVT-03](../../specs/features/F-EVT-03/spec.md): End-to-end distributed tracing correlation across Edge API, Outbox, RabbitMQ, Worker, and Webhooks | EVT | 9 | #6, #21, #29 |
 

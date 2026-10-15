@@ -77,6 +77,8 @@ public sealed class PrometheusMetricsIntegrationTests : IAsyncLifetime
         PaymentMetrics.RecordWebhookDispatch("delivered", 200);
         PaymentMetrics.RecordWebhookReplay("success", 200);
         PaymentMetrics.RecordWebhookDuration(0.04, "delivered");
+        PaymentMetrics.RecordOutboxDispatch("success");
+        PaymentMetrics.RecordOutboxDuration(0.015);
 
         // 3. Scrape Prometheus endpoint
         var response = await client.GetAsync("/metrics");
@@ -89,5 +91,7 @@ public sealed class PrometheusMetricsIntegrationTests : IAsyncLifetime
         body.Should().Contain("merchant_webhook_dispatched_total");
         body.Should().Contain("merchant_webhook_replay_attempts_total");
         body.Should().Contain("merchant_webhook_dispatch_duration_seconds");
+        body.Should().Contain("outbox_messages_dispatched_total");
+        body.Should().Contain("outbox_dispatch_duration_seconds");
     }
 }

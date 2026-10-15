@@ -1,9 +1,9 @@
 # Project status
 
 **Mode:** greenfield  
-**Status:** Phase 8 Done (operational-observability-and-metrics)  
-**Current phase:** Phase 8 (operational-observability-and-metrics)  
-**Stack:** .NET 10 modular monolith (Clean + CQRS/MediatR), PostgreSQL/EF Core, RabbitMQ/MassTransit, Polly, JWT, React 19/Vite/Tailwind portal, Prometheus/Grafana, compose-only MVP  
+**Status:** Phase 9 Done (operational-alerting-and-distributed-tracing)  
+**Current phase:** Phase 9 (operational-alerting-and-distributed-tracing)  
+**Stack:** .NET 10 modular monolith (Clean + CQRS/MediatR), PostgreSQL/EF Core, RabbitMQ/MassTransit, Polly, JWT, React 19/Vite/Tailwind portal, Prometheus/Alertmanager/Grafana/Jaeger, compose-only MVP  
 *Order:* [build/orders/main.md](build/orders/main.md)  
 *Scaffold:* ✓ → [build/scaffold-report.md](build/scaffold-report.md)
 
@@ -12,18 +12,18 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-03](intake/03-2026-10-12-merchant-and-operator-portal/intake.md) |
-| Features | done (7 topics / 30 features) |
+| Features | done (7 topics / 32 features) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | done (30/30 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | done (32/32 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 
 - [x] PAY (5 features) → [topics/pay.md](specs/topics/pay.md)
-- [x] EDGE (8 features) → [topics/edge.md](specs/topics/edge.md)
-- [x] EVT (2 features) → [topics/evt.md](specs/topics/evt.md)
+- [x] EDGE (9 features) → [topics/edge.md](specs/topics/edge.md)
+- [x] EVT (3 features) → [topics/evt.md](specs/topics/evt.md)
 - [x] ADYEN (5 features) → [topics/adyen.md](specs/topics/adyen.md)
 - [x] WEB3 (2 features) → [topics/web3.md](specs/topics/web3.md)
 - [x] RISK (2 features) → [topics/risk.md](specs/topics/risk.md)
