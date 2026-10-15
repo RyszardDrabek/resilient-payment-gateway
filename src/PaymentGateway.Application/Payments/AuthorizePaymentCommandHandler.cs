@@ -77,6 +77,7 @@ public sealed class AuthorizePaymentCommandHandler(
         }
 
         SettlementResult settlement;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             settlement = await settlementPort.AuthorizeAsync(
@@ -93,6 +94,10 @@ public sealed class AuthorizePaymentCommandHandler(
                 request.SettlementChannel ?? "UNKNOWN",
                 $"Settlement channel failed to answer: {ex.Message}");
         }
+        finally
+        {
+            sw.Stop();
+        }
 
         var channel = settlement.Channel;
 
@@ -105,6 +110,9 @@ public sealed class AuthorizePaymentCommandHandler(
         await repository.AddAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), channel ?? "UNKNOWN", "authorize");
+        PaymentMetrics.RecordChannelDuration(sw.Elapsed.TotalSeconds, channel ?? "UNKNOWN", "authorize", payment.State.ToString());
+        PaymentMetrics.RecordVolume(payment.Amount, payment.Currency, channel ?? "UNKNOWN", "authorize", payment.State.ToString());
+
         if (payment.State == PaymentState.Declined)
         {
             PaymentMetrics.RecordDecline(settlement.DeclineReason ?? "Declined", channel ?? "UNKNOWN");

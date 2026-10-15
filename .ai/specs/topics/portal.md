@@ -34,6 +34,7 @@
 | [F-PORTAL-03](../features/F-PORTAL-03/spec.md) | Compliance risk flags review & disposition console | Explicit | USER-VISIBLE |
 | [F-PORTAL-04](../features/F-PORTAL-04/spec.md) | Merchant API Keys management console | Explicit | USER-VISIBLE |
 | [F-PORTAL-05](../features/F-PORTAL-05/spec.md) | Webhook DLQ delivery logs & manual replay console | Explicit | USER-VISIBLE |
+| [F-PORTAL-06](../features/F-PORTAL-06/spec.md) | Operational Grafana cockpits for business volume, latency percentiles & DLQ health | Explicit | USER-VISIBLE |
 
 
 ## Dependencies

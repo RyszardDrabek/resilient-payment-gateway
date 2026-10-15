@@ -82,3 +82,15 @@
 - **PORTAL** — Web portal consoles for merchant API key management and webhook DLQ delivery logs with replay trigger.
   - _Depends on:_ EDGE, PORTAL
 
+## Phase 8: operational-observability-and-metrics
+
+**Objective:** Expose rich domain, financial, and operational metrics via OpenTelemetry/Prometheus covering transaction volume, settlement channel latency, webhook delivery lifecycle, and DLQ diagnostics, paired with out-of-the-box Grafana operational cockpits.
+**Evaluation criteria:** The `/metrics` endpoint exposes counters and histograms for financial volume (by currency and channel), settlement channel latency, outbound webhook deliveries, and DLQ replay attempts; Grafana dashboard visualizes transaction throughput, channel latency percentiles (p50, p95, p99), and DLQ health.
+
+### Topics
+
+- **EDGE** — Domain and operational Prometheus metrics for payments, channels, webhooks & DLQ.
+  - _Depends on:_ PAY, EVT
+- **PORTAL** — Pre-configured Grafana operational cockpits for business volume, latency percentiles, and DLQ diagnostics.
+  - _Depends on:_ EDGE
+

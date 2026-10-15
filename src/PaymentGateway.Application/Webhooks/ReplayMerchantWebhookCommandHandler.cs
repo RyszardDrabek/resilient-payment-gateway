@@ -1,6 +1,7 @@
 using System.Text;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using PaymentGateway.Application.Metrics;
 using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Application.Webhooks;
@@ -67,6 +68,9 @@ public sealed class ReplayMerchantWebhookCommandHandler(
 
                 record.RecordReplayAttempt(successful: true, statusCode: (int)response.StatusCode, timestamp: _timeProvider.GetUtcNow());
                 await dlqRepository.UpdateAsync(record, ct);
+
+                PaymentMetrics.RecordWebhookReplay("success", (int)response.StatusCode);
+
                 return new ReplayMerchantWebhookResult(
                     Success: true,
                     Message: "Webhook replayed successfully.",
@@ -83,6 +87,8 @@ public sealed class ReplayMerchantWebhookCommandHandler(
 
             record.RecordReplayAttempt(successful: false, statusCode: (int)response.StatusCode);
             await dlqRepository.UpdateAsync(record, ct);
+
+            PaymentMetrics.RecordWebhookReplay("failure", (int)response.StatusCode);
 
             return new ReplayMerchantWebhookResult(
                 Success: false,
@@ -104,6 +110,7 @@ public sealed class ReplayMerchantWebhookCommandHandler(
                 ex.Message);
 
             record.RecordReplayAttempt(successful: false, statusCode: null);
+            PaymentMetrics.RecordWebhookReplay("failure", null);
             try
             {
                 await dlqRepository.UpdateAsync(record, CancellationToken.None);

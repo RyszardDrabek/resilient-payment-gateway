@@ -157,6 +157,7 @@ public sealed class RefundPaymentCommandHandler(
         await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "refund");
+        PaymentMetrics.RecordVolume(effectiveAmount, payment.Currency, payment.SettlementChannel ?? "UNKNOWN", "refund", payment.State.ToString());
 
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);

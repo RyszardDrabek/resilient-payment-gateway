@@ -91,10 +91,15 @@ public sealed class MerchantWebhookDispatcher(
                     "Dispatching webhook for event {EventId} to {Url} (attempt {Attempt}/{MaxAttempts})",
                     lifecycleEvent.EventId, endpointUrl, attempt, maxAttempts);
 
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 using var response = await httpClient.SendAsync(request, linkedCts.Token);
+                sw.Stop();
 
                 if (response.IsSuccessStatusCode)
                 {
+                    PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDispatch("delivered", (int)response.StatusCode);
+                    PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDuration(sw.Elapsed.TotalSeconds, "delivered");
+
                     logger.LogInformation(
                         "Webhook delivered successfully for event {EventId} (status {StatusCode}, attempt {Attempt})",
                         lifecycleEvent.EventId, (int)response.StatusCode, attempt);
@@ -105,6 +110,9 @@ public sealed class MerchantWebhookDispatcher(
                         PayloadJson: payloadJson,
                         DeliveryAttempts: attempt);
                 }
+
+                PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDispatch("failed", (int)response.StatusCode);
+                PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDuration(sw.Elapsed.TotalSeconds, "failed");
 
                 lastError = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
                 logger.LogWarning(
@@ -117,6 +125,8 @@ public sealed class MerchantWebhookDispatcher(
                 {
                     throw;
                 }
+
+                PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDispatch("failed", null);
 
                 lastError = ex.Message;
                 logger.LogWarning(
@@ -137,6 +147,8 @@ public sealed class MerchantWebhookDispatcher(
                 }
             }
         }
+
+        PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDispatch("exhausted");
 
         logger.LogError(
             "Webhook delivery exhausted all {MaxAttempts} attempts for event {EventId} to {Url}. Last error: {LastError}",
