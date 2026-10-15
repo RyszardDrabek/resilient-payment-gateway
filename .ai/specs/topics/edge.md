@@ -34,6 +34,7 @@
 | [F-EDGE-05](../features/F-EDGE-05/spec.md) | Merchant outbound webhook notification dispatch | Explicit | USER-VISIBLE |
 | [F-EDGE-06](../features/F-EDGE-06/spec.md) | Merchant API Key authentication & scoped permissions | Explicit | USER-VISIBLE |
 | [F-EDGE-07](../features/F-EDGE-07/spec.md) | Webhook DLQ inspection & manual replay API | Explicit | USER-VISIBLE |
+| [F-EDGE-08](../features/F-EDGE-08/spec.md) | Financial volume, channel latencies & webhook DLQ Prometheus metrics | Explicit | USER-VISIBLE |
 
 
 ## Dependencies

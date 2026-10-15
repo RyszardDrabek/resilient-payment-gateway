@@ -145,6 +145,7 @@ public sealed class CapturePaymentCommandHandler(
         await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "capture");
+        PaymentMetrics.RecordVolume(effectiveAmount, payment.Currency, payment.SettlementChannel ?? "UNKNOWN", "capture", payment.State.ToString());
 
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);

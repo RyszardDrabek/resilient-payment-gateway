@@ -32,4 +32,6 @@
 | 26  | [F-EDGE-07](../../specs/features/F-EDGE-07/spec.md): Webhook DLQ inspection & manual replay API | EDGE  | 7     | #21             |
 | 27  | [F-PORTAL-04](../../specs/features/F-PORTAL-04/spec.md): Merchant API Keys management console | PORTAL | 7     | #25, #22        |
 | 28  | [F-PORTAL-05](../../specs/features/F-PORTAL-05/spec.md): Webhook DLQ delivery logs & manual replay console | PORTAL | 7     | #26, #23        |
+| 29  | [F-EDGE-08](../../specs/features/F-EDGE-08/spec.md): Financial volume, channel latencies & webhook DLQ Prometheus metrics | EDGE   | 8     | #1, #21, #26    |
+| 30  | [F-PORTAL-06](../../specs/features/F-PORTAL-06/spec.md): Operational Grafana cockpits for business volume, latency percentiles & DLQ health | PORTAL | 8     | #29             |
 
