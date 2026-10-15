@@ -388,9 +388,16 @@ export const ApiKeysConsole: React.FC = () => {
 
                       <td className="py-3.5 px-4 text-right">
                         {k.isRevoked ? (
-                          <span className="text-[11px] text-gray-500 italic">
-                            {k.revokedAt ? `Revoked ${new Date(k.revokedAt).toLocaleDateString()}` : 'Revoked'}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[11px] text-gray-500 italic">
+                              {k.revokedAt ? `Revoked ${new Date(k.revokedAt).toLocaleDateString()}` : 'Revoked'}
+                            </span>
+                            {k.revokedBy && (
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                by {k.revokedBy}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <button
                             onClick={() => setKeyToRevoke(k)}

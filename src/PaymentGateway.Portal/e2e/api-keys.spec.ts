@@ -20,6 +20,7 @@ test.describe('F-PORTAL-04: Merchant API Keys Management Console', () => {
       scopes: ['payments:read'],
       createdAt: '2026-10-10T12:00:00Z',
       revokedAt: '2026-10-12T14:30:00Z',
+      revokedBy: 'admin_ops',
       isRevoked: true,
     },
   ];
@@ -87,6 +88,7 @@ test.describe('F-PORTAL-04: Merchant API Keys Management Console', () => {
     // Verify key items
     await expect(page.getByText('Production Core Checkout')).toBeVisible();
     await expect(page.getByText('Old Reporting Worker')).toBeVisible();
+    await expect(page.getByText('by admin_ops')).toBeVisible();
     await expect(page.getByText('payments:write').first()).toBeVisible();
     await expect(page.getByText('payments:read').first()).toBeVisible();
   });

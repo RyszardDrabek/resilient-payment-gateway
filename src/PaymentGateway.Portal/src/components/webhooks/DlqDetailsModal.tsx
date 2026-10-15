@@ -161,6 +161,17 @@ export const DlqDetailsModal: React.FC<DlqDetailsModalProps> = ({
                 <span>Replayed on: {new Date(entry.replayedAt).toLocaleString()}</span>
               </div>
             )}
+
+            {(entry.replayAttemptCount !== undefined && entry.replayAttemptCount > 0) && (
+              <div className="sm:col-span-2 pt-2 border-t border-[#374151]/50 text-blue-400 flex items-center justify-between text-xs">
+                <span>Total Replay Attempts: <strong className="text-white">{entry.replayAttemptCount}</strong></span>
+                {entry.lastReplayStatusCode && (
+                  <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30 text-blue-300">
+                    Last Response: HTTP {entry.lastReplayStatusCode}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Payload JSON Section */}
