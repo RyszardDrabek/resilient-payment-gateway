@@ -47,12 +47,10 @@ public sealed class PrometheusMetricsIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task GetMetrics_AnonymousAccess_ReturnsPrometheusTextPayloadWithCustomMeters()
     {
-        if (!_dockerAvailable || _postgres is null)
-        {
-            return;
-        }
 
-        var connectionString = _postgres.GetConnectionString();
+        var connectionString = _dockerAvailable && _postgres is not null
+            ? _postgres.GetConnectionString()
+            : "Host=localhost;Port=5432;Database=test;Username=postgres;Password=postgres";
 
         await using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -64,19 +62,23 @@ public sealed class PrometheusMetricsIntegrationTests : IAsyncLifetime
                         ["ConnectionStrings:PaymentDb"] = connectionString,
                         ["ConnectionStrings:RiskDb"] = connectionString,
                         ["RabbitMq:UseInMemory"] = "true",
-                        ["Auth:JwtSigningKey"] = "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!"
+                        ["Auth:JwtSigningKey"] = "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!",
+                        ["Database:AutoMigrate"] = "false"
                     });
                 });
             });
 
-        // Trigger some metrics
+        // 1. Start the host by creating the client first, so OpenTelemetry's MeterListener is active
+        var client = factory.CreateClient();
+
+        // 2. Trigger metrics after the host and OpenTelemetry MeterListener have started
         PaymentMetrics.RecordVolume(2500, "EUR", "ADYEN", "authorize", "Authorized");
         PaymentMetrics.RecordChannelDuration(0.085, "ADYEN", "authorize", "Authorized");
         PaymentMetrics.RecordWebhookDispatch("delivered", 200);
         PaymentMetrics.RecordWebhookReplay("success", 200);
         PaymentMetrics.RecordWebhookDuration(0.04, "delivered");
 
-        var client = factory.CreateClient();
+        // 3. Scrape Prometheus endpoint
         var response = await client.GetAsync("/metrics");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
