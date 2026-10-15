@@ -8,7 +8,8 @@ public sealed record PaymentLifecycleEvent(
     long Amount,
     string Currency,
     int Version,
-    DateTimeOffset OccurredAt)
+    DateTimeOffset OccurredAt,
+    string? TraceParent = null)
 {
     public const string EventType = "payment.lifecycle";
 }

@@ -13,6 +13,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("PaymentGateway.Worker"))
     .WithTracing(t => t
+        .AddSource(PaymentGateway.Application.Common.PaymentTracing.ActivitySourceName)
         .AddSource("MassTransit")
         .AddSource("Npgsql")
         .AddSource("System.Net.Http")

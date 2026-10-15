@@ -32,6 +32,16 @@ public static class PaymentMetrics
     private static readonly Histogram<double> WebhookLatencyHistogram =
         Meter.CreateHistogram<double>("merchant_webhook_dispatch_duration_seconds", "s", "Duration of outbound webhook dispatch in seconds");
 
+    private static readonly Counter<long> OutboxDispatchCounter =
+        Meter.CreateCounter<long>("outbox_messages_dispatched_total", "messages", "Total count of dispatched outbox messages");
+
+    private static readonly Counter<long> OutboxDeadLetterCounter =
+        Meter.CreateCounter<long>("outbox_messages_dead_lettered_total", "messages", "Total count of dead-lettered outbox messages");
+
+    private static readonly Histogram<double> OutboxLatencyHistogram =
+        Meter.CreateHistogram<double>("outbox_dispatch_duration_seconds", "s", "Duration of outbox message publishing in seconds");
+
+
     public static void RecordTransaction(string status, string channel, string operation = "authorize")
     {
         TransactionsCounter.Add(1,
@@ -90,4 +100,21 @@ public static class PaymentMetrics
         WebhookLatencyHistogram.Record(durationSeconds,
             new KeyValuePair<string, object?>("status", status));
     }
+
+    public static void RecordOutboxDispatch(string status)
+    {
+        OutboxDispatchCounter.Add(1,
+            new KeyValuePair<string, object?>("status", status));
+    }
+
+    public static void RecordOutboxDeadLettered()
+    {
+        OutboxDeadLetterCounter.Add(1);
+    }
+
+    public static void RecordOutboxDuration(double durationSeconds)
+    {
+        OutboxLatencyHistogram.Record(durationSeconds);
+    }
 }
+

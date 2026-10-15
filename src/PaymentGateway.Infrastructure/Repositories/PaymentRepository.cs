@@ -92,7 +92,8 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
                     Amount: transition.Amount,
                     Currency: transition.Currency,
                     Version: transition.Version,
-                    OccurredAt: transition.OccurredAt);
+                    OccurredAt: transition.OccurredAt,
+                    TraceParent: System.Diagnostics.Activity.Current?.Id);
 
                 var outboxMessage = new OutboxMessageRecord
                 {
