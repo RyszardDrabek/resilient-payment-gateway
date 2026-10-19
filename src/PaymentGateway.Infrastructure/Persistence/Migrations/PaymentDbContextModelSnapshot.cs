@@ -441,6 +441,10 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
 
                             b1.HasKey("PaymentId");
 
+                            b1.HasIndex("ExpiresAt")
+                                .HasDatabaseName("IX_Payments_RequiresAction_ExpiresAt")
+                                .HasFilter("\"State\" = 'RequiresAction' AND \"ThreeDsAction_ExpiresAt\" IS NOT NULL");
+
                             b1.ToTable("Payments", "pay");
 
                             b1.WithOwner()

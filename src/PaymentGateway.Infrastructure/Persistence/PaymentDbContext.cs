@@ -35,6 +35,9 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
                 a.Property(x => x.ActionType).HasMaxLength(64);
                 a.Property(x => x.TargetUrl).HasMaxLength(1024);
                 a.Property(x => x.Token).HasMaxLength(4096);
+                a.HasIndex(x => x.ExpiresAt)
+                    .HasDatabaseName("IX_Payments_RequiresAction_ExpiresAt")
+                    .HasFilter("\"State\" = 'RequiresAction' AND \"ThreeDsAction_ExpiresAt\" IS NOT NULL");
             });
             b.Ignore(p => p.RemainingAuthorizedAmount);
             b.Ignore(p => p.RemainingRefundableAmount);

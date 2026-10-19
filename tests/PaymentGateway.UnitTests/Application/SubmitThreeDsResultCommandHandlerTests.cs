@@ -130,8 +130,27 @@ public sealed class SubmitThreeDsResultCommandHandlerTests
     [Theory]
     [InlineData(PaymentState.Authorized)]
     [InlineData(PaymentState.Declined)]
+    public async Task Handle_WhenPaymentAlreadyResolved_ReturnsExistingDtoIdempotently(PaymentState resolvedState)
+    {
+        var repo = new InMemoryPaymentRepository();
+        var settlementPort = new TestSettlementPort();
+        var handler = new SubmitThreeDsResultCommandHandler(repo, settlementPort);
+
+        var payment = new Payment("pay_1", "merch_test", 5000, "EUR", "MOCK", resolvedState);
+        await repo.AddAsync(payment);
+
+        var command = new SubmitThreeDsResultCommand(payment.Id, "token");
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.State.Should().Be(resolvedState.ToString());
+        result.PaymentId.Should().Be(payment.Id);
+    }
+
+    [Theory]
     [InlineData(PaymentState.Captured)]
-    public async Task Handle_WhenPaymentNotInRequiresAction_ThrowsPaymentInvalidStateException(PaymentState invalidState)
+    [InlineData(PaymentState.Pending)]
+    [InlineData(PaymentState.Unknown)]
+    public async Task Handle_WhenPaymentNotInRequiresActionOrResolved_ThrowsPaymentInvalidStateException(PaymentState invalidState)
     {
         var repo = new InMemoryPaymentRepository();
         var settlementPort = new TestSettlementPort();

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using PaymentGateway.Application.Metrics;
 using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Worker;
@@ -64,6 +65,8 @@ public sealed class ThreeDsExpirationWorker(
             {
                 payment.ExpireThreeDs();
                 await repository.UpdateAsync(payment, ct);
+                PaymentMetrics.RecordTransaction("Declined", payment.SettlementChannel, "3ds_expire");
+                PaymentMetrics.RecordDecline("ThreeDsExpired", payment.SettlementChannel);
                 logger.LogWarning("Expired abandoned 3DS challenge for payment {PaymentId}. State changed to Declined.", payment.Id);
             }
             catch (Exception ex)
