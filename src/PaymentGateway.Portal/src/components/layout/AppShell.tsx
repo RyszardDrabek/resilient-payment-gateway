@@ -1,11 +1,11 @@
 import React from 'react';
 import { Header } from './Header';
-import { AlertCircle, Radio, ShieldCheck, Activity, Key, AlertTriangle, ShieldAlert, Repeat } from 'lucide-react';
+import { AlertCircle, Radio, ShieldCheck, Activity, Key, AlertTriangle, ShieldAlert, Repeat, DollarSign } from 'lucide-react';
 
 interface AppShellProps {
   children: React.ReactNode;
-  activeTab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds' | 'subscriptions';
-  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds' | 'subscriptions') => void;
+  activeTab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds' | 'subscriptions' | 'reconciliation';
+  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds' | 'subscriptions' | 'reconciliation') => void;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabChange }) => {
@@ -134,6 +134,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabCh
               <span>Subscriptions & Cards</span>
               <span className="ml-auto text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded font-mono">
                 REC
+              </span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('reconciliation')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-left ${
+                activeTab === 'reconciliation'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-300 hover:bg-[#1f2937] hover:text-white'
+              }`}
+            >
+              <DollarSign className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>Reconciliation & Payouts</span>
+              <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded font-mono">
+                PAY
               </span>
             </button>
           </nav>

@@ -703,6 +703,92 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('fetchReconciliationSummary calls API and returns summary', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        capturedUrl = input.toString();
+        return new Response(JSON.stringify({
+          totalRecords: 10,
+          matchedCount: 9,
+          discrepancyCount: 1,
+          matchedVolume: 45000,
+          discrepancyVolume: 5000,
+          matchRatePercentage: 90.0
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchReconciliationSummary } = await import('./apiClient');
+      const summary = await fetchReconciliationSummary('tok_recon');
+
+      expect(capturedUrl).toContain('/api/v1/reconciliation/summary');
+      expect(summary.totalRecords).toBe(10);
+      expect(summary.matchRatePercentage).toBe(90.0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('generatePayoutBatch sends POST and returns batch', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedBody = '';
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedBody = init?.body?.toString() ?? '';
+        return new Response(JSON.stringify({
+          id: 'payout_123',
+          merchantId: 'acme-corp',
+          periodStart: '2026-10-01T00:00:00Z',
+          periodEnd: '2026-10-08T00:00:00Z',
+          grossAmount: 50000,
+          feeAmount: 700,
+          netAmount: 49300,
+          currency: 'EUR',
+          status: 'Completed',
+          createdAt: '2026-10-19T10:00:00Z',
+          items: []
+        }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { generatePayoutBatch } = await import('./apiClient');
+      const batch = await generatePayoutBatch('tok_payout', {
+        merchantId: 'acme-corp',
+        periodStart: '2026-10-01T00:00:00Z',
+        periodEnd: '2026-10-08T00:00:00Z',
+        currency: 'EUR'
+      });
+
+      expect(JSON.parse(capturedBody).merchantId).toBe('acme-corp');
+      expect(batch.id).toBe('payout_123');
+      expect(batch.netAmount).toBe(49300);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('downloadPayoutCsv returns raw CSV string', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        capturedUrl = input.toString();
+        return new Response('Payout Item ID,Payment ID,Gross Amount\npi_1,pay_1,10000', {
+          status: 200,
+          headers: { 'Content-Type': 'text/csv' }
+        });
+      }) as typeof fetch;
+
+      const { downloadPayoutCsv } = await import('./apiClient');
+      const csv = await downloadPayoutCsv('tok_csv', 'payout_123');
+
+      expect(capturedUrl).toContain('/api/v1/payouts/payout_123/csv');
+      expect(csv).toContain('Payout Item ID,Payment ID,Gross Amount');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 

@@ -24,6 +24,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(assembly);
         services.AddScoped<Adyen.IAdyenReconciliationService, Adyen.AdyenReconciliationService>();
+        services.AddScoped<Reconciliation.IFeeCalculator, Reconciliation.FeeCalculator>();
         return services;
     }
 }

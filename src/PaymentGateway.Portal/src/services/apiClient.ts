@@ -528,4 +528,147 @@ export async function cancelSubscription(token: string, id: string): Promise<imp
   return handleResponse<import('../types/subscriptions').SubscriptionItem>(response);
 }
 
+export async function fetchReconciliationSummary(
+  token: string,
+  from?: string,
+  to?: string
+): Promise<import('../types/reconciliation').ReconciliationSummary> {
+  const params = new URLSearchParams();
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const url = `${API_BASE_URL}/api/v1/reconciliation/summary${qs}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/reconciliation').ReconciliationSummary>(response);
+}
+
+export async function fetchDiscrepancies(
+  token: string,
+  skip = 0,
+  take = 50
+): Promise<import('../types/reconciliation').DiscrepancyItem[]> {
+  const url = `${API_BASE_URL}/api/v1/reconciliation/discrepancies?skip=${skip}&take=${take}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/reconciliation').DiscrepancyItem[]>(response);
+}
+
+export async function runReconciliation(
+  token: string,
+  from?: string,
+  to?: string
+): Promise<{ totalProcessed: number; matchedCount: number; discrepancyCount: number }> {
+  const url = `${API_BASE_URL}/api/v1/reconciliation/run`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify({ from, to }),
+  });
+
+  return handleResponse<{ totalProcessed: number; matchedCount: number; discrepancyCount: number }>(response);
+}
+
+export async function resolveDiscrepancy(
+  token: string,
+  id: string,
+  resolutionNotes?: string
+): Promise<{ message: string }> {
+  const url = `${API_BASE_URL}/api/v1/reconciliation/discrepancies/${encodeURIComponent(id)}/resolve`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify({ resolutionNotes }),
+  });
+
+  return handleResponse<{ message: string }>(response);
+}
+
+export async function fetchPayoutBatches(
+  token: string,
+  merchantId: string,
+  skip = 0,
+  take = 50
+): Promise<import('../types/reconciliation').MerchantPayoutBatch[]> {
+  const url = `${API_BASE_URL}/api/v1/payouts?merchantId=${encodeURIComponent(merchantId)}&skip=${skip}&take=${take}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/reconciliation').MerchantPayoutBatch[]>(response);
+}
+
+export async function generatePayoutBatch(
+  token: string,
+  request: { merchantId: string; periodStart: string; periodEnd: string; currency: string }
+): Promise<import('../types/reconciliation').MerchantPayoutBatch> {
+  const url = `${API_BASE_URL}/api/v1/payouts/generate`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(request),
+  });
+
+  return handleResponse<import('../types/reconciliation').MerchantPayoutBatch>(response);
+}
+
+export async function downloadPayoutCsv(token: string, batchId: string): Promise<string> {
+  const url = `${API_BASE_URL}/api/v1/payouts/${encodeURIComponent(batchId)}/csv`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, `Failed to download CSV: status ${response.status}`);
+  }
+
+  return await response.text();
+}
+
+
 
