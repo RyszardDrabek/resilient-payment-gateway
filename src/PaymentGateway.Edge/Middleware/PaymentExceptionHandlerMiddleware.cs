@@ -26,6 +26,11 @@ public sealed class PaymentExceptionHandlerMiddleware(
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (!context.Response.Headers.ContainsKey(CorrelationIdHeader))
+        {
+            context.Response.Headers[CorrelationIdHeader] = context.TraceIdentifier;
+        }
+
         try
         {
             await next(context);

@@ -21,10 +21,12 @@ export const options = {
 };
 
 export default function () {
-  // Use unique merchant partition per Virtual User to test multi-tenancy distribution
-  const merchantId = `merch_load_${__VU}`;
+  // Multi-tenant distribution: partition merchants across VUs and iterations
+  // so no single merchant breaches the 100 req/min rate limit bucket (ADR-007, ADR-018)
+  const merchantPartition = ((__VU * 1000 + __ITER) % 500) + 1;
+  const merchantId = `merch_load_${merchantPartition}`;
   const token = generateJwt('merchant', merchantId);
-  const idempotencyKey = generateIdempotencyKey(`vu${__VU}`);
+  const idempotencyKey = generateIdempotencyKey(`vu${__VU}_it${__ITER}`);
   const payload = JSON.stringify(buildPaymentPayload({ partyId: merchantId }));
   const headers = authHeaders(token, idempotencyKey);
 
@@ -45,7 +47,7 @@ export default function () {
         return false;
       }
     },
-    'correlation id header present': (r) => r.headers['X-Correlation-Id'] !== undefined,
+    'correlation id header present': (r) => (r.headers['X-Correlation-Id'] || r.headers['x-correlation-id']) !== undefined,
   });
 
   if (success) {
