@@ -26,6 +26,145 @@
 
 **Modular monolith** (ADR-001): topic-aligned modules (Pay, Edge, Evt, Adyen, Web3, Risk) share Domain contracts for the payment aggregate, settlement port, and apply-acquirer-outcome (ADR-002). Domain has no Adyen/Web3/MassTransit/EF types — enforced by NetArchTest. Application uses MediatR commands/queries; Infrastructure holds EF, MassTransit, WireMock/live Adyen clients, Web3 RPC, and RISK embeddings.
 
+## C4 Architecture Diagrams
+
+The following diagrams illustrate the system architecture across the C4 model levels: **Context (Level 1)**, **Containers (Level 2)**, and **Components (Level 3)**.
+
+### Level 1: System Context Diagram
+Shows the system in its environment, external actors, and third-party integrations.
+
+```mermaid
+flowchart TD
+    subgraph Users ["Actors & Users"]
+        Customer["👤 Cardholder / Shopper<br/><i>Completes checkout & 3DS2 challenge</i>"]
+        Merchant["🏢 Merchant E-Commerce Platform<br/><i>Integrates API, receives webhooks</i>"]
+        Operator["🛠️ Payment Operations & SRE<br/><i>Monitors latency, resolves DLQ, audits</i>"]
+        RiskOfficer["🛡️ Compliance & Risk Officer<br/><i>Inspects AML anomaly flags & dispositions</i>"]
+    end
+
+    subgraph RPG ["System Boundary"]
+        Gateway["💳 Resilient Payment Gateway<br/><b>[Software System - Modular Monolith]</b><br/><i>Processes resilient payments, orchestrates 3DS2,<br/>handles outbox events & async risk scoring</i>"]
+    end
+
+    subgraph External ["External Services & Systems"]
+        Adyen["🏦 Adyen Acquirer & 3DS Directory<br/><b>[External System]</b><br/><i>Settles card authorizations, 3DS2 challenge server</i>"]
+        Web3["⛓️ Web3 Blockchain Network (USDC)<br/><b>[External System]</b><br/><i>Stablecoin transfers with finality confirmation</i>"]
+        MerchantWebhookReceiver["📡 Merchant Webhook Receiver<br/><b>[External System]</b><br/><i>HTTPS endpoint receiving HMAC-SHA256 signed events</i>"]
+        Observability["📊 Observability Cloud / Stack<br/><b>[External Stack]</b><br/><i>Jaeger (tracing), Prometheus & Grafana (metrics)</i>"]
+    end
+
+    Customer -->|"Initiates payment & verifies 3DS challenge (HTTPS)"| Gateway
+    Merchant -->|"Manages payments & API keys via REST API (HTTPS / TLS)"| Gateway
+    Operator -->|"Monitors cockpits, traces & DLQ via Web Portal"| Gateway
+    RiskOfficer -->|"Reviews and dispositions AML flags via Web Portal"| Gateway
+
+    Gateway -->|"Settles FIAT & submits 3DS result (HTTPS / REST)"| Adyen
+    Gateway -->|"Submits transaction & monitors finality (JSON-RPC)"| Web3
+    Gateway -->|"Dispatches terminal state webhooks with HMAC (HTTPS)"| MerchantWebhookReceiver
+    Gateway -->|"Exports OTLP traces & Prometheus metrics"| Observability
+```
+
+---
+
+### Level 2: Container Diagram
+Decomposes the gateway into deployable runtime containers, datastores, and message brokers.
+
+```mermaid
+flowchart TB
+    subgraph Clients ["Client Layer"]
+        MerchantClient["🏢 Merchant Backend<br/><i>REST Client (API Key / JWT)</i>"]
+        Browser["🌐 Web Browser<br/><i>Shopper & Portal Operator</i>"]
+    end
+
+    subgraph GatewayBoundary ["Resilient Payment Gateway Boundary (Docker / Kubernetes)"]
+        Portal["🖥️ PaymentGateway.Portal<br/><b>[Container: React 19 / TypeScript / Nginx]</b><br/><i>Consoles: Ops, DLQ Replay, Webhooks, API Keys, AML, 3DS Simulator</i>"]
+        
+        API["⚙️ PaymentGateway.Api<br/><b>[Container: ASP.NET Core 10 Web API]</b><br/><i>Edge routing, RFC 7807 problem details, rate limiting, CQRS commands</i>"]
+        
+        Worker["🔄 PaymentGateway.Worker<br/><b>[Container: .NET 10 Background Worker Host]</b><br/><i>Outbox dispatcher, 3DS TTL sweeper, Web3 watcher, retention pruning</i>"]
+
+        RabbitMQ["🐰 RabbitMQ + MassTransit<br/><b>[Container: Message Broker]</b><br/><i>Event topics, outbox queues, webhook retry DLQ, AML ingest</i>"]
+
+        PostgresPay["🗄️ PostgreSQL 16 (pay schema)<br/><b>[Container: Relational Database]</b><br/><i>Payments, IdempotencyRecords, OutboxMessages, Webhooks, API Keys</i>"]
+
+        PostgresRisk["🧠 PostgreSQL 16 (risk schema + pgvector)<br/><b>[Container: Isolated Vector Database]</b><br/><i>User risk profiles, transaction embeddings, anomaly flags</i>"]
+    end
+
+    subgraph Acquirers ["Acquirers & Observability"]
+        AdyenMock["🏛️ Adyen / WireMock.Net<br/><i>WireMock:42801 / Checkout API</i>"]
+        Web3Simulator["🪙 Web3 USDC Simulator / Anvil<br/><i>Port: 8545 / Multi-block confirmations</i>"]
+        Telemetry["📈 Prometheus, Alertmanager, Jaeger, Grafana<br/><i>Telemetry aggregation & alerting</i>"]
+    end
+
+    Browser -->|"HTTP :3000"| Portal
+    Portal -->|"REST API / JSON :5080"| API
+    MerchantClient -->|"REST API (Idempotency, HMAC) :5080"| API
+
+    API -->|"EF Core (Read/Write UoW)"| PostgresPay
+    API -->|"EF Core (Read/Write Flags)"| PostgresRisk
+    API -->|"Publish Domain Events"| RabbitMQ
+
+    Worker -->|"Poll / ExecuteDelete / Sweep TTL"| PostgresPay
+    Worker -->|"Consume Events & Dispatch Webhooks"| RabbitMQ
+    
+    API -.->|"Settle / 3DS Details"| AdyenMock
+    Worker -.->|"Monitor Confirmations"| Web3Simulator
+
+    API -->|"Export Spans & Metrics"| Telemetry
+    Worker -->|"Export Spans & Metrics"| Telemetry
+```
+
+---
+
+### Level 3: Component Diagram (Core API & Application Engine)
+Detailed anatomy of the modular monolith showing Clean Architecture layers, CQRS handlers, and domain ports.
+
+```mermaid
+flowchart LR
+    subgraph EdgeLayer ["Edge Layer (PaymentGateway.Api & PaymentGateway.Edge)"]
+        Endpoints["📍 Minimal Endpoints<br/>• PaymentEndpoints<br/>• MerchantApiKeyEndpoints<br/>• WebhookEndpoints<br/>• OpsEndpoints"]
+        Middleware["🛡️ HTTP Pipeline<br/>• RateLimiterMiddleware (Token Bucket)<br/>• PaymentExceptionHandler (RFC 7807)<br/>• TelemetryMasking (PII / Token Redaction)"]
+    end
+
+    subgraph AppLayer ["Application Layer (PaymentGateway.Application)"]
+        Behaviors["⚡ MediatR Pipeline Behaviors<br/>• TracingPipelineBehavior (W3C traceparent)<br/>• IdempotencyPipelineBehavior (Key lease & replay)"]
+        
+        Handlers["📦 CQRS Handlers<br/>• AuthorizePaymentCommandHandler<br/>• SubmitThreeDsResultCommandHandler<br/>• CapturePaymentCommandHandler<br/>• RefundPaymentCommandHandler<br/>• CancelPaymentCommandHandler<br/>• ReplayMerchantWebhookCommandHandler<br/>• ListUnresolvedPaymentsQueryHandler"]
+        
+        Mappers["🔄 Compile-time Mappers<br/>• PaymentMapper (Mapperly)"]
+    end
+
+    subgraph DomainLayer ["Domain Layer (PaymentGateway.Domain)"]
+        PaymentAggregate["💎 Payment Aggregate Root<br/>• State: Pending, Authorized, RequiresAction,<br/>  Captured, Refunded, Declined, Cancelled<br/>• Balance Tracking (Captured, Refunded)<br/>• ThreeDsActionDetails Value Object<br/>• DomainEvents list"]
+        
+        Ports["🔌 Domain Ports (Interfaces)<br/>• IPaymentRepository<br/>• IIdempotencyRepository<br/>• ISettlementPort<br/>• IMerchantWebhookRepository"]
+    end
+
+    subgraph InfraLayer ["Infrastructure Layer (PaymentGateway.Infrastructure)"]
+        Repos["💾 EF Core Repositories<br/>• PaymentRepository<br/>• IdempotencyRepository<br/>• MerchantWebhookRepository"]
+        
+        RoutingPort["🔀 RoutingSettlementPort<br/><i>Dispatches by channel identifier</i>"]
+        
+        AdyenAdapter["🏛️ AdyenSettlementPort<br/><i>Polly v8, /payments, /payments/details</i>"]
+        Web3Adapter["🪙 Web3SettlementPort<br/><i>USDC finality, LocalWeb3Simulator</i>"]
+        
+        OutboxSvc["📨 OutboxDispatcherService<br/><i>Atomic dispatch from pay.OutboxMessages</i>"]
+    end
+
+    Endpoints --> Middleware --> Behaviors --> Handlers
+    Handlers --> Mappers
+    Handlers --> PaymentAggregate
+    Handlers --> Ports
+    
+    Ports <|.. Repos
+    Ports <|.. RoutingPort
+    RoutingPort --> AdyenAdapter
+    RoutingPort --> Web3Adapter
+    Repos --> OutboxSvc
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -174,5 +313,6 @@ Real-time telemetry and cluster alerting are managed via Prometheus, Alertmanage
 | [ADR-016](adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
 | [ADR-017](adr/adr-017-cicd-containerization-and-kubernetes-deployment.md) | CI/CD Pipeline Automation, Containerization & Kubernetes Deployment |
 | [ADR-018](adr/adr-018-performance-testing-and-resilience-benchmarking.md) | Performance Testing, Load Benchmarking & Rate Limiting Resilience |
+| [ADR-019](adr/adr-019-3d-secure-2-and-sca-flow.md) | 3D Secure 2 (3DS2) and Strong Customer Authentication (SCA) Flow |
 
 > ADR-008 intentionally unused — compose-only hosting is recorded in this overview, not a separate ADR.
