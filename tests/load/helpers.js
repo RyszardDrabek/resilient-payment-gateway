@@ -30,7 +30,8 @@ export function generateJwt(role = 'merchant', sub = 'merch_acme', secret = JWT_
   const headerB64 = base64Url(header);
   const payloadB64 = base64Url(payload);
   const message = `${headerB64}.${payloadB64}`;
-  const signature = crypto.hmac('sha256', secret, message, 'rawurl');
+  const signatureB64 = crypto.hmac('sha256', secret, message, 'base64');
+  const signature = signatureB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return `${message}.${signature}`;
 }
 
