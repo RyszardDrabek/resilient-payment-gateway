@@ -17,6 +17,7 @@ public sealed class TracingPipelineBehavior<TRequest, TResponse> : IPipelineBeha
             ActivityKind.Internal);
 
         activity?.SetTag("mediatr.request", requestName);
+        activity?.SetTag("mediatr.response_type", typeof(TResponse).Name);
 
         try
         {
