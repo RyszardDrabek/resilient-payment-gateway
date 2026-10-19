@@ -6,9 +6,10 @@ import { WebhooksConsole } from './components/webhooks/WebhooksConsole';
 import { RiskConsole } from './components/risk/RiskConsole';
 import { ApiKeysConsole } from './components/apikeys/ApiKeysConsole';
 import { WebhookDlqConsole } from './components/webhooks/WebhookDlqConsole';
+import { ObservabilityConsole } from './components/observability/ObservabilityConsole';
 
 function PortalContent() {
-  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq'>('unresolved');
+  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability'>('unresolved');
 
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
@@ -21,6 +22,8 @@ function PortalContent() {
       {activeTab === 'api-keys' && <ApiKeysConsole />}
 
       {activeTab === 'webhook-dlq' && <WebhookDlqConsole />}
+
+      {activeTab === 'observability' && <ObservabilityConsole onNavigate={setActiveTab} />}
     </AppShell>
   );
 }

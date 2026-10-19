@@ -166,3 +166,85 @@ export interface ReplayMerchantWebhookResult {
   replayedAt: string | null;
 }
 
+export interface ServiceHealthDto {
+  status: string;
+  serviceName: string;
+  version: string;
+  environment: string;
+  uptime: string;
+}
+
+export interface DatabaseStatusDto {
+  status: string;
+  paymentDbConnected: boolean;
+  riskDbConnected: boolean;
+  responseTimeMs: number;
+}
+
+export interface BrokerStatusDto {
+  status: string;
+  provider: string;
+  host: string;
+}
+
+export interface MonitoringServicesStatusDto {
+  prometheusStatus: string;
+  alertmanagerStatus: string;
+}
+
+export interface AlertmanagerAlertDto {
+  fingerprint: string;
+  alertName: string;
+  severity: 'critical' | 'warning' | 'info' | string;
+  state: string;
+  summary: string;
+  description: string;
+  startsAt: string;
+  labels: Record<string, string>;
+  annotations: Record<string, string>;
+}
+
+export interface LatencyMetricsDto {
+  acquirerP95LatencySeconds: number;
+  outboxDispatchP95LatencySeconds: number;
+  declineRatePercent: number;
+  totalTransactions: number;
+  totalDeclines: number;
+  acquirerSlaCompliant: boolean;
+  declineRateCompliant: boolean;
+}
+
+export interface OutboxQueueStatsDto {
+  pendingCount: number;
+  dispatchedCount: number;
+  failedCount: number;
+  oldestPendingAgeSeconds: number | null;
+}
+
+export interface WebhookDlqStatsDto {
+  exhaustedCount: number;
+  replayedCount: number;
+  totalCount: number;
+}
+
+export interface UnresolvedPaymentsStatsDto {
+  totalUnresolvedCount: number;
+}
+
+export interface QueueHealthDto {
+  outbox: OutboxQueueStatsDto;
+  webhookDlq: WebhookDlqStatsDto;
+  unresolvedPayments: UnresolvedPaymentsStatsDto;
+}
+
+export interface ObservabilitySummaryDto {
+  timestamp: string;
+  api: ServiceHealthDto;
+  database: DatabaseStatusDto;
+  messageBroker: BrokerStatusDto;
+  monitoring: MonitoringServicesStatusDto;
+  activeAlerts: AlertmanagerAlertDto[];
+  latencyMetrics: LatencyMetricsDto;
+  queues: QueueHealthDto;
+}
+

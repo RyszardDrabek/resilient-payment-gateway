@@ -445,6 +445,96 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('fetches system observability summary with active alerts and telemetry metrics', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
+        return new Response(JSON.stringify({
+          timestamp: '2026-10-19T08:00:00Z',
+          api: {
+            status: 'Healthy',
+            serviceName: 'PaymentGateway.Api',
+            version: '1.0.0',
+            environment: 'Production',
+            uptime: '02:45:10'
+          },
+          database: {
+            status: 'Connected',
+            paymentDbConnected: true,
+            riskDbConnected: true,
+            responseTimeMs: 1.85
+          },
+          messageBroker: {
+            status: 'InMemory',
+            provider: 'In-Memory',
+            host: 'localhost (in-process)'
+          },
+          monitoring: {
+            prometheusStatus: 'Reachable',
+            alertmanagerStatus: 'Reachable'
+          },
+          activeAlerts: [
+            {
+              fingerprint: 'alert-1',
+              alertName: 'HighPaymentDeclineRate',
+              severity: 'critical',
+              state: 'active',
+              summary: 'High Payment Decline Rate (> 5%)',
+              description: 'Payment decline rate is 6.2% over last 5m.',
+              startsAt: '2026-10-19T07:55:00Z',
+              labels: { alertname: 'HighPaymentDeclineRate', severity: 'critical' },
+              annotations: { summary: 'High Payment Decline Rate (> 5%)' }
+            }
+          ],
+          latencyMetrics: {
+            acquirerP95LatencySeconds: 0.35,
+            outboxDispatchP95LatencySeconds: 0.05,
+            declineRatePercent: 1.4,
+            totalTransactions: 500,
+            totalDeclines: 7,
+            acquirerSlaCompliant: true,
+            declineRateCompliant: true
+          },
+          queues: {
+            outbox: {
+              pendingCount: 0,
+              dispatchedCount: 450,
+              failedCount: 0,
+              oldestPendingAgeSeconds: null
+            },
+            webhookDlq: {
+              exhaustedCount: 2,
+              replayedCount: 1,
+              totalCount: 3
+            },
+            unresolvedPayments: {
+              totalUnresolvedCount: 1
+            }
+          }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchObservabilitySummary } = await import('./apiClient');
+      const summary = await fetchObservabilitySummary('ops-jwt-token');
+
+      expect(capturedUrl).toContain('/api/v1/ops/observability');
+      expect(capturedHeaders.Authorization).toBe('Bearer ops-jwt-token');
+      expect(summary.api.status).toBe('Healthy');
+      expect(summary.database.paymentDbConnected).toBe(true);
+      expect(summary.activeAlerts.length).toBe(1);
+      expect(summary.activeAlerts[0].alertName).toBe('HighPaymentDeclineRate');
+      expect(summary.latencyMetrics.acquirerSlaCompliant).toBe(true);
+      expect(summary.queues.webhookDlq.exhaustedCount).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 
