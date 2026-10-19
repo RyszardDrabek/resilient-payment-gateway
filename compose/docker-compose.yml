@@ -132,6 +132,20 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+    volumes:
+      - ./keycloak/payment-gateway-realm.json:/opt/keycloak/data/import/payment-gateway-realm.json:ro
+    ports:
+      - "8080:8080"
+
   anvil:
     profiles: ["web3"]
     image: ghcr.io/foundry-rs/foundry:latest
@@ -145,6 +159,8 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: "http://localhost:5080"
+        VITE_OIDC_AUTHORITY: "http://localhost:8080/realms/payment-gateway"
+        VITE_OIDC_CLIENT_ID: "payment-gateway-portal"
     ports:
       - "3000:80"
     depends_on:

@@ -33,8 +33,13 @@ builder.Services.AddCors(options =>
     });
 });
 
-var jwtKey = builder.Configuration["Auth:JwtSigningKey"]
-    ?? throw new InvalidOperationException("Auth:JwtSigningKey is required.");
+var authority = builder.Configuration["Auth:Authority"];
+var jwtKey = builder.Configuration["Auth:JwtSigningKey"];
+
+if (string.IsNullOrWhiteSpace(authority) && string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException("Either Auth:Authority or Auth:JwtSigningKey must be configured.");
+}
 
 builder.Services
     .AddAuthentication(options =>
@@ -57,17 +62,76 @@ builder.Services
         PaymentGateway.Api.Auth.ApiKeyDefaults.AuthenticationScheme, _ => { })
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        if (!string.IsNullOrWhiteSpace(authority))
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Auth:Issuer"] ?? "payment-gateway",
-            ValidAudience = builder.Configuration["Auth:Audience"] ?? "payment-gateway",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            RoleClaimType = "role"
-        };
+            options.Authority = authority;
+            options.RequireHttpsMetadata = builder.Configuration.GetValue<bool>("Auth:RequireHttpsMetadata", false);
+
+            var defaultAudience = builder.Configuration["Auth:Audience"] ?? "payment-gateway";
+            var configuredAudiences = builder.Configuration.GetSection("Auth:ValidAudiences").Get<string[]>() ?? [];
+            var allValidAudiences = new HashSet<string>(configuredAudiences, StringComparer.OrdinalIgnoreCase)
+            {
+                defaultAudience,
+                "payment-gateway-portal",
+                "account"
+            };
+
+            var defaultIssuer = builder.Configuration["Auth:Issuer"] ?? "payment-gateway";
+            var configuredIssuers = builder.Configuration.GetSection("Auth:ValidIssuers").Get<string[]>() ?? [];
+            var allValidIssuers = new HashSet<string>(configuredIssuers, StringComparer.OrdinalIgnoreCase)
+            {
+                authority,
+                defaultIssuer
+            };
+
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuers = allValidIssuers,
+                ValidateAudience = true,
+                ValidAudiences = allValidAudiences,
+                ValidateLifetime = true,
+                RoleClaimType = "role",
+                NameClaimType = "preferred_username"
+            };
+
+            if (!string.IsNullOrWhiteSpace(jwtKey))
+            {
+                var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
+                {
+                    if (securityToken is Microsoft.IdentityModel.JsonWebTokens.JsonWebToken jsonWebToken &&
+                        jsonWebToken.Alg == SecurityAlgorithms.HmacSha256)
+                    {
+                        return [symmetricKey];
+                    }
+
+                    if (securityToken is System.IdentityModel.Tokens.Jwt.JwtSecurityToken jwtSecurityToken &&
+                        jwtSecurityToken.Header.Alg == SecurityAlgorithms.HmacSha256)
+                    {
+                        return [symmetricKey];
+                    }
+
+                    var openIdConfig = options.ConfigurationManager?.GetConfigurationAsync(CancellationToken.None).GetAwaiter().GetResult();
+                    return openIdConfig?.SigningKeys ?? [];
+                };
+            }
+        }
+        else
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = builder.Configuration["Auth:Issuer"] ?? "payment-gateway",
+                ValidAudience = builder.Configuration["Auth:Audience"] ?? "payment-gateway",
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)),
+                RoleClaimType = "role"
+            };
+        }
+
         options.Events = new JwtBearerEvents
         {
             OnChallenge = async context =>
@@ -121,43 +185,25 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("UnresolvedPaymentsPolicy", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.RequireAssertion(ctx =>
-            ctx.User.HasClaim(c =>
-                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role) &&
-                (string.Equals(c.Value, "merchant", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(c.Value, "risk", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase))));
+        policy.RequireAssertion(ctx => HasRole(ctx.User, "merchant", "risk", "ops"));
     });
 
     options.AddPolicy("MerchantWebhookPolicy", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.RequireAssertion(ctx =>
-            ctx.User.HasClaim(c =>
-                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role) &&
-                (string.Equals(c.Value, "merchant", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase))));
+        policy.RequireAssertion(ctx => HasRole(ctx.User, "merchant", "ops"));
     });
 
     options.AddPolicy("RiskPolicy", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.RequireAssertion(ctx =>
-            ctx.User.HasClaim(c =>
-                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role) &&
-                (string.Equals(c.Value, "risk", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase))));
+        policy.RequireAssertion(ctx => HasRole(ctx.User, "risk", "ops"));
     });
 
     options.AddPolicy("ObservabilityPolicy", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.RequireAssertion(ctx =>
-            ctx.User.HasClaim(c =>
-                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role) &&
-                (string.Equals(c.Value, "ops", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(c.Value, "merchant", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(c.Value, "risk", StringComparison.OrdinalIgnoreCase))));
+        policy.RequireAssertion(ctx => HasRole(ctx.User, "ops", "merchant", "risk"));
     });
 });
 
@@ -250,5 +296,23 @@ app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, Cancella
 }).AllowAnonymous();
 
 app.Run();
+
+static bool HasRole(System.Security.Claims.ClaimsPrincipal user, params string[] allowedRoles)
+{
+    return user.Claims.Any(c =>
+    {
+        if (c.Type is "role" or System.Security.Claims.ClaimTypes.Role or "roles")
+        {
+            return allowedRoles.Any(r => string.Equals(c.Value, r, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (c.Type == "realm_access" && !string.IsNullOrWhiteSpace(c.Value))
+        {
+            return allowedRoles.Any(r => c.Value.Contains($"\"{r}\"", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return false;
+    });
+}
 
 public partial class Program;

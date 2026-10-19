@@ -156,3 +156,18 @@
 - **PORTAL** — Reconciliation & Payouts console with daily settlement metrics, fee analysis, payout history, discrepancy inspector, and CSV report download.
   - _Depends on:_ PORTAL, EDGE
 
+## Phase 13: sso-oidc-and-rbac
+
+**Objective:** Implement enterprise Single Sign-On (SSO) and OpenID Connect (OIDC) identity federation with PKCE, automated JWKS signature validation in the API, and Keycloak identity provider configuration for role-based access control (RBAC).
+**Evaluation criteria:** Portal initiates standard Authorization Code Flow with PKCE against Keycloak IdP (or configured OIDC provider); API validates JWT Bearer tokens asymmetrically via OIDC Discovery and JWKS endpoint with fallback for local unit/integration tests; Keycloak realm export provisions `ops`, `merchant`, and `risk` users with granular claims; Single Logout (SLO) terminates portal sessions cleanly.
+
+### Topics
+
+- **IAM** — Keycloak container & realm export (`payment-gateway-realm.json`), client definitions, roles (`ops`, `merchant`, `risk`), user attributes (`merchant_id`).
+  - _Depends on:_ IAM
+- **EDGE** — Dual-mode JWT authentication in API: asymmetric JWKS discovery (`Authority` / OpenID Connect metadata) with backward-compatible fallback to local symmetric keys.
+  - _Depends on:_ EDGE, IAM
+- **PORTAL** — OIDC client integration with PKCE, session management, token refresh, login redirect, user profile display, and dev toggle fallback.
+  - _Depends on:_ PORTAL, EDGE, IAM
+
+

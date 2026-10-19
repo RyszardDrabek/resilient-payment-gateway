@@ -1,0 +1,155 @@
+{
+  "realm": "payment-gateway",
+  "enabled": true,
+  "displayName": "Resilient Payment Gateway",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "ops",
+        "description": "Operations and System Administrator"
+      },
+      {
+        "name": "merchant",
+        "description": "Store Administrator / Merchant"
+      },
+      {
+        "name": "risk",
+        "description": "Risk & Compliance Officer"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "payment-gateway-portal",
+      "name": "Payment Gateway Merchant Portal",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "baseUrl": "http://localhost:5173",
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "+"
+      ],
+      "protocolMappers": [
+        {
+          "name": "merchant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "merchant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "merchant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "party_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "party_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "party_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "roles",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "role",
+            "jsonType.label": "String",
+            "multivalued": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@gateway.local",
+      "firstName": "Operations",
+      "lastName": "Admin",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ops"
+      ]
+    },
+    {
+      "username": "merchant",
+      "email": "merchant@acme.com",
+      "firstName": "Acme",
+      "lastName": "Merchant",
+      "enabled": true,
+      "attributes": {
+        "merchant_id": [
+          "merch_acme"
+        ],
+        "party_id": [
+          "merch_acme"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "merchant123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "merchant"
+      ]
+    },
+    {
+      "username": "compliance",
+      "email": "compliance@gateway.local",
+      "firstName": "Risk",
+      "lastName": "Auditor",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "risk123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "risk"
+      ]
+    }
+  ]
+}
