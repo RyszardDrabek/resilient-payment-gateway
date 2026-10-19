@@ -106,4 +106,19 @@
 - **EVT** — End-to-end distributed tracing correlation across Edge API, MediatR, Transactional Outbox, RabbitMQ, Worker, and outbound webhooks.
   - _Depends on:_ PAY, EVT, EDGE
 
+## Phase 10: three-ds-secure-and-sca-flow
+
+**Objective:** Implement 3D Secure 2 (3DS2) authentication and Strong Customer Authentication (SCA) compliance for card payments, supporting frictionless flow, challenge flow with action payloads (redirect/iframe), challenge result submission, and gateway state machine extension (`RequiresAction`).
+**Evaluation criteria:** Card payments requiring 3DS2 transition to `RequiresAction` with an action payload containing challenge/redirect details; merchant can submit 3DS challenge completion payload to finalize authorization; frictionless payments complete directly to `Authorized`; invalid or failed 3DS authentication transitions payment to `Declined`; events and distributed traces propagate 3DS correlation throughout the lifecycle.
+
+### Topics
+
+- **PAY** — Payment aggregate state machine extension (`RequiresAction`), 3DS result submission command, and lifecycle events.
+  - _Depends on:_ PAY
+- **ADYEN** — Adyen 3DS2 payment details verification and WireMock 3DS2 frictionless/challenge simulation.
+  - _Depends on:_ ADYEN, PAY
+- **EDGE** — HTTP contract for 3DS action payloads and `POST /payments/{id}/3ds-result` endpoint.
+  - _Depends on:_ PAY, EDGE
+- **PORTAL** — Merchant & operator portal 3DS2 challenge simulator and transaction action inspector.
+  - _Depends on:_ PORTAL, EDGE
 

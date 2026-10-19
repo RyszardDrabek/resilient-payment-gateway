@@ -30,6 +30,12 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.Version).IsRequired().HasDefaultValue(1).IsConcurrencyToken();
             b.Property(p => p.CapturedAmount).IsRequired().HasDefaultValue(0L);
             b.Property(p => p.RefundedAmount).IsRequired().HasDefaultValue(0L);
+            b.OwnsOne(p => p.ThreeDsAction, a =>
+            {
+                a.Property(x => x.ActionType).HasMaxLength(64);
+                a.Property(x => x.TargetUrl).HasMaxLength(1024);
+                a.Property(x => x.Token).HasMaxLength(4096);
+            });
             b.Ignore(p => p.RemainingAuthorizedAmount);
             b.Ignore(p => p.RemainingRefundableAmount);
             b.Ignore(p => p.DomainEvents);

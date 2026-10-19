@@ -47,5 +47,14 @@ public interface ISettlementPort
         string? channel = null,
         CancellationToken ct = default) =>
         Task.FromResult(SettlementResult.Unanswered(channel ?? "UNKNOWN", "Status query not supported by settlement channel"));
+
+    Task<SettlementResult> SubmitThreeDsDetailsAsync(
+        string paymentId,
+        string channelReference,
+        string? threeDsResult,
+        IReadOnlyDictionary<string, string>? details = null,
+        string? channel = null,
+        CancellationToken ct = default) =>
+        Task.FromResult(SettlementResult.Declined(channel ?? "UNKNOWN", channelReference, "3DS details submission not supported by settlement channel"));
 }
 

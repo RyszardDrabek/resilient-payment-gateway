@@ -8,6 +8,9 @@ public static class AdyenEndpoints
     public static string Payments(string version = DefaultApiVersion) =>
         $"/{version}/payments";
 
+    public static string PaymentsDetails(string version = DefaultApiVersion) =>
+        $"/{version}/payments/details";
+
     public static string Captures(string channelReference, string version = DefaultApiVersion) =>
         $"/{version}/payments/{channelReference}/captures";
 

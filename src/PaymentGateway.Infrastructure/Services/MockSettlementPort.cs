@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Ports;
 
 namespace PaymentGateway.Infrastructure.Services;
@@ -33,8 +34,8 @@ public sealed class MockSettlementPort(IConfiguration configuration) : ISettleme
                 idempotencyKey));
         }
 
-        // Mock decline trigger: partyId starting with "decline_"
-        if (!string.IsNullOrEmpty(partyId) && partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase))
+        // Mock decline trigger: partyId starting with "decline_" or ending with "0003"
+        if (!string.IsNullOrEmpty(partyId) && (partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase) || partyId.EndsWith("0003")))
         {
             return Task.FromResult(new SettlementResult(
                 false,
@@ -42,6 +43,21 @@ public sealed class MockSettlementPort(IConfiguration configuration) : ISettleme
                 $"ref_declined_{Guid.NewGuid():N}",
                 "Insufficient funds",
                 MerchantReference: idempotencyKey));
+        }
+
+        // Mock 3DS challenge trigger: partyId containing "challenge", "3ds", or ending with "0002"
+        if (!string.IsNullOrEmpty(partyId) && (partyId.Contains("challenge", StringComparison.OrdinalIgnoreCase) || partyId.Contains("3ds", StringComparison.OrdinalIgnoreCase) || partyId.EndsWith("0002")))
+        {
+            var challengeRef = $"ref_mock_3ds_{Guid.NewGuid():N}";
+            return Task.FromResult(SettlementResult.ActionRequired(
+                resolvedChannel,
+                challengeRef,
+                new ThreeDsActionDetails(
+                    ActionType: "threeDS2",
+                    TargetUrl: "https://mock-bank.local/3ds/challenge",
+                    Token: $"mock_3ds_{Guid.NewGuid():N}",
+                    ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(15)),
+                merchantReference: idempotencyKey));
         }
 
         var channelName = resolvedChannel.ToLowerInvariant();
@@ -93,5 +109,34 @@ public sealed class MockSettlementPort(IConfiguration configuration) : ISettleme
 
         var transitionRef = $"ref_cnc_{Guid.NewGuid():N}";
         return Task.FromResult(SettlementResult.Success(resolvedChannel, transitionRef, paymentId));
+    }
+
+    public Task<SettlementResult> SubmitThreeDsDetailsAsync(
+        string paymentId,
+        string channelReference,
+        string? threeDsResult,
+        IReadOnlyDictionary<string, string>? details = null,
+        string? channel = null,
+        CancellationToken ct = default)
+    {
+        var resolvedChannel = !string.IsNullOrWhiteSpace(channel)
+            ? channel
+            : (configuration["PaymentGateway:ActiveChannel"] ?? "MOCK");
+
+        if (string.Equals(threeDsResult, "failed", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(threeDsResult, "refused", StringComparison.OrdinalIgnoreCase) ||
+            (details != null && details.Values.Any(v => v.Contains("fail", StringComparison.OrdinalIgnoreCase) || v.Contains("refuse", StringComparison.OrdinalIgnoreCase))))
+        {
+            return Task.FromResult(SettlementResult.Declined(
+                resolvedChannel,
+                $"ref_mock_3ds_declined_{Guid.NewGuid():N}",
+                "ThreeDsRefused",
+                paymentId));
+        }
+
+        return Task.FromResult(SettlementResult.Success(
+            resolvedChannel,
+            $"ref_mock_3ds_auth_{Guid.NewGuid():N}",
+            paymentId));
     }
 }

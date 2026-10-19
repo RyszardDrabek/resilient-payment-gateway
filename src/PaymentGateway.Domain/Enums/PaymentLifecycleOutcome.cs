@@ -10,5 +10,6 @@ public enum PaymentLifecycleOutcome
     Refunded,
     PartiallyRefunded,
     Pending,
-    Unknown
+    Unknown,
+    RequiresAction
 }

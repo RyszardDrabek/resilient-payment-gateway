@@ -155,7 +155,7 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
 
                 // Decline simulation
                 if (body.Contains("decline", StringComparison.OrdinalIgnoreCase) ||
-                    body.Contains("0002", StringComparison.OrdinalIgnoreCase))
+                    body.Contains("0003", StringComparison.OrdinalIgnoreCase))
                 {
                     var declineResponse = new AdyenPaymentResponse(
                         pspRef,
@@ -166,12 +166,61 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                     return CreateJsonResponse(200, declineResponse);
                 }
 
+                // 3DS2 Challenge simulation (card suffix 0002 or challenge keyword)
+                if (body.Contains("0002", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("challenge", StringComparison.OrdinalIgnoreCase))
+                {
+                    var challengeResponse = new AdyenPaymentResponse(
+                        pspRef,
+                        "ChallengeShopper",
+                        null,
+                        merchantRef,
+                        new AdyenAction(
+                            "threeDS2",
+                            "https://checkoutshopper-test.adyen.com/checkoutshopper/threeDS2.shtml",
+                            $"mock_payment_data_{Guid.NewGuid():N}",
+                            $"mock_token_{Guid.NewGuid():N}"));
+
+                    return CreateJsonResponse(200, challengeResponse);
+                }
+
                 // Success simulation
                 var successResponse = new AdyenPaymentResponse(
                     pspRef,
                     "Authorised",
                     null,
                     merchantRef);
+
+                return CreateJsonResponse(200, successResponse);
+            }));
+
+        // 2. 3DS2 Details: POST /{version}/payments/details
+        var detailsPath = AdyenEndpoints.PaymentsDetails(version);
+        server
+            .Given(Request.Create().WithPath(detailsPath).UsingPost())
+            .RespondWith(Response.Create().WithCallback(requestMessage =>
+            {
+                var body = requestMessage.Body ?? string.Empty;
+                var pspRef = $"adyen_3ds_auth_{Guid.NewGuid():N}";
+
+                if (body.Contains("refused", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("fail", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("0003", StringComparison.OrdinalIgnoreCase))
+                {
+                    var declineResponse = new AdyenPaymentResponse(
+                        pspRef,
+                        "Refused",
+                        "ThreeDsRefused",
+                        "3ds_challenge_failed");
+
+                    return CreateJsonResponse(200, declineResponse);
+                }
+
+                var successResponse = new AdyenPaymentResponse(
+                    pspRef,
+                    "Authorised",
+                    null,
+                    "3ds_challenge_success");
 
                 return CreateJsonResponse(200, successResponse);
             }));

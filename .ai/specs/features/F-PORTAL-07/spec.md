@@ -1,29 +1,38 @@
 ---
 id: F-PORTAL-07
 topic: PORTAL
-phase: operational-alerting-and-distributed-tracing
+phase: three-ds-secure-and-sca-flow
 status: done
 ---
 
-# F-PORTAL-07: Operator Web Portal Observability Console
+# F-PORTAL-07: Merchant portal 3DS2 challenge simulator & action inspector
 
 - **Topic:** [PORTAL](../../topics/portal.md)
 - **Type:** Explicit
 - **Value class:** USER-VISIBLE
-- **Source:** Phase 9: operational-alerting-and-distributed-tracing
+- **Source:** ADR-019, ADR-013
 
 ## Description
 
-Provide an operations observability tab inside the React operator web portal (`PaymentGateway.Portal`), displaying real-time cluster health statuses (API, PostgreSQL, RabbitMQ broker, Prometheus, Alertmanager), active firing alerts from Alertmanager, p95 latency percentiles against SLA thresholds (< 2.0s), payment decline rates, and queue backlog telemetry (Transactional Outbox and Webhook DLQ).
+Adds a 3DS2 Challenge Simulator console to the Merchant & Operator Web Portal, enabling developers and operations staff to simulate 3DS challenge triggers, inspect the `action` payload, and complete or fail simulated challenge verifications interactively.
 
 ## Business context
 
-Operations engineers and support teams require a unified operational cockpit in the management portal to observe real-time gateway health, detect active Prometheus alerts, monitor latency SLA compliance, and jump directly into DLQ or Unresolved payment resolution consoles.
+Empowers merchants during integration and QA to test their 3DS2 redirect/challenge handling against the sandbox gateway without needing to configure physical mobile devices or real banking apps.
 
 ## Acceptance criteria
 
-- AC-1 THE backend SHALL expose `GET /api/v1/ops/observability` requiring authenticated role authorization (`ObservabilityPolicy`), aggregating service health, active Alertmanager alerts, p95 latency metrics, and queue telemetry.
-- AC-2 THE React portal SHALL provide an `Observability` tab in `AppShell` with live status indicators, auto-refresh interval configuration (5s/10s/30s/off), and manual refresh.
-- AC-3 THE console SHALL display active Alertmanager alerts with severity badges (`critical`, `warning`), alert names, descriptions, timestamps, and filter pills.
-- AC-4 THE console SHALL display p95 latency percentiles against SLA targets (< 2.0s for settlement, < 500ms for outbox dispatch) and payment decline rates (< 5.0%).
-- AC-5 THE console SHALL display Transactional Outbox backlog metrics (pending, dispatched, failed, oldest message age) and Webhook DLQ stats with navigation shortcuts to DLQ and Unresolved consoles.
+- AC-1 THE Web Portal SHALL provide a 3DS2 Simulator view accessible from the operations console.
+- AC-2 WHEN an operator/merchant initiates a test payment configured for 3DS2 Challenge, THE portal SHALL display the resulting `RequiresAction` state, the redirect URL, and the challenge parameters.
+- AC-3 THE portal SHALL provide interactive controls to simulate either "Complete Challenge (Approve)" or "Fail Challenge (Reject)" by calling `POST /payments/{id}/3ds-result`.
+- AC-4 UPON challenge resolution, THE portal SHALL refresh and display the terminal state (`Authorized` or `Declined`) along with live lifecycle event diagnostics.
+
+## Interface contract
+
+- **Resource / surface:** React Web Portal view (`ThreeDsSimulator.tsx` / console integration)
+- **Operation:** interactive payment simulation and challenge submission
+- **Response shape category:** interactive UI console
+
+## Dependencies
+
+F-PORTAL-01, F-EDGE-10

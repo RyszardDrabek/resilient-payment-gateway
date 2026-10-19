@@ -36,4 +36,8 @@
 | 30  | [F-PORTAL-06](../../specs/features/F-PORTAL-06/spec.md): Operational Grafana cockpits for business volume, latency percentiles & DLQ health | PORTAL | 8     | #29             |
 | 31  | [F-EDGE-09](../../specs/features/F-EDGE-09/spec.md): Prometheus Alerting Rules & Alertmanager operational alerting | EDGE   | 9     | #29             |
 | 32  | [F-EVT-03](../../specs/features/F-EVT-03/spec.md): End-to-end distributed tracing correlation across Edge API, Outbox, RabbitMQ, Worker, and Webhooks | EVT | 9 | #6, #21, #29 |
+| 33  | [F-PAY-06](../../specs/features/F-PAY-06/spec.md): Payment aggregate 3DS2 state machine & challenge resolution | PAY | 10 | #1, #2, #6 |
+| 34  | [F-ADYEN-06](../../specs/features/F-ADYEN-06/spec.md): Adyen 3DS2 challenge details submission & WireMock simulation | ADYEN | 10 | #3, #33 |
+| 35  | [F-EDGE-10](../../specs/features/F-EDGE-10/spec.md): 3DS2 challenge action API contract & submission endpoint | EDGE | 10 | #4, #33, #34 |
+| 36  | [F-PORTAL-07](../../specs/features/F-PORTAL-07/spec.md): Merchant portal 3DS2 challenge simulator & action inspector | PORTAL | 10 | #22, #35 |
 

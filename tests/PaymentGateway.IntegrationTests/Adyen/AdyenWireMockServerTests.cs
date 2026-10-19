@@ -118,4 +118,66 @@ public sealed class AdyenWireMockServerTests : IDisposable
         capBody.PspReference.Should().NotBe(refBody.PspReference);
         refBody.PspReference.Should().NotBe(cncBody.PspReference);
     }
+
+    [Fact]
+    public async Task WireMock_Authorize_Card0002_Returns_ChallengeShopper_WithAction()
+    {
+        // Arrange (F-ADYEN-06 AC-1, AC-5)
+        var paymentRequest = new AdyenPaymentRequest(
+            new AdyenAmount("EUR", 2500),
+            "InterparkingMockAccount",
+            "mref_3ds_challenge",
+            new AdyenPaymentMethod("scheme", "4111111111110002", "06", "2029", "123", "Test User"));
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/v71/payments", paymentRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<AdyenPaymentResponse>();
+        body.Should().NotBeNull();
+        body!.ResultCode.Should().Be("ChallengeShopper");
+        body.Action.Should().NotBeNull();
+        body.Action!.Type.Should().Be("threeDS2");
+        body.Action.Url.Should().NotBeNullOrWhiteSpace();
+        body.Action.PaymentData.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task WireMock_SubmitDetails_Success_Returns_Authorised()
+    {
+        // Arrange (F-ADYEN-06 AC-3, AC-5)
+        var detailsRequest = new AdyenPaymentsDetailsRequest(
+            Details: new Dictionary<string, string> { ["threeDSResult"] = "challenge_completed" },
+            PaymentData: "mock_payment_data_valid");
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/v71/payments/details", detailsRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<AdyenPaymentResponse>();
+        body.Should().NotBeNull();
+        body!.ResultCode.Should().Be("Authorised");
+        body.PspReference.Should().StartWith("adyen_3ds_auth_");
+    }
+
+    [Fact]
+    public async Task WireMock_SubmitDetails_Refused_Returns_Refused()
+    {
+        // Arrange (F-ADYEN-06 AC-4, AC-5)
+        var detailsRequest = new AdyenPaymentsDetailsRequest(
+            Details: new Dictionary<string, string> { ["threeDSResult"] = "refused" },
+            PaymentData: "mock_payment_data_failed");
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/v71/payments/details", detailsRequest);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<AdyenPaymentResponse>();
+        body.Should().NotBeNull();
+        body!.ResultCode.Should().Be("Refused");
+        body.RefusalReason.Should().Be("ThreeDsRefused");
+    }
 }

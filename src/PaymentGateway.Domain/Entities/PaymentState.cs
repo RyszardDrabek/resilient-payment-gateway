@@ -10,5 +10,6 @@ public enum PaymentState
     PartiallyCaptured,
     Cancelled,
     Refunded,
-    PartiallyRefunded
+    PartiallyRefunded,
+    RequiresAction
 }

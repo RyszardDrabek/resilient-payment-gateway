@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Ports;
 using PaymentGateway.Infrastructure.Adyen.Models;
 using Polly;
@@ -89,11 +90,12 @@ public sealed class AdyenSettlementPort : ISettlementPort
         CancellationToken ct)
     {
         // Configure request instrument fields (AC-4) and mock triggers
-        var isDecline = !string.IsNullOrEmpty(partyId) && partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase);
+        var isDecline = !string.IsNullOrEmpty(partyId) && (partyId.StartsWith("decline_", StringComparison.OrdinalIgnoreCase) || partyId.EndsWith("0003"));
+        var isChallenge = !string.IsNullOrEmpty(partyId) && (partyId.Contains("challenge", StringComparison.OrdinalIgnoreCase) || partyId.EndsWith("0002"));
         var isTimeout = !string.IsNullOrEmpty(partyId) && partyId.Contains("timeout", StringComparison.OrdinalIgnoreCase);
         var isServerError = !string.IsNullOrEmpty(partyId) && partyId.Contains("server_error", StringComparison.OrdinalIgnoreCase);
 
-        var cardNumber = isDecline ? "4111111111110002" : "4111111111111111";
+        var cardNumber = isChallenge ? "4111111111110002" : (isDecline ? "4111111111110003" : "4111111111111111");
         var refString = isTimeout ? $"{merchantReference}_timeout" : (isServerError ? $"{merchantReference}_server_error" : merchantReference);
 
         var paymentRequest = new AdyenPaymentRequest(
@@ -167,6 +169,23 @@ public sealed class AdyenSettlementPort : ISettlementPort
                     merchantReference);
             }
 
+            if (string.Equals(adyenResponse.ResultCode, "ChallengeShopper", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(adyenResponse.ResultCode, "RedirectShopper", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(adyenResponse.ResultCode, "IdentifyShopper", StringComparison.OrdinalIgnoreCase) ||
+                adyenResponse.Action != null)
+            {
+                var actionType = adyenResponse.Action?.Type ?? (string.Equals(adyenResponse.ResultCode, "RedirectShopper", StringComparison.OrdinalIgnoreCase) ? "redirect" : "threeDS2");
+                var targetUrl = adyenResponse.Action?.Url ?? "https://checkoutshopper-test.adyen.com/checkoutshopper/threeDS2.shtml";
+                var token = adyenResponse.Action?.PaymentData ?? adyenResponse.Action?.Token ?? adyenResponse.PspReference;
+                var expiresAt = DateTimeOffset.UtcNow.AddMinutes(15);
+
+                return SettlementResult.ActionRequired(
+                    resolvedChannel,
+                    adyenResponse.PspReference,
+                    new ThreeDsActionDetails(actionType, targetUrl, token, expiresAt),
+                    merchantReference);
+            }
+
             return SettlementResult.Declined(
                 resolvedChannel,
                 adyenResponse.PspReference,
@@ -176,6 +195,97 @@ public sealed class AdyenSettlementPort : ISettlementPort
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or TaskCanceledException)
         {
             _logger?.LogWarning(ex, "Settlement call to Adyen was unanswered or timed out.");
+            return SettlementResult.Unanswered(
+                resolvedChannel,
+                $"Settlement channel failed to answer: {ex.Message}",
+                merchantReference);
+        }
+    }
+
+    public async Task<SettlementResult> SubmitThreeDsDetailsAsync(
+        string paymentId,
+        string channelReference,
+        string? threeDsResult,
+        IReadOnlyDictionary<string, string>? details = null,
+        string? channel = null,
+        CancellationToken ct = default)
+    {
+        var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
+        var merchantReference = paymentId;
+
+        if (_options.IsLiveMode && !_options.HasValidCredentials)
+        {
+            _logger?.LogError("Adyen live mode selected but credentials are absent or invalid. Refusing 3DS details submission.");
+            return SettlementResult.ConfigurationFail(
+                resolvedChannel,
+                "Adyen live sandbox mode is selected but credentials are absent or invalid.",
+                merchantReference);
+        }
+
+        var request = new AdyenPaymentsDetailsRequest(
+            Details: details ?? new Dictionary<string, string>(),
+            PaymentData: details != null && details.TryGetValue("paymentData", out var pd) ? pd : null,
+            ThreeDSResult: threeDsResult);
+
+        try
+        {
+            var url = BuildEndpointUrl(AdyenEndpoints.PaymentsDetails(_options.ApiVersion));
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(request)
+            };
+
+            if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+            {
+                httpRequest.Headers.TryAddWithoutValidation("X-API-Key", _options.ApiKey);
+            }
+
+            using var response = await _httpClient.SendAsync(httpRequest, ct);
+
+            if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                _logger?.LogError("Adyen sandbox returned authentication error {StatusCode}.", (int)response.StatusCode);
+                return SettlementResult.ConfigurationFail(
+                    resolvedChannel,
+                    $"Adyen live credentials rejected by sandbox: {(int)response.StatusCode}",
+                    merchantReference);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return SettlementResult.Declined(
+                    resolvedChannel,
+                    string.Empty,
+                    "ThreeDsRefused",
+                    merchantReference);
+            }
+
+            var adyenResponse = await response.Content.ReadFromJsonAsync<AdyenPaymentResponse>(cancellationToken: ct);
+            if (adyenResponse is null)
+            {
+                return SettlementResult.Unanswered(
+                    resolvedChannel,
+                    "Empty or null response payload received from Adyen details submission",
+                    merchantReference);
+            }
+
+            if (string.Equals(adyenResponse.ResultCode, "Authorised", StringComparison.OrdinalIgnoreCase))
+            {
+                return SettlementResult.Success(
+                    resolvedChannel,
+                    adyenResponse.PspReference,
+                    merchantReference);
+            }
+
+            return SettlementResult.Declined(
+                resolvedChannel,
+                adyenResponse.PspReference,
+                adyenResponse.RefusalReason ?? "ThreeDsRefused",
+                merchantReference);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or TaskCanceledException)
+        {
+            _logger?.LogWarning(ex, "3DS details call to Adyen timed out or connection failed.");
             return SettlementResult.Unanswered(
                 resolvedChannel,
                 $"Settlement channel failed to answer: {ex.Message}",

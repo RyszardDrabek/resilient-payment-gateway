@@ -363,4 +363,56 @@ export async function fetchObservabilitySummary(
   return handleResponse<ObservabilitySummaryDto>(response);
 }
 
+export async function createTestPayment(
+  token: string,
+  request: {
+    partyId: string;
+    amount: number;
+    currency: string;
+    settlementChannel?: string;
+    idempotencyKey?: string;
+  }
+): Promise<PaymentDto> {
+  const url = `${API_BASE_URL}/payments`;
+  const idemKey = request.idempotencyKey || `portal-3ds-${Date.now()}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Idempotency-Key': idemKey,
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(request),
+  });
+
+  return handleResponse<PaymentDto>(response);
+}
+
+export async function submitThreeDsResult(
+  token: string,
+  paymentId: string,
+  request: {
+    threeDsResult?: string | null;
+    details?: Record<string, string>;
+  }
+): Promise<PaymentDto> {
+  const url = `${API_BASE_URL}/payments/${encodeURIComponent(paymentId)}/3ds-result`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(request),
+  });
+
+  return handleResponse<PaymentDto>(response);
+}
+
 
