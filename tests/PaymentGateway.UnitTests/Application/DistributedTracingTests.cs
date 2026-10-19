@@ -55,6 +55,7 @@ public sealed class DistributedTracingTests
         capturedActivity.Should().NotBeNull();
         capturedActivity!.OperationName.Should().Be("MediatR TestSampleCommand");
         capturedActivity.Tags.Should().Contain(t => t.Key == "mediatr.request" && t.Value == "TestSampleCommand");
+        capturedActivity.Tags.Should().Contain(t => t.Key == "mediatr.response_type" && t.Value == "String");
     }
 
     [Fact]
