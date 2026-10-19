@@ -1,0 +1,42 @@
+groups:
+  - name: payment-gateway-alerts
+    rules:
+      - alert: HighPaymentDeclineRate
+        expr: (sum(rate(payment_declines_total[5m])) / (sum(rate(payment_transactions_total[5m])) > 0)) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: payments
+        annotations:
+          summary: "High payment decline rate (> 5%)"
+          description: "Payment decline rate is above 5% (currently {{ $value | printf \"%.2f\" }}%) over the last 5 minutes."
+
+      - alert: AcquirerSettlementLatencySlaBreach
+        expr: histogram_quantile(0.95, sum by (le, channel) (rate(payment_channel_duration_seconds_bucket[5m]))) > 2.0
+        for: 1m
+        labels:
+          severity: warning
+          category: acquirer
+        annotations:
+          summary: "Acquirer settlement latency SLA breach (p95 > 2s)"
+          description: "Acquirer channel {{ $labels.channel }} settlement p95 latency is {{ $value | printf \"%.2f\" }}s."
+
+      - alert: MerchantWebhookDlqSpike
+        expr: sum(rate(merchant_webhook_dispatched_total{status="exhausted"}[5m])) > 0 or sum(rate(merchant_webhook_replay_attempts_total{outcome="failure"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: webhooks
+        annotations:
+          summary: "Merchant webhook DLQ exhaustion or replay failure spike"
+          description: "Outbound webhook dispatch has exhausted retries or manual DLQ replays are failing."
+
+      - alert: OutboxDeliveryDelayOrFailure
+        expr: sum(rate(outbox_messages_dispatched_total{status="failure"}[5m])) > 0 or sum(increase(outbox_messages_dead_lettered_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: outbox
+        annotations:
+          summary: "Transactional outbox delivery failures or dead-letter spike"
+          description: "Transactional outbox message delivery to message broker is experiencing failures or dead-letters."

@@ -69,6 +69,22 @@ public sealed class MerchantWebhookDispatcher(
 
         string? lastError = null;
 
+        System.Diagnostics.ActivityContext parentContext = default;
+        if (!string.IsNullOrWhiteSpace(lifecycleEvent.TraceParent) &&
+            System.Diagnostics.ActivityContext.TryParse(lifecycleEvent.TraceParent, null, out var parsed))
+        {
+            parentContext = parsed;
+        }
+
+        using var activity = PaymentGateway.Application.Common.PaymentTracing.ActivitySource.StartActivity(
+            "MerchantWebhook.Dispatch",
+            System.Diagnostics.ActivityKind.Client,
+            parentContext);
+
+        activity?.SetTag("webhook.party_id", lifecycleEvent.PartyId);
+        activity?.SetTag("webhook.event_id", lifecycleEvent.EventId);
+        activity?.SetTag("webhook.endpoint_url", endpointUrl);
+
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             ct.ThrowIfCancellationRequested();
@@ -86,6 +102,10 @@ public sealed class MerchantWebhookDispatcher(
                 request.Headers.Add("X-Signature-SHA256", signature);
                 request.Headers.Add("X-Event-Id", lifecycleEvent.EventId);
                 request.Headers.Add("X-Timestamp", timestamp);
+                if (activity?.Id is not null && !request.Headers.Contains("traceparent"))
+                {
+                    request.Headers.Add("traceparent", activity.Id);
+                }
 
                 logger.LogInformation(
                     "Dispatching webhook for event {EventId} to {Url} (attempt {Attempt}/{MaxAttempts})",
@@ -103,6 +123,8 @@ public sealed class MerchantWebhookDispatcher(
                     logger.LogInformation(
                         "Webhook delivered successfully for event {EventId} (status {StatusCode}, attempt {Attempt})",
                         lifecycleEvent.EventId, (int)response.StatusCode, attempt);
+
+                    activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
 
                     return new MerchantWebhookDispatchResult(
                         Success: true,
@@ -149,6 +171,7 @@ public sealed class MerchantWebhookDispatcher(
         }
 
         PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDispatch("exhausted");
+        activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, lastError ?? "Delivery attempts exhausted.");
 
         logger.LogError(
             "Webhook delivery exhausted all {MaxAttempts} attempts for event {EventId} to {Url}. Last error: {LastError}",

@@ -94,3 +94,16 @@
 - **PORTAL** — Pre-configured Grafana operational cockpits for business volume, latency percentiles, and DLQ diagnostics.
   - _Depends on:_ EDGE
 
+## Phase 9: operational-alerting-and-distributed-tracing
+
+**Objective:** Implement production-ready Prometheus Alerting Rules, Alertmanager container orchestration, and complete end-to-end W3C distributed tracing correlation (`traceparent`) spanning Edge API, MediatR, Transactional Outbox, RabbitMQ, Worker consumers, and outbound merchant webhooks.
+**Evaluation criteria:** Prometheus evaluates PromQL alerting rules for high decline rates (>5%), acquirer latency SLA breaches (p95 > 2s), DLQ failure spikes, and outbox delivery delays, dispatching alerts to Alertmanager; distributed traces propagate the W3C `traceparent` context seamlessly across asynchronous boundaries to Jaeger, linking payment requests to outbox dispatch, message consumption, and outbound webhook delivery.
+
+### Topics
+
+- **EDGE** — Prometheus alerting rules for critical gateway metrics and Alertmanager docker orchestration.
+  - _Depends on:_ EDGE
+- **EVT** — End-to-end distributed tracing correlation across Edge API, MediatR, Transactional Outbox, RabbitMQ, Worker, and outbound webhooks.
+  - _Depends on:_ PAY, EVT, EDGE
+
+

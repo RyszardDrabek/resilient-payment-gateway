@@ -249,4 +249,101 @@ public sealed class PaymentMetricsTests
         Assert.True(recordedDuration > 0.04);
         Assert.Equal("test_isolated_status", recordedStatus);
     }
+
+    [Fact]
+    public void RecordOutboxDispatch_PublishesCounterMeasurement()
+    {
+        long recordedValue = 0;
+        string? recordedStatus = null;
+
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == PaymentMetrics.MeterName && instrument.Name == "outbox_messages_dispatched_total")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+        {
+            if (instrument.Name == "outbox_messages_dispatched_total")
+            {
+                foreach (var tag in tags)
+                {
+                    if (tag.Key == "status" && tag.Value?.ToString() == "test_outbox_success")
+                    {
+                        recordedValue = measurement;
+                        recordedStatus = "test_outbox_success";
+                    }
+                }
+            }
+        });
+
+        listener.Start();
+
+        PaymentMetrics.RecordOutboxDispatch("test_outbox_success");
+
+        Assert.Equal(1, recordedValue);
+        Assert.Equal("test_outbox_success", recordedStatus);
+    }
+
+    [Fact]
+    public void RecordOutboxDeadLettered_PublishesCounterMeasurement()
+    {
+        long recordedValue = 0;
+
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == PaymentMetrics.MeterName && instrument.Name == "outbox_messages_dead_lettered_total")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+        {
+            if (instrument.Name == "outbox_messages_dead_lettered_total")
+            {
+                recordedValue += measurement;
+            }
+        });
+
+        listener.Start();
+
+        PaymentMetrics.RecordOutboxDeadLettered();
+
+        Assert.True(recordedValue >= 1);
+    }
+
+    [Fact]
+    public void RecordOutboxDuration_PublishesHistogramMeasurement()
+    {
+        double recordedDuration = 0;
+
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == PaymentMetrics.MeterName && instrument.Name == "outbox_dispatch_duration_seconds")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+
+        listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
+        {
+            if (instrument.Name == "outbox_dispatch_duration_seconds" && measurement == 0.1234)
+            {
+                recordedDuration = measurement;
+            }
+        });
+
+        listener.Start();
+
+        PaymentMetrics.RecordOutboxDuration(0.1234);
+
+        Assert.Equal(0.1234, recordedDuration);
+    }
 }
+

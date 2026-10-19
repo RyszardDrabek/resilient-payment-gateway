@@ -70,7 +70,42 @@ public sealed class OutboxDispatcherService(
                     var evt = JsonSerializer.Deserialize<PaymentLifecycleEvent>(message.Payload);
                     if (evt is not null)
                     {
-                        await publishEndpoint.Publish(evt, ct);
+                        System.Diagnostics.ActivityContext parentContext = default;
+                        if (!string.IsNullOrWhiteSpace(evt.TraceParent) &&
+                            System.Diagnostics.ActivityContext.TryParse(evt.TraceParent, null, out var parsed))
+                        {
+                            parentContext = parsed;
+                        }
+
+                        using var activity = PaymentGateway.Application.Common.PaymentTracing.ActivitySource.StartActivity(
+                            "Outbox.Dispatch",
+                            System.Diagnostics.ActivityKind.Producer,
+                            parentContext);
+
+                        activity?.SetTag("outbox.message_id", message.Id.ToString());
+                        activity?.SetTag("payment.id", evt.PaymentId);
+                        activity?.SetTag("payment.party_id", evt.PartyId);
+
+                        try
+                        {
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            await publishEndpoint.Publish(evt, ct);
+                            sw.Stop();
+
+                            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
+                            PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDispatch("success");
+                            PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDuration(sw.Elapsed.TotalSeconds);
+                        }
+                        catch (Exception ex)
+                        {
+                            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
+                            activity?.AddEvent(new System.Diagnostics.ActivityEvent("exception", tags: new System.Diagnostics.ActivityTagsCollection
+                            {
+                                { "exception.type", ex.GetType().FullName },
+                                { "exception.message", ex.Message }
+                            }));
+                            throw;
+                        }
                     }
                 }
 
@@ -79,6 +114,7 @@ public sealed class OutboxDispatcherService(
             }
             catch (Exception ex)
             {
+                PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDispatch("failure");
                 logger.LogError(
                     ex,
                     "Failed to dispatch outbox message {MessageId} (Attempt {Attempt}/{MaxAttempts})",
@@ -90,6 +126,7 @@ public sealed class OutboxDispatcherService(
 
                 if (message.DeliveryAttempts >= _options.MaxDeliveryAttempts)
                 {
+                    PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDeadLettered();
                     logger.LogCritical(
                         "Outbox message {MessageId} exceeded max delivery attempts ({MaxAttempts}) and is dead-lettered.",
                         message.Id,
