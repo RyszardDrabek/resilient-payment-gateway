@@ -1,6 +1,12 @@
-# Resilient Payment Gateway
+# Resilient Payment Gateway `v1.0.0`
 
-Enterprise-grade FinTech payment gateway (.NET 10 modular monolith): Clean Architecture, CQRS, Adyen + Web3 channels, async risk scoring. Specs live under `.ai/`.
+[![Release](https://img.shields.io/badge/release-v1.0.0-blue.svg)](RELEASE_NOTES.md)
+[![Build](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
+[![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](src/PaymentGateway.Portal)
+
+Enterprise-grade FinTech payment gateway (.NET 10 modular monolith): Clean Architecture, CQRS, Adyen + Web3 channels, async risk scoring, 3D Secure 2 (SCA), and modern React 19 operational portal. Specs live under `.ai/`.
+
+See the full [Release Notes v1.0.0](RELEASE_NOTES.md) for details on architecture, delivery phases, and verification metrics.
 
 ## Running locally
 
@@ -11,8 +17,11 @@ docker context use desktop-linux
 docker compose -f compose/docker-compose.yml up --build
 ```
 
-API: `http://localhost:5080/` and `http://localhost:5080/health`  
-Jaeger: `http://localhost:16686` · Grafana: `http://localhost:3000` (admin/admin) · RabbitMQ UI: `http://localhost:15672`
+- **Portal (Operations & Merchant)**: `http://localhost:3000`
+- **Gateway API & Swagger**: `http://localhost:5080/` and `http://localhost:5080/health`  
+- **Grafana Dashboards**: `http://localhost:3001` (admin/admin)
+- **Jaeger Distributed Tracing**: `http://localhost:16686`
+- **RabbitMQ Management**: `http://localhost:15672` (guest/guest)
 
 Web3 Anvil (optional): `docker compose -f compose/docker-compose.yml --profile web3 up`
 
