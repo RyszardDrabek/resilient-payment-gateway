@@ -633,6 +633,76 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('fetchPaymentMethods sends proper GET request and extracts items', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        capturedUrl = input.toString();
+        return new Response(JSON.stringify([
+          {
+            id: 'pm_1',
+            partyId: 'merch_test',
+            settlementChannel: 'ADYEN',
+            cardBrand: 'visa',
+            maskedPan: '**** 1111',
+            expiryMonth: 12,
+            expiryYear: 2030,
+            status: 'Active',
+            createdAt: '2026-10-19T10:00:00Z'
+          }
+        ]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { fetchPaymentMethods } = await import('./apiClient');
+      const methods = await fetchPaymentMethods('tok_1', 'merch_test');
+
+      expect(capturedUrl).toContain('/api/v1/payment-methods?partyId=merch_test');
+      expect(methods).toHaveLength(1);
+      expect(methods[0].id).toBe('pm_1');
+      expect(methods[0].status).toBe('Active');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('createSubscription sends proper POST body and returns subscription item', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedBody = '';
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedBody = init?.body as string;
+        return new Response(JSON.stringify({
+          id: 'sub_1',
+          partyId: 'merch_test',
+          paymentMethodId: 'pm_1',
+          amount: 2500,
+          currency: 'EUR',
+          interval: 'Monthly',
+          state: 'Active',
+          nextBillingAt: '2026-11-19T10:00:00Z',
+          failureCount: 0,
+          createdAt: '2026-10-19T10:00:00Z'
+        }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { createSubscription } = await import('./apiClient');
+      const sub = await createSubscription('tok_1', {
+        partyId: 'merch_test',
+        paymentMethodId: 'pm_1',
+        amount: 2500,
+        currency: 'EUR',
+        interval: 'Monthly'
+      });
+
+      expect(JSON.parse(capturedBody).amount).toBe(2500);
+      expect(sub.id).toBe('sub_1');
+      expect(sub.state).toBe('Active');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 

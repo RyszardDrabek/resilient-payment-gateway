@@ -11,6 +11,8 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookSubscription> MerchantWebhookSubscriptions => Set<PaymentGateway.Domain.Entities.MerchantWebhookSubscription>();
     public DbSet<PaymentGateway.Domain.Entities.MerchantApiKey> MerchantApiKeys => Set<PaymentGateway.Domain.Entities.MerchantApiKey>();
     public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter> MerchantWebhookDeadLetters => Set<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter>();
+    public DbSet<PaymentGateway.Domain.Entities.PaymentMethodToken> PaymentMethods => Set<PaymentGateway.Domain.Entities.PaymentMethodToken>();
+    public DbSet<PaymentGateway.Domain.Entities.Subscription> Subscriptions => Set<PaymentGateway.Domain.Entities.Subscription>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -27,6 +29,9 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.ChannelReference).HasMaxLength(128);
             b.Property(p => p.DeclineReason).HasMaxLength(256);
             b.Property(p => p.State).HasConversion<string>();
+            b.Property(p => p.TransactionOrigin).HasConversion<string>().HasMaxLength(16).HasDefaultValue(PaymentGateway.Domain.Entities.TransactionOrigin.Cit);
+            b.Property(p => p.PaymentMethodId).HasMaxLength(64);
+            b.Property(p => p.SubscriptionId).HasMaxLength(64);
             b.Property(p => p.Version).IsRequired().HasDefaultValue(1).IsConcurrencyToken();
             b.Property(p => p.CapturedAmount).IsRequired().HasDefaultValue(0L);
             b.Property(p => p.RefundedAmount).IsRequired().HasDefaultValue(0L);
@@ -163,6 +168,38 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 
             b.HasIndex(d => new { d.MerchantId, d.Status });
             b.HasIndex(d => d.FailedAt);
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.PaymentMethodToken>(b =>
+        {
+            b.ToTable("PaymentMethods");
+            b.HasKey(m => m.Id);
+            b.Property(m => m.Id).HasMaxLength(64);
+            b.Property(m => m.PartyId).IsRequired().HasMaxLength(128);
+            b.Property(m => m.SettlementChannel).IsRequired().HasMaxLength(64);
+            b.Property(m => m.CardBrand).IsRequired().HasMaxLength(32);
+            b.Property(m => m.MaskedPan).IsRequired().HasMaxLength(32);
+            b.Property(m => m.Token).IsRequired().HasMaxLength(256);
+            b.Property(m => m.Status).HasConversion<string>().HasMaxLength(32);
+            b.Property(m => m.CreatedAt).IsRequired();
+
+            b.HasIndex(m => new { m.PartyId, m.Status });
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.Subscription>(b =>
+        {
+            b.ToTable("Subscriptions");
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Id).HasMaxLength(64);
+            b.Property(s => s.PartyId).IsRequired().HasMaxLength(128);
+            b.Property(s => s.PaymentMethodId).IsRequired().HasMaxLength(64);
+            b.Property(s => s.Currency).IsRequired().HasMaxLength(12);
+            b.Property(s => s.Interval).HasConversion<string>().HasMaxLength(32);
+            b.Property(s => s.State).HasConversion<string>().HasMaxLength(32);
+            b.Property(s => s.Version).IsRequired().HasDefaultValue(1).IsConcurrencyToken();
+
+            b.HasIndex(s => new { s.State, s.NextBillingAt });
+            b.HasIndex(s => s.PartyId);
         });
     }
 }

@@ -122,3 +122,21 @@
 - **PORTAL** — Merchant & operator portal 3DS2 challenge simulator and transaction action inspector.
   - _Depends on:_ PORTAL, EDGE
 
+## Phase 11: recurring-payments-and-card-tokenization
+
+**Objective:** Implement recurring billing, subscription lifecycle management, and card-on-file tokenization with PSD2/SCA compliant Customer-Initiated (CIT) and Merchant-Initiated (MIT) transaction handling across gateway API, Adyen acquirer, background scheduler worker, and web portal.
+**Evaluation criteria:** Merchants can tokenize payment methods and store Card-on-File tokens; first customer payments (CIT) authenticate with 3DS2 and obtain reusable tokens; automated background worker generates scheduled subscription charges (MIT) referencing prior authorizations without customer presence; subscriptions can be created, inspected, paused, and cancelled via API and web portal; failed recurring charges enter dunning lifecycle.
+
+### Topics
+
+- **PAY** — `PaymentMethodToken` entity, `Subscription` aggregate & state machine (`Active`, `Paused`, `PastDue`, `Cancelled`), CIT/MIT transaction origin metadata on `Payment`, CQRS commands.
+  - _Depends on:_ PAY
+- **ADYEN** — `AdyenSettlementPort` recurring flags (`storePaymentMethod`, `shopperInteraction: ContAuth`, `recurringProcessingModel: Subscription`), WireMock recurring simulations.
+  - _Depends on:_ ADYEN, PAY
+- **WORKER** — `SubscriptionBillingWorker` hosted service scanning due subscriptions, executing MIT charges, managing dunning retries.
+  - _Depends on:_ WORKER, PAY
+- **EDGE** — REST endpoints for `/payment-methods` (tokenize, list, revoke), `/subscriptions` (create, list, pause, resume, cancel), and payment origin fields.
+  - _Depends on:_ EDGE, PAY
+- **PORTAL** — Subscriptions & Cards console with subscription list, card-on-file management, and manual billing trigger.
+  - _Depends on:_ PORTAL, EDGE
+

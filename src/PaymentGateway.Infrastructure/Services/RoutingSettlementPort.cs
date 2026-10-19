@@ -54,6 +54,18 @@ public sealed class RoutingSettlementPort : ISettlementPort
         CancellationToken ct = default)
         => Resolve(channel).AuthorizeAsync(partyId, amount, currency, channel, idempotencyKey, ct);
 
+    public Task<SettlementResult> AuthorizeAsync(
+        string partyId,
+        long amount,
+        string currency,
+        string? channel,
+        string? idempotencyKey,
+        string? storedPaymentMethodId,
+        bool isRecurringMit = false,
+        bool storePaymentMethod = false,
+        CancellationToken ct = default)
+        => Resolve(channel).AuthorizeAsync(partyId, amount, currency, channel, idempotencyKey, storedPaymentMethodId, isRecurringMit, storePaymentMethod, ct);
+
     public Task<SettlementResult> CaptureAsync(
         string paymentId,
         string channelReference,

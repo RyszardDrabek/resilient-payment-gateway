@@ -415,4 +415,117 @@ export async function submitThreeDsResult(
   return handleResponse<PaymentDto>(response);
 }
 
+export async function fetchPaymentMethods(token: string, partyId?: string): Promise<import('../types/subscriptions').PaymentMethodItem[]> {
+  const query = partyId ? `?partyId=${encodeURIComponent(partyId)}` : '';
+  const url = `${API_BASE_URL}/api/v1/payment-methods${query}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/subscriptions').PaymentMethodItem[]>(response);
+}
+
+export async function revokePaymentMethod(token: string, id: string): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/payment-methods/${encodeURIComponent(id)}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  if (!response.ok && response.status !== 404) {
+    throw new ApiError(response.status, `Failed to revoke payment method ${id}`);
+  }
+}
+
+export async function fetchSubscriptions(token: string, partyId?: string): Promise<import('../types/subscriptions').SubscriptionItem[]> {
+  const query = partyId ? `?partyId=${encodeURIComponent(partyId)}` : '';
+  const url = `${API_BASE_URL}/api/v1/subscriptions${query}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/subscriptions').SubscriptionItem[]>(response);
+}
+
+export async function createSubscription(
+  token: string,
+  request: { partyId: string; paymentMethodId: string; amount: number; currency: string; interval: string }
+): Promise<import('../types/subscriptions').SubscriptionItem> {
+  const url = `${API_BASE_URL}/api/v1/subscriptions`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+    body: JSON.stringify(request),
+  });
+
+  return handleResponse<import('../types/subscriptions').SubscriptionItem>(response);
+}
+
+export async function pauseSubscription(token: string, id: string): Promise<import('../types/subscriptions').SubscriptionItem> {
+  const url = `${API_BASE_URL}/api/v1/subscriptions/${encodeURIComponent(id)}/pause`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/subscriptions').SubscriptionItem>(response);
+}
+
+export async function resumeSubscription(token: string, id: string): Promise<import('../types/subscriptions').SubscriptionItem> {
+  const url = `${API_BASE_URL}/api/v1/subscriptions/${encodeURIComponent(id)}/resume`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/subscriptions').SubscriptionItem>(response);
+}
+
+export async function cancelSubscription(token: string, id: string): Promise<import('../types/subscriptions').SubscriptionItem> {
+  const url = `${API_BASE_URL}/api/v1/subscriptions/${encodeURIComponent(id)}/cancel`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<import('../types/subscriptions').SubscriptionItem>(response);
+}
+
 

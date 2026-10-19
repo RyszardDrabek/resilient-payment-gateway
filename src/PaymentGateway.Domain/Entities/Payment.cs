@@ -13,6 +13,9 @@ public sealed class Payment
     public string? DeclineReason { get; private set; }
     public PaymentState State { get; private set; }
     public ThreeDsActionDetails? ThreeDsAction { get; private set; }
+    public TransactionOrigin TransactionOrigin { get; private set; } = TransactionOrigin.Cit;
+    public string? PaymentMethodId { get; private set; }
+    public string? SubscriptionId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public int Version { get; private set; } = 1;
     public long CapturedAmount { get; private set; }
@@ -48,7 +51,10 @@ public sealed class Payment
         int version = 1,
         long capturedAmount = 0,
         long refundedAmount = 0,
-        ThreeDsActionDetails? threeDsAction = null)
+        ThreeDsActionDetails? threeDsAction = null,
+        TransactionOrigin transactionOrigin = TransactionOrigin.Cit,
+        string? paymentMethodId = null,
+        string? subscriptionId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
@@ -75,6 +81,16 @@ public sealed class Payment
         CapturedAmount = Math.Max(0L, capturedAmount);
         RefundedAmount = Math.Max(0L, refundedAmount);
         ThreeDsAction = threeDsAction;
+        TransactionOrigin = transactionOrigin;
+        PaymentMethodId = paymentMethodId;
+        SubscriptionId = subscriptionId;
+    }
+
+    public void SetRecurringDetails(TransactionOrigin origin, string? paymentMethodId = null, string? subscriptionId = null)
+    {
+        TransactionOrigin = origin;
+        PaymentMethodId = paymentMethodId;
+        SubscriptionId = subscriptionId;
     }
 
     public static Payment Authorize(
