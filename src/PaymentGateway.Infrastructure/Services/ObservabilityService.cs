@@ -21,11 +21,16 @@ public sealed class ObservabilityService(
     public async Task<ObservabilitySummaryDto> GetSummaryAsync(CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
+        var monitoringTask = CheckMonitoringAndAlertsAsync(ct);
+
+        // Database operations execute sequentially on paymentDb to avoid concurrent EF Core context operations,
+        // but paymentDb & riskDb connectivity checks and HTTP monitoring run in parallel.
         var (dbStatus, dbLatencyMs, payConnected, riskConnected) = await CheckDatabaseAsync(ct);
-        var brokerStatus = CheckMessageBroker();
-        var (monitoringStatus, activeAlerts) = await CheckMonitoringAndAlertsAsync(ct);
         var queueHealth = await GetQueueHealthAsync(now, ct);
         var latencyMetrics = await GetLatencyMetricsAsync(ct);
+
+        var (monitoringStatus, activeAlerts) = await monitoringTask;
+        var brokerStatus = CheckMessageBroker();
 
         var apiHealth = new ServiceHealthDto(
             Status: (payConnected && riskConnected) ? "Healthy" : "Degraded",
@@ -50,37 +55,36 @@ public sealed class ObservabilityService(
     private async Task<(string Status, double LatencyMs, bool PayConnected, bool RiskConnected)> CheckDatabaseAsync(CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        bool payConnected;
-        bool riskConnected;
 
-        try
-        {
-            payConnected = await paymentDb.Database.CanConnectAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to connect to PaymentDb");
-            payConnected = false;
-        }
+        var payTask = CheckDbConnectionAsync(paymentDb, "PaymentDb", ct);
+        var riskTask = CheckDbConnectionAsync(riskDb, "RiskDb", ct);
 
-        try
-        {
-            riskConnected = await riskDb.Database.CanConnectAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to connect to RiskDb");
-            riskConnected = false;
-        }
+        await Task.WhenAll(payTask, riskTask);
 
         sw.Stop();
         var latencyMs = Math.Round(sw.Elapsed.TotalMilliseconds, 2);
+
+        var payConnected = await payTask;
+        var riskConnected = await riskTask;
 
         var status = (payConnected && riskConnected)
             ? "Connected"
             : (payConnected || riskConnected) ? "Degraded" : "Unhealthy";
 
         return (status, latencyMs, payConnected, riskConnected);
+    }
+
+    private async Task<bool> CheckDbConnectionAsync(DbContext db, string dbName, CancellationToken ct)
+    {
+        try
+        {
+            return await db.Database.CanConnectAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to connect to {DbName}", dbName);
+            return false;
+        }
     }
 
     private BrokerStatusDto CheckMessageBroker()
@@ -97,57 +101,62 @@ public sealed class ObservabilityService(
 
     private async Task<(MonitoringServicesStatusDto Status, IReadOnlyList<AlertmanagerAlertDto> Alerts)> CheckMonitoringAndAlertsAsync(CancellationToken ct)
     {
+        var alertmanagerTask = FetchAlertmanagerAlertsAsync(ct);
+        var prometheusTask = CheckPrometheusHealthAsync(ct);
+
+        await Task.WhenAll(alertmanagerTask, prometheusTask);
+
+        var (alertmanagerStatus, alerts) = await alertmanagerTask;
+        var prometheusStatus = await prometheusTask;
+
+        return (new MonitoringServicesStatusDto(prometheusStatus, alertmanagerStatus), alerts);
+    }
+
+    private async Task<(string Status, List<AlertmanagerAlertDto> Alerts)> FetchAlertmanagerAlertsAsync(CancellationToken ct)
+    {
         var alertmanagerUrl = configuration["Alertmanager:Url"] ?? "http://localhost:9093";
-        var prometheusUrl = configuration["Prometheus:Url"] ?? "http://localhost:9090";
-
-        var alerts = new List<AlertmanagerAlertDto>();
-        var alertmanagerStatus = "Unreachable";
-        var prometheusStatus = "Unreachable";
-
         var client = httpClientFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(2);
 
-        // Check Alertmanager
         try
         {
-            using var alertResponse = await client.GetAsync($"{alertmanagerUrl.TrimEnd('/')}/api/v2/alerts?active=true&silenced=false&inhibited=false", ct);
+            using var alertResponse = await client.GetAsync(
+                $"{alertmanagerUrl.TrimEnd('/')}/api/v2/alerts?active=true&silenced=false&inhibited=false",
+                ct);
+
             if (alertResponse.IsSuccessStatusCode)
             {
-                alertmanagerStatus = "Reachable";
                 var json = await alertResponse.Content.ReadAsStringAsync(ct);
-                alerts = ParseAlertmanagerAlerts(json);
+                return ("Reachable", ParseAlertmanagerAlerts(json));
             }
-            else
-            {
-                alertmanagerStatus = $"Degraded ({(int)alertResponse.StatusCode})";
-            }
+
+            return ($"Degraded ({(int)alertResponse.StatusCode})", []);
         }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Alertmanager check failed at {Url}", alertmanagerUrl);
-            alertmanagerStatus = "Unreachable";
+            return ("Unreachable", []);
         }
+    }
 
-        // Check Prometheus
+    private async Task<string> CheckPrometheusHealthAsync(CancellationToken ct)
+    {
+        var prometheusUrl = configuration["Prometheus:Url"] ?? "http://localhost:9090";
+        var client = httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(2);
+
         try
         {
             using var promResponse = await client.GetAsync($"{prometheusUrl.TrimEnd('/')}/-/healthy", ct);
-            if (promResponse.IsSuccessStatusCode)
-            {
-                prometheusStatus = "Reachable";
-            }
-            else
-            {
-                prometheusStatus = $"Degraded ({(int)promResponse.StatusCode})";
-            }
+            return promResponse.IsSuccessStatusCode
+                ? "Reachable"
+                : $"Degraded ({(int)promResponse.StatusCode})";
         }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Prometheus check failed at {Url}", prometheusUrl);
-            prometheusStatus = "Unreachable";
+            return "Unreachable";
         }
-
-        return (new MonitoringServicesStatusDto(prometheusStatus, alertmanagerStatus), alerts);
     }
 
     public static List<AlertmanagerAlertDto> ParseAlertmanagerAlerts(string json)

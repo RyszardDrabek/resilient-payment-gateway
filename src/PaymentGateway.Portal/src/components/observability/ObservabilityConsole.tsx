@@ -23,6 +23,11 @@ interface ObservabilityConsoleProps {
   onNavigate?: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability') => void;
 }
 
+const GRAFANA_URL = (import.meta.env.VITE_GRAFANA_URL as string) || 'http://localhost:3001';
+const PROMETHEUS_URL = (import.meta.env.VITE_PROMETHEUS_URL as string) || 'http://localhost:9090';
+const ALERTMANAGER_URL = (import.meta.env.VITE_ALERTMANAGER_URL as string) || 'http://localhost:9093';
+const JAEGER_URL = (import.meta.env.VITE_JAEGER_URL as string) || 'http://localhost:16686';
+
 export const ObservabilityConsole: React.FC<ObservabilityConsoleProps> = ({ onNavigate }) => {
   const { token } = useAuth();
   const [data, setData] = useState<ObservabilitySummaryDto | null>(null);
@@ -656,53 +661,53 @@ export const ObservabilityConsole: React.FC<ObservabilityConsoleProps> = ({ onNa
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <a
-            href="http://localhost:3001"
+            href={GRAFANA_URL}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between p-3 rounded-lg bg-[#1f2937] hover:bg-[#374151] border border-[#374151] text-xs text-white transition group"
           >
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-orange-400"></span>
-              <span className="font-medium">Grafana (Port 3001)</span>
+              <span className="font-medium">Grafana (Cockpits)</span>
             </div>
             <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-white" />
           </a>
 
           <a
-            href="http://localhost:9090"
+            href={PROMETHEUS_URL}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between p-3 rounded-lg bg-[#1f2937] hover:bg-[#374151] border border-[#374151] text-xs text-white transition group"
           >
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-400"></span>
-              <span className="font-medium">Prometheus (Port 9090)</span>
+              <span className="font-medium">Prometheus (Meters)</span>
             </div>
             <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-white" />
           </a>
 
           <a
-            href="http://localhost:9093"
+            href={ALERTMANAGER_URL}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between p-3 rounded-lg bg-[#1f2937] hover:bg-[#374151] border border-[#374151] text-xs text-white transition group"
           >
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-              <span className="font-medium">Alertmanager (Port 9093)</span>
+              <span className="font-medium">Alertmanager (Alerts)</span>
             </div>
             <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-white" />
           </a>
 
           <a
-            href="http://localhost:16686"
+            href={JAEGER_URL}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between p-3 rounded-lg bg-[#1f2937] hover:bg-[#374151] border border-[#374151] text-xs text-white transition group"
           >
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-              <span className="font-medium">Jaeger Traces (Port 16686)</span>
+              <span className="font-medium">Jaeger (Distributed Traces)</span>
             </div>
             <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-white" />
           </a>
