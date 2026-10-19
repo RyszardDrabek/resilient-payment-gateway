@@ -143,6 +143,8 @@ services:
     build:
       context: ../src/PaymentGateway.Portal
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:5080"
     ports:
       - "3000:80"
     depends_on:
