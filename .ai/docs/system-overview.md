@@ -173,5 +173,6 @@ Real-time telemetry and cluster alerting are managed via Prometheus, Alertmanage
 | [ADR-015](adr/adr-015-distributed-tracing-w3c-context-propagation.md) | Distributed Tracing and W3C Trace Context Propagation |
 | [ADR-016](adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
 | [ADR-017](adr/adr-017-cicd-containerization-and-kubernetes-deployment.md) | CI/CD Pipeline Automation, Containerization & Kubernetes Deployment |
+| [ADR-018](adr/adr-018-performance-testing-and-resilience-benchmarking.md) | Performance Testing, Load Benchmarking & Rate Limiting Resilience |
 
 > ADR-008 intentionally unused — compose-only hosting is recorded in this overview, not a separate ADR.

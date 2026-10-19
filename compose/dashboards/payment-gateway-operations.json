@@ -84,7 +84,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(payment_volume_total{currency=\"EUR\"}) / 100",
+          "expr": "(sum({__name__=~\"payment_volume.*_total\", currency=\"EUR\"}) or vector(0)) / 100",
           "instant": true,
           "legendFormat": "EUR Volume",
           "range": false,
@@ -123,7 +123,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(payment_volume_total{currency=\"USDC\"}) / 1000000",
+          "expr": "(sum({__name__=~\"payment_volume.*_total\", currency=\"USDC\"}) or vector(0)) / 1000000",
           "instant": true,
           "legendFormat": "USDC Volume",
           "range": false,
@@ -166,7 +166,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "100 * sum(payment_declines_total) / clamp_min(sum(payment_transactions_total{operation=\"authorize\"}), 1)",
+          "expr": "100 * (sum({__name__=~\"payment_declines.*_total\"}) or vector(0)) / clamp_min(sum(payment_transactions_total{operation=\"authorize\"}), 1)",
           "instant": true,
           "legendFormat": "Decline Rate",
           "range": false,
@@ -209,7 +209,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "100 * sum(merchant_webhook_dispatched_total{status=\"delivered\"}) / clamp_min(sum(merchant_webhook_dispatched_total), 1)",
+          "expr": "100 * (sum({__name__=~\"merchant_webhook_dispatched.*_total\", status=\"delivered\"}) or vector(0)) / clamp_min(sum({__name__=~\"merchant_webhook_dispatched.*_total\"}) or vector(1), 1)",
           "instant": true,
           "legendFormat": "Delivery Success",
           "range": false,
@@ -252,7 +252,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "100 * sum(merchant_webhook_replay_attempts_total{outcome=\"success\"}) / clamp_min(sum(merchant_webhook_replay_attempts_total), 1)",
+          "expr": "100 * (sum({__name__=~\"merchant_webhook_replay.*_total\", outcome=\"success\"}) or vector(0)) / clamp_min(sum({__name__=~\"merchant_webhook_replay.*_total\"}) or vector(1), 1)",
           "instant": true,
           "legendFormat": "Replay Recovery",
           "range": false,
@@ -308,7 +308,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (currency, channel) (rate(payment_volume_total[1m]))",
+          "expr": "sum by (currency, channel) (rate({__name__=~\"payment_volume.*_total\"}[1m]))",
           "legendFormat": "{{channel}} ({{currency}})",
           "range": true,
           "refId": "A"

@@ -72,6 +72,10 @@ public static class PaymentEndpoints
             // Domain exceptions (IdempotencyConflictException, IdempotencyInFlightException, etc.)
             // are handled by PaymentExceptionHandlerMiddleware — no try/catch needed here.
             var result = await mediator.Send(command, ct);
+            if (!httpContext.Response.Headers.ContainsKey("X-Correlation-Id"))
+            {
+                httpContext.Response.Headers["X-Correlation-Id"] = httpContext.TraceIdentifier;
+            }
             return Results.Created($"/payments/{result.PaymentId}", result);
         });
 

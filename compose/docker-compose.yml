@@ -143,8 +143,21 @@ services:
     build:
       context: ../src/PaymentGateway.Portal
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:5080"
     ports:
       - "3000:80"
+    depends_on:
+      - api
+
+  k6:
+    profiles: ["loadtest"]
+    image: grafana/k6:latest
+    volumes:
+      - ../tests/load:/scripts:ro
+    environment:
+      GATEWAY_URL: "http://api:8080"
+      JWT_SECRET: "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!"
     depends_on:
       - api
 
