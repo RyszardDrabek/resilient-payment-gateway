@@ -6,7 +6,9 @@
 
 Enterprise-grade FinTech payment gateway (.NET 10 modular monolith): Clean Architecture, CQRS, Adyen + Web3 channels, async risk scoring, 3D Secure 2 (SCA), and modern React 19 operational portal. Specs live under `.ai/`.
 
-See the full [Release Notes v1.0.0](RELEASE_NOTES.md) for details on architecture, delivery phases, and verification metrics.
+- 📖 **Documentation**: [C4 Architecture & System Overview](.ai/docs/system-overview.md)
+- 🛒 **API Integration**: [Merchant Integration Guide](docs/merchant-integration-guide.md)
+- 🚀 **Milestones**: [Release Notes v1.0.0](RELEASE_NOTES.md)
 
 ## Running locally
 
