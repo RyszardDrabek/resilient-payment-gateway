@@ -49,5 +49,6 @@
 | [ADR-015](docs/adr/adr-015-distributed-tracing-w3c-context-propagation.md) | Distributed Tracing and W3C Trace Context Propagation |
 | [ADR-016](docs/adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
 | [ADR-017](docs/adr/adr-017-cicd-containerization-and-kubernetes-deployment.md) | CI/CD Pipeline Automation, Containerization & Kubernetes Deployment |
+| [ADR-018](docs/adr/adr-018-performance-testing-and-resilience-benchmarking.md) | Performance Testing, Load Benchmarking & Rate Limiting Resilience |
 
 Standards: [definition-of-done.md](standards/definition-of-done.md), [coding-conventions.md](standards/coding-conventions.md), [stack-context.md](standards/stack-context.md).

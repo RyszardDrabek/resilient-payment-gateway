@@ -148,6 +148,17 @@ services:
     depends_on:
       - api
 
+  k6:
+    profiles: ["loadtest"]
+    image: grafana/k6:latest
+    volumes:
+      - ../tests/load:/scripts:ro
+    environment:
+      GATEWAY_URL: "http://api:8080"
+      JWT_SECRET: "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!"
+    depends_on:
+      - api
+
 networks:
   default:
     name: payment-gateway
