@@ -15,6 +15,7 @@ import {
   TestWebhookDispatchResultDto,
   UnresolvedPaymentsResponse,
   UpdateWebhookSubscriptionRequest,
+  ObservabilitySummaryDto,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5080';
@@ -343,6 +344,23 @@ export async function replayMerchantWebhookDlqEntry(
   });
 
   return handleResponse<ReplayMerchantWebhookResult>(response);
+}
+
+export async function fetchObservabilitySummary(
+  token: string
+): Promise<ObservabilitySummaryDto> {
+  const url = `${API_BASE_URL}/api/v1/ops/observability`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'X-Correlation-Id': `portal-${Date.now()}`,
+    },
+  });
+
+  return handleResponse<ObservabilitySummaryDto>(response);
 }
 
 

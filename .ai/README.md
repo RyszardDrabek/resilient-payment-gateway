@@ -12,12 +12,12 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-03](intake/03-2026-10-12-merchant-and-operator-portal/intake.md) |
-| Features | done (7 topics / 32 features) |
+| Features | done (7 topics / 33 features) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | done (32/32 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | done (33/33 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 
@@ -27,7 +27,7 @@
 - [x] ADYEN (5 features) → [topics/adyen.md](specs/topics/adyen.md)
 - [x] WEB3 (2 features) → [topics/web3.md](specs/topics/web3.md)
 - [x] RISK (2 features) → [topics/risk.md](specs/topics/risk.md)
-- [x] PORTAL (6 features) → [topics/portal.md](specs/topics/portal.md)
+- [x] PORTAL (7 features) → [topics/portal.md](specs/topics/portal.md)
 
 ## Architecture Decisions
 

@@ -4,8 +4,8 @@ import { AlertCircle, Radio, ShieldCheck, Activity, Key, AlertTriangle } from 'l
 
 interface AppShellProps {
   children: React.ReactNode;
-  activeTab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq';
-  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq') => void;
+  activeTab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability';
+  onTabChange: (tab: 'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability') => void;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabChange }) => {
@@ -89,6 +89,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children, activeTab, onTabCh
               <span>Webhook DLQ</span>
               <span className="ml-auto text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-mono">
                 F-05
+              </span>
+            </button>
+
+            <button
+              onClick={() => onTabChange('observability')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-left ${
+                activeTab === 'observability'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-300 hover:bg-[#1f2937] hover:text-white'
+              }`}
+            >
+              <Activity className="w-4 h-4 shrink-0 text-cyan-400" />
+              <span>Observability</span>
+              <span className="ml-auto text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.2 rounded font-mono">
+                OPS
               </span>
             </button>
           </nav>
