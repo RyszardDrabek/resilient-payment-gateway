@@ -12,6 +12,7 @@ public sealed class Payment
     public string? ChannelReference { get; private set; }
     public string? DeclineReason { get; private set; }
     public PaymentState State { get; private set; }
+    public ThreeDsActionDetails? ThreeDsAction { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public int Version { get; private set; } = 1;
     public long CapturedAmount { get; private set; }
@@ -46,7 +47,8 @@ public sealed class Payment
         string? declineReason = null,
         int version = 1,
         long capturedAmount = 0,
-        long refundedAmount = 0)
+        long refundedAmount = 0,
+        ThreeDsActionDetails? threeDsAction = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
@@ -72,6 +74,7 @@ public sealed class Payment
         Version = version > 0 ? version : 1;
         CapturedAmount = Math.Max(0L, capturedAmount);
         RefundedAmount = Math.Max(0L, refundedAmount);
+        ThreeDsAction = threeDsAction;
     }
 
     public static Payment Authorize(
@@ -155,6 +158,105 @@ public sealed class Payment
             payment.Version,
             DateTimeOffset.UtcNow));
         return payment;
+    }
+
+    public static Payment CreateRequiresAction(
+        string partyId,
+        long amount,
+        string currency,
+        string settlementChannel,
+        string channelReference,
+        ThreeDsActionDetails actionDetails)
+    {
+        var id = $"pay_{Guid.NewGuid():N}";
+        var payment = new Payment(id, partyId, amount, currency, settlementChannel, PaymentState.RequiresAction, channelReference, threeDsAction: actionDetails);
+        payment._domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            payment.Id,
+            payment.PartyId,
+            Enums.PaymentLifecycleOutcome.RequiresAction,
+            payment.Amount,
+            payment.Currency,
+            payment.Version,
+            DateTimeOffset.UtcNow));
+        return payment;
+    }
+
+    public void CompleteThreeDs(bool approved, string channelReference, string? declineReason = null)
+    {
+        if (State != PaymentState.RequiresAction)
+        {
+            throw new PaymentInvalidStateException(State, "CompleteThreeDs");
+        }
+
+        if (ThreeDsAction?.ExpiresAt != null && DateTimeOffset.UtcNow > ThreeDsAction.ExpiresAt)
+        {
+            State = PaymentState.Declined;
+            DeclineReason = "ThreeDsExpired";
+            ThreeDsAction = null;
+            Version++;
+            _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+                Id,
+                PartyId,
+                Enums.PaymentLifecycleOutcome.Declined,
+                Amount,
+                Currency,
+                Version,
+                DateTimeOffset.UtcNow));
+            return;
+        }
+
+        if (approved)
+        {
+            State = PaymentState.Authorized;
+            ChannelReference = channelReference;
+            ThreeDsAction = null;
+            Version++;
+            _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+                Id,
+                PartyId,
+                Enums.PaymentLifecycleOutcome.Authorized,
+                Amount,
+                Currency,
+                Version,
+                DateTimeOffset.UtcNow));
+        }
+        else
+        {
+            State = PaymentState.Declined;
+            DeclineReason = declineReason ?? "ThreeDsFailed";
+            ChannelReference = channelReference;
+            ThreeDsAction = null;
+            Version++;
+            _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+                Id,
+                PartyId,
+                Enums.PaymentLifecycleOutcome.Declined,
+                Amount,
+                Currency,
+                Version,
+                DateTimeOffset.UtcNow));
+        }
+    }
+
+    public void ExpireThreeDs()
+    {
+        if (State != PaymentState.RequiresAction)
+        {
+            throw new PaymentInvalidStateException(State, "ExpireThreeDs");
+        }
+
+        State = PaymentState.Declined;
+        DeclineReason = "ThreeDsExpired";
+        ThreeDsAction = null;
+        Version++;
+        _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            Id,
+            PartyId,
+            Enums.PaymentLifecycleOutcome.Declined,
+            Amount,
+            Currency,
+            Version,
+            DateTimeOffset.UtcNow));
     }
 
     public void Capture(string channelReference, long? amount = null)
@@ -287,6 +389,7 @@ public sealed class Payment
             Enums.PaymentLifecycleOutcome.PartiallyRefunded => PaymentState.PartiallyRefunded,
             Enums.PaymentLifecycleOutcome.Pending => PaymentState.Pending,
             Enums.PaymentLifecycleOutcome.Unknown => PaymentState.Unknown,
+            Enums.PaymentLifecycleOutcome.RequiresAction => PaymentState.RequiresAction,
             _ => (PaymentState?)null
         };
 
@@ -354,6 +457,13 @@ public sealed class Payment
 
         // Authorized cannot revert to Declined
         if (State == PaymentState.Authorized && targetState.Value == PaymentState.Declined)
+        {
+            return false;
+        }
+
+        // RequiresAction cannot revert to Pending or Unknown
+        if (State == PaymentState.RequiresAction
+            && targetState.Value is not (PaymentState.Authorized or PaymentState.Declined))
         {
             return false;
         }

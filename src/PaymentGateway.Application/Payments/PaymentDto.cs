@@ -13,4 +13,5 @@ public record PaymentDto(
     long CapturedAmount = 0,
     long RemainingAuthorizedAmount = 0,
     long RefundedAmount = 0,
-    long RemainingRefundableAmount = 0);
+    long RemainingRefundableAmount = 0,
+    ThreeDsActionDto? Action = null);

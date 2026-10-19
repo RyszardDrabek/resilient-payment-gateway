@@ -7,7 +7,7 @@ namespace PaymentGateway.UnitTests.Domain;
 public sealed class PaymentDomainEventTests
 {
     [Fact]
-    public void PaymentLifecycleOutcome_HasExactNineOutcomes()
+    public void PaymentLifecycleOutcome_HasExactTenOutcomes()
     {
         var names = Enum.GetNames<PaymentLifecycleOutcome>();
         names.Should().BeEquivalentTo(new[]
@@ -20,6 +20,7 @@ public sealed class PaymentDomainEventTests
             "Refunded",
             "PartiallyRefunded",
             "Pending",
+            "RequiresAction",
             "Unknown"
         });
     }

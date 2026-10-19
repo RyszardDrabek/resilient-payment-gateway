@@ -371,4 +371,124 @@ public sealed class PaymentEndpointsTests : IAsyncLifetime
         doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:conflict");
         doc.RootElement.GetProperty("status").GetInt32().Should().Be(409);
     }
+
+    // ---- F-EDGE-10: 3DS2 Challenge Action API Contract & Submission Endpoint ----
+
+    [Fact]
+    public async Task Post_Payments_WhenRequiresAction_Returns201_WithActionDetails()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_3ds_challenge_{Guid.NewGuid():N}");
+
+        var request = new AuthorizePaymentRequest("party_challenge_0002", 5000, "EUR", SettlementChannel: "MOCK");
+        var response = await client.PostAsJsonAsync("/payments", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.Headers.Contains("X-Correlation-Id").Should().BeTrue();
+
+        var payment = await response.Content.ReadFromJsonAsync<PaymentDto>();
+        payment.Should().NotBeNull();
+        payment!.State.Should().Be("RequiresAction");
+        payment.Action.Should().NotBeNull();
+        payment.Action!.ActionType.Should().Be("threeDS2");
+        payment.Action.TargetUrl.Should().NotBeNullOrWhiteSpace();
+        payment.Action.Token.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Post_Payments_3dsResult_ResolvesToAuthorized()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_3ds_resolve_{Guid.NewGuid():N}");
+
+        var authRequest = new AuthorizePaymentRequest("party_challenge_0002", 7500, "EUR", SettlementChannel: "MOCK");
+        var authResponse = await client.PostAsJsonAsync("/payments", authRequest);
+        authResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var payment = await authResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        payment.Should().NotBeNull();
+        payment!.State.Should().Be("RequiresAction");
+
+        // Submit 3DS result
+        var resultResponse = await client.PostAsJsonAsync($"/payments/{payment.PaymentId}/3ds-result", new SubmitThreeDsResultRequest("completed"));
+
+        resultResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        resultResponse.Headers.Contains("X-Correlation-Id").Should().BeTrue();
+
+        var resolvedPayment = await resultResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        resolvedPayment.Should().NotBeNull();
+        resolvedPayment!.State.Should().Be("Authorized");
+    }
+
+    [Fact]
+    public async Task Post_Payments_3dsResult_NonExistentPayment_Returns404_ProblemDetails()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+
+        var response = await client.PostAsJsonAsync("/payments/non_existent_pay_id/3ds-result", new SubmitThreeDsResultRequest("completed"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        response.Headers.Contains("X-Correlation-Id").Should().BeTrue();
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:not-found");
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Post_Payments_3dsResult_NotInRequiresActionState_Returns409_Conflict()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateTestToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_3ds_conflict_{Guid.NewGuid():N}");
+
+        // Frictionless payment -> Authorized
+        var authRequest = new AuthorizePaymentRequest("party_frictionless", 1200, "EUR", SettlementChannel: "MOCK");
+        var authResponse = await client.PostAsJsonAsync("/payments", authRequest);
+        authResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var payment = await authResponse.Content.ReadFromJsonAsync<PaymentDto>();
+        payment.Should().NotBeNull();
+        payment!.State.Should().Be("Authorized");
+
+        // Attempting to submit 3ds result on Authorized payment must yield 409 Conflict
+        var conflictResponse = await client.PostAsJsonAsync($"/payments/{payment.PaymentId}/3ds-result", new SubmitThreeDsResultRequest("completed"));
+
+        conflictResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        conflictResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var body = await conflictResponse.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("type").GetString().Should().Be("urn:rpg:problem:conflict");
+        doc.RootElement.GetProperty("status").GetInt32().Should().Be(409);
+    }
 }

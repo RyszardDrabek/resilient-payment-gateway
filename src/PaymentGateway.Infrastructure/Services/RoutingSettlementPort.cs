@@ -86,4 +86,13 @@ public sealed class RoutingSettlementPort : ISettlementPort
         string? channel = null,
         CancellationToken ct = default)
         => Resolve(channel).QueryPaymentStatusAsync(paymentId, channelReference, merchantReference, channel, ct);
+
+    public Task<SettlementResult> SubmitThreeDsDetailsAsync(
+        string paymentId,
+        string channelReference,
+        string? threeDsResult,
+        IReadOnlyDictionary<string, string>? details = null,
+        string? channel = null,
+        CancellationToken ct = default)
+        => Resolve(channel).SubmitThreeDsDetailsAsync(paymentId, channelReference, threeDsResult, details, channel, ct);
 }

@@ -7,9 +7,10 @@ import { RiskConsole } from './components/risk/RiskConsole';
 import { ApiKeysConsole } from './components/apikeys/ApiKeysConsole';
 import { WebhookDlqConsole } from './components/webhooks/WebhookDlqConsole';
 import { ObservabilityConsole } from './components/observability/ObservabilityConsole';
+import { ThreeDsSimulator } from './components/threeds/ThreeDsSimulator';
 
 function PortalContent() {
-  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability'>('unresolved');
+  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds'>('unresolved');
 
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
@@ -24,6 +25,8 @@ function PortalContent() {
       {activeTab === 'webhook-dlq' && <WebhookDlqConsole />}
 
       {activeTab === 'observability' && <ObservabilityConsole onNavigate={setActiveTab} />}
+
+      {activeTab === 'threeds' && <ThreeDsSimulator />}
     </AppShell>
   );
 }

@@ -91,4 +91,49 @@ public sealed class AdyenSettlementIntegrationTests : IDisposable
         result.ChannelReference.Should().BeEmpty();
         result.DeclineReason.Should().NotBeNullOrWhiteSpace();
     }
+
+    [Fact]
+    public async Task Settle_Authorize_ChallengeCard_Returns_ActionRequired()
+    {
+        // Act (F-ADYEN-06 AC-1)
+        var result = await _port.AuthorizeAsync("card_challenge_0002", 4200, "EUR");
+
+        // Assert
+        result.IsAuthorized.Should().BeFalse();
+        result.IsActionRequired.Should().BeTrue();
+        result.ThreeDsAction.Should().NotBeNull();
+        result.ThreeDsAction!.ActionType.Should().Be("threeDS2");
+        result.ThreeDsAction.TargetUrl.Should().NotBeNullOrWhiteSpace();
+        result.ThreeDsAction.Token.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Settle_SubmitThreeDsDetails_Approved_Returns_Success()
+    {
+        // Act (F-ADYEN-06 AC-3)
+        var result = await _port.SubmitThreeDsDetailsAsync(
+            "pay_3ds_test_1",
+            "adyen_auth_orig123",
+            "challenge_success",
+            new Dictionary<string, string> { ["threeDSResult"] = "challenge_success" });
+
+        // Assert
+        result.IsAuthorized.Should().BeTrue();
+        result.ChannelReference.Should().StartWith("adyen_3ds_auth_");
+    }
+
+    [Fact]
+    public async Task Settle_SubmitThreeDsDetails_Refused_Returns_Declined()
+    {
+        // Act (F-ADYEN-06 AC-4)
+        var result = await _port.SubmitThreeDsDetailsAsync(
+            "pay_3ds_test_2",
+            "adyen_auth_orig123",
+            "refused",
+            new Dictionary<string, string> { ["threeDSResult"] = "refused" });
+
+        // Assert
+        result.IsAuthorized.Should().BeFalse();
+        result.DeclineReason.Should().Be("ThreeDsRefused");
+    }
 }

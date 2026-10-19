@@ -535,6 +535,104 @@ describe('apiClient ApiError', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('posts payment request with idempotency key in createTestPayment', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+      let capturedBody: string = '';
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
+        capturedBody = init?.body?.toString() ?? '';
+        return new Response(JSON.stringify({
+          paymentId: 'pay_test_3ds_123',
+          partyId: 'cardholder_challenge_0002',
+          amount: 5000,
+          currency: 'EUR',
+          settlementChannel: 'ADYEN',
+          state: 'RequiresAction',
+          channelReference: 'adyen_auth_123',
+          declineReason: null,
+          createdAt: new Date().toISOString(),
+          capturedAmount: 0,
+          remainingAuthorizedAmount: 0,
+          refundedAmount: 0,
+          remainingRefundableAmount: 0,
+          action: {
+            actionType: 'threeDS2',
+            targetUrl: 'https://checkoutshopper-test.adyen.com/checkoutshopper/threeDS2.shtml',
+            token: 'token_123',
+            expiresAt: new Date(Date.now() + 900000).toISOString()
+          }
+        }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { createTestPayment } = await import('./apiClient');
+      const result = await createTestPayment('test-jwt-token', {
+        partyId: 'cardholder_challenge_0002',
+        amount: 5000,
+        currency: 'EUR',
+        settlementChannel: 'ADYEN',
+        idempotencyKey: 'idem_test_3ds'
+      });
+
+      expect(capturedUrl).toContain('/payments');
+      expect(capturedHeaders.Authorization).toBe('Bearer test-jwt-token');
+      expect(capturedHeaders['Idempotency-Key']).toBe('idem_test_3ds');
+      expect(JSON.parse(capturedBody).partyId).toBe('cardholder_challenge_0002');
+      expect(result.state).toBe('RequiresAction');
+      expect(result.action?.actionType).toBe('threeDS2');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('posts 3DS result to /payments/{id}/3ds-result', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+      let capturedBody: string = '';
+
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedUrl = input.toString();
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
+        capturedBody = init?.body?.toString() ?? '';
+        return new Response(JSON.stringify({
+          paymentId: 'pay_test_3ds_123',
+          partyId: 'cardholder_challenge_0002',
+          amount: 5000,
+          currency: 'EUR',
+          settlementChannel: 'ADYEN',
+          state: 'Authorized',
+          channelReference: 'adyen_3ds_auth_456',
+          declineReason: null,
+          createdAt: new Date().toISOString(),
+          capturedAmount: 0,
+          remainingAuthorizedAmount: 5000,
+          refundedAmount: 0,
+          remainingRefundableAmount: 0,
+          action: null
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }) as typeof fetch;
+
+      const { submitThreeDsResult } = await import('./apiClient');
+      const result = await submitThreeDsResult('test-jwt-token', 'pay_test_3ds_123', {
+        threeDsResult: 'completed',
+        details: { threeDSResult: 'success' }
+      });
+
+      expect(capturedUrl).toContain('/payments/pay_test_3ds_123/3ds-result');
+      expect(capturedHeaders.Authorization).toBe('Bearer test-jwt-token');
+      expect(JSON.parse(capturedBody).threeDsResult).toBe('completed');
+      expect(result.state).toBe('Authorized');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 

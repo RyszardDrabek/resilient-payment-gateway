@@ -103,9 +103,11 @@ public sealed class AuthorizePaymentCommandHandler(
 
         var payment = settlement.IsAuthorized
             ? Payment.Authorize(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference)
-            : settlement.IsUnanswered
-                ? Payment.CreatePending(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason)
-                : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
+            : settlement.IsActionRequired
+                ? Payment.CreateRequiresAction(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.ThreeDsAction!)
+                : settlement.IsUnanswered
+                    ? Payment.CreatePending(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason)
+                    : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
 
         await repository.AddAsync(payment, ct);
 

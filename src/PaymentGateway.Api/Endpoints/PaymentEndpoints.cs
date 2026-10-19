@@ -244,6 +244,47 @@ public static class PaymentEndpoints
             return Results.Ok(result);
         });
 
+        group.MapPost("/{id}/3ds-result", async (string id, HttpContext httpContext, ISender mediator, CancellationToken ct) =>
+        {
+            if (!HasRequiredScope(httpContext, "payments:write"))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status403Forbidden,
+                    PaymentProblemTypes.Forbidden,
+                    "Forbidden",
+                    "The API key lacks the required 'payments:write' scope.");
+            }
+
+            SubmitThreeDsResultRequest? request = null;
+            if (httpContext.Request.ContentLength > 0)
+            {
+                try
+                {
+                    request = await httpContext.Request.ReadFromJsonAsync<SubmitThreeDsResultRequest>(cancellationToken: ct);
+                }
+                catch (JsonException)
+                {
+                    return ProblemResult(
+                        httpContext,
+                        StatusCodes.Status400BadRequest,
+                        PaymentProblemTypes.Validation,
+                        "Validation Failed",
+                        "Invalid JSON payload.");
+                }
+            }
+
+            var command = new SubmitThreeDsResultCommand(id, request?.ThreeDsResult, request?.Details);
+            var result = await mediator.Send(command, ct);
+
+            if (!httpContext.Response.Headers.ContainsKey("X-Correlation-Id"))
+            {
+                httpContext.Response.Headers["X-Correlation-Id"] = httpContext.TraceIdentifier;
+            }
+
+            return Results.Ok(result);
+        });
+
         return app;
     }
 

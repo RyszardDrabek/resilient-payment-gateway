@@ -1,8 +1,8 @@
 # Project status
 
 **Mode:** greenfield  
-**Status:** Phase 9 Done (operational-alerting-and-distributed-tracing)  
-**Current phase:** Phase 9 (operational-alerting-and-distributed-tracing)  
+**Status:** Phase 10 Complete (three-ds-secure-and-sca-flow)  
+**Current phase:** Phase 10 (three-ds-secure-and-sca-flow)  
 **Stack:** .NET 10 modular monolith (Clean + CQRS/MediatR), PostgreSQL/EF Core, RabbitMQ/MassTransit, Polly, JWT, React 19/Vite/Tailwind portal, Prometheus/Alertmanager/Grafana/Jaeger, compose-only MVP  
 *Order:* [build/orders/main.md](build/orders/main.md)  
 *Scaffold:* ✓ → [build/scaffold-report.md](build/scaffold-report.md)
@@ -12,12 +12,12 @@
 | Step | Status |
 | ---- | ------ |
 | Intake | done → [intake-03](intake/03-2026-10-12-merchant-and-operator-portal/intake.md) |
-| Features | done (7 topics / 33 features) |
+| Features | done (7 topics / 37 features) |
 | Architecture | done → [system-overview.md](docs/system-overview.md) |
 | Plan order | done → [orders/main.md](build/orders/main.md) |
 | Scaffold | done → [scaffold-report.md](build/scaffold-report.md) |
 | Tooling | done → [tooling-manifest.md](build/tooling-manifest.md) |
-| Build | done (33/33 features built) → [reports/main-report.md](build/reports/main-report.md) |
+| Build | done (37/37 features built) → [reports/main-report.md](build/reports/main-report.md) |
 
 ## Topics
 
@@ -50,5 +50,6 @@
 | [ADR-016](docs/adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
 | [ADR-017](docs/adr/adr-017-cicd-containerization-and-kubernetes-deployment.md) | CI/CD Pipeline Automation, Containerization & Kubernetes Deployment |
 | [ADR-018](docs/adr/adr-018-performance-testing-and-resilience-benchmarking.md) | Performance Testing, Load Benchmarking & Rate Limiting Resilience |
+| [ADR-019](docs/adr/adr-019-3d-secure-2-and-sca-flow.md) | 3D Secure 2 (3DS2) Authentication and Strong Customer Authentication (SCA) Flow |
 
 Standards: [definition-of-done.md](standards/definition-of-done.md), [coding-conventions.md](standards/coding-conventions.md), [stack-context.md](standards/stack-context.md).

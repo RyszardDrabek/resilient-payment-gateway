@@ -16,6 +16,18 @@ export interface UnresolvedPaymentsResponse {
   channel: string | null;
 }
 
+export interface ThreeDsActionDto {
+  actionType: string;
+  targetUrl?: string | null;
+  token?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface SubmitThreeDsResultRequest {
+  threeDsResult?: string | null;
+  details?: Record<string, string>;
+}
+
 export interface PaymentDto {
   paymentId: string;
   partyId: string;
@@ -30,6 +42,7 @@ export interface PaymentDto {
   remainingAuthorizedAmount: number;
   refundedAmount: number;
   remainingRefundableAmount: number;
+  action?: ThreeDsActionDto | null;
 }
 
 export interface PaymentProblemDetails {
