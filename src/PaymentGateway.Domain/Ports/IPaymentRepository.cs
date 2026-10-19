@@ -19,6 +19,13 @@ public interface IPaymentRepository
         Task.FromResult<(IReadOnlyList<Payment> Items, int TotalCount)>(([], 0));
     Task<IReadOnlyList<Payment>> GetExpiredThreeDsPaymentsAsync(DateTimeOffset now, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Payment>>([]);
+    Task<IReadOnlyList<Payment>> GetCapturedPaymentsAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string? partyId = null,
+        string? currency = null,
+        CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<Payment>>([]);
 }
 
 

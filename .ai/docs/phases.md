@@ -140,3 +140,19 @@
 - **PORTAL** — Subscriptions & Cards console with subscription list, card-on-file management, and manual billing trigger.
   - _Depends on:_ PORTAL, EDGE
 
+## Phase 12: reconciliation-fee-calculation-and-merchant-payouts
+
+**Objective:** Implement end-of-day transaction reconciliation, dynamic gateway & interchange fee calculation, merchant settlement ledger, and automated payout batch generation with CSV reporting across domain, background worker, REST API, and portal.
+**Evaluation criteria:** Gateway captures and refunds match against acquirer settlement records; discrepancies are flagged in reconciliation reports; gateway processing fees (fixed + percentage) are computed per transaction and deducted from net balances; automated background worker generates daily merchant payout batches; CSV settlement reports can be generated and exported via API and portal.
+
+### Topics
+
+- **RECON** — Domain entities `ReconciliationRecord`, `FeeSchedule`, `MerchantPayoutBatch`, `PayoutItem`, repository ports, dynamic fee calculator service.
+  - _Depends on:_ RECON, PAY
+- **WORKER** — `DailyReconciliationWorker` hosted service scanning closed settlement windows, calculating fees, generating ledger entries, and rolling up payout batches.
+  - _Depends on:_ WORKER, RECON, PAY
+- **EDGE** — REST endpoints for `/api/v1/reconciliation` (summary, discrepancies, daily reports) and `/api/v1/payouts` (batches, history, trigger, CSV export).
+  - _Depends on:_ EDGE, RECON
+- **PORTAL** — Reconciliation & Payouts console with daily settlement metrics, fee analysis, payout history, discrepancy inspector, and CSV report download.
+  - _Depends on:_ PORTAL, EDGE
+

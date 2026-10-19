@@ -315,5 +315,6 @@ Real-time telemetry and cluster alerting are managed via Prometheus, Alertmanage
 | [ADR-018](adr/adr-018-performance-testing-and-resilience-benchmarking.md) | Performance Testing, Load Benchmarking & Rate Limiting Resilience |
 | [ADR-019](adr/adr-019-3d-secure-2-and-sca-flow.md) | 3D Secure 2 (3DS2) and Strong Customer Authentication (SCA) Flow |
 | [ADR-020](adr/adr-020-recurring-payments-and-card-tokenization.md) | Recurring Payments, Card Tokenization and Subscription Management (CIT / MIT) |
+| [ADR-021](adr/adr-021-reconciliation-fee-calculation-and-merchant-payouts.md) | Reconciliation, Fee Calculation and Merchant Payouts |
 
 > ADR-008 intentionally unused — compose-only hosting is recorded in this overview, not a separate ADR.

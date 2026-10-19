@@ -89,6 +89,29 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Payment>> GetCapturedPaymentsAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string? partyId = null,
+        string? currency = null,
+        CancellationToken ct = default)
+    {
+        var query = dbContext.Payments
+            .Where(p => p.CapturedAmount > 0 && p.CreatedAt >= from && p.CreatedAt <= to);
+
+        if (!string.IsNullOrWhiteSpace(partyId))
+        {
+            query = query.Where(p => p.PartyId == partyId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(currency))
+        {
+            var normalizedCurrency = currency.Trim().ToUpperInvariant();
+            query = query.Where(p => p.Currency == normalizedCurrency);
+        }
+
+        return await query.OrderBy(p => p.CreatedAt).ToListAsync(ct);
+    }
 
     private void DispatchDomainEventsToOutbox(Payment payment)
     {

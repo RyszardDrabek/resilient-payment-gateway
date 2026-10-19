@@ -228,6 +228,8 @@ app.MapPrometheusScrapingEndpoint().AllowAnonymous();
 app.MapPaymentEndpoints();
 app.MapPaymentMethodEndpoints();
 app.MapSubscriptionEndpoints();
+app.MapReconciliationEndpoints();
+app.MapPayoutEndpoints();
 app.MapUnresolvedPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();

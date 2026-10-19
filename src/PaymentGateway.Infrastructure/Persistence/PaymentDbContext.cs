@@ -13,6 +13,10 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter> MerchantWebhookDeadLetters => Set<PaymentGateway.Domain.Entities.MerchantWebhookDeadLetter>();
     public DbSet<PaymentGateway.Domain.Entities.PaymentMethodToken> PaymentMethods => Set<PaymentGateway.Domain.Entities.PaymentMethodToken>();
     public DbSet<PaymentGateway.Domain.Entities.Subscription> Subscriptions => Set<PaymentGateway.Domain.Entities.Subscription>();
+    public DbSet<PaymentGateway.Domain.Entities.ReconciliationRecord> ReconciliationRecords => Set<PaymentGateway.Domain.Entities.ReconciliationRecord>();
+    public DbSet<PaymentGateway.Domain.Entities.FeeSchedule> FeeSchedules => Set<PaymentGateway.Domain.Entities.FeeSchedule>();
+    public DbSet<PaymentGateway.Domain.Entities.MerchantPayoutBatch> PayoutBatches => Set<PaymentGateway.Domain.Entities.MerchantPayoutBatch>();
+    public DbSet<PaymentGateway.Domain.Entities.PayoutItem> PayoutItems => Set<PaymentGateway.Domain.Entities.PayoutItem>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -200,6 +204,68 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 
             b.HasIndex(s => new { s.State, s.NextBillingAt });
             b.HasIndex(s => s.PartyId);
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.ReconciliationRecord>(b =>
+        {
+            b.ToTable("ReconciliationRecords");
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Id).HasMaxLength(64);
+            b.Property(r => r.PaymentId).HasMaxLength(64);
+            b.Property(r => r.Channel).IsRequired().HasMaxLength(64);
+            b.Property(r => r.ChannelReference).IsRequired().HasMaxLength(128);
+            b.Property(r => r.DiscrepancyType).HasConversion<string>().HasMaxLength(32);
+            b.Property(r => r.Status).HasConversion<string>().HasMaxLength(32);
+            b.Property(r => r.Notes).HasMaxLength(1024);
+
+            b.HasIndex(r => r.Status);
+            b.HasIndex(r => r.PaymentId);
+            b.HasIndex(r => r.ReconciledAt);
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.FeeSchedule>(b =>
+        {
+            b.ToTable("FeeSchedules");
+            b.HasKey(f => f.Id);
+            b.Property(f => f.Id).HasMaxLength(64);
+            b.Property(f => f.MerchantId).IsRequired().HasMaxLength(128);
+            b.Property(f => f.Currency).IsRequired().HasMaxLength(12);
+
+            b.HasIndex(f => new { f.MerchantId, f.Currency, f.EffectiveFrom });
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.MerchantPayoutBatch>(b =>
+        {
+            b.ToTable("PayoutBatches");
+            b.HasKey(p => p.Id);
+            b.Property(p => p.Id).HasMaxLength(64);
+            b.Property(p => p.MerchantId).IsRequired().HasMaxLength(128);
+            b.Property(p => p.Currency).IsRequired().HasMaxLength(12);
+            b.Property(p => p.Status).HasConversion<string>().HasMaxLength(32);
+            b.Property(p => p.FailureReason).HasMaxLength(512);
+
+            b.HasMany(p => p.Items)
+                .WithOne()
+                .HasForeignKey(i => i.PayoutBatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.Navigation(p => p.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            b.HasIndex(p => new { p.MerchantId, p.PeriodEnd });
+            b.HasIndex(p => p.Status);
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.PayoutItem>(b =>
+        {
+            b.ToTable("PayoutItems");
+            b.HasKey(i => i.Id);
+            b.Property(i => i.Id).HasMaxLength(64);
+            b.Property(i => i.PayoutBatchId).IsRequired().HasMaxLength(64);
+            b.Property(i => i.PaymentId).IsRequired().HasMaxLength(64);
+            b.Property(i => i.Currency).IsRequired().HasMaxLength(12);
+
+            b.HasIndex(i => i.PayoutBatchId);
+            b.HasIndex(i => i.PaymentId).IsUnique();
         });
     }
 }

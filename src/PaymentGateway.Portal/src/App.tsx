@@ -9,9 +9,10 @@ import { WebhookDlqConsole } from './components/webhooks/WebhookDlqConsole';
 import { ObservabilityConsole } from './components/observability/ObservabilityConsole';
 import { ThreeDsSimulator } from './components/threeds/ThreeDsSimulator';
 import { SubscriptionsConsole } from './components/subscriptions/SubscriptionsConsole';
+import { ReconciliationConsole } from './components/reconciliation/ReconciliationConsole';
 
 function PortalContent() {
-  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds' | 'subscriptions'>('unresolved');
+  const [activeTab, setActiveTab] = useState<'unresolved' | 'webhooks' | 'risk' | 'api-keys' | 'webhook-dlq' | 'observability' | 'threeds' | 'subscriptions' | 'reconciliation'>('unresolved');
 
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
@@ -30,6 +31,8 @@ function PortalContent() {
       {activeTab === 'threeds' && <ThreeDsSimulator />}
 
       {activeTab === 'subscriptions' && <SubscriptionsConsole />}
+
+      {activeTab === 'reconciliation' && <ReconciliationConsole />}
     </AppShell>
   );
 }
