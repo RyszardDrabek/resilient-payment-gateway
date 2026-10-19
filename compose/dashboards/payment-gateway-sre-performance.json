@@ -251,7 +251,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(payment_declines_transactions_total)",
+          "expr": "sum({__name__=~\"payment_declines.*_total\"})",
           "legendFormat": "Declined",
           "range": true,
           "refId": "A"
@@ -292,7 +292,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "100 * sum(payment_declines_transactions_total) / clamp_min(sum(payment_transactions_total{operation=\"authorize\"}), 1)",
+          "expr": "100 * (sum({__name__=~\"payment_declines.*_total\"}) or vector(0)) / clamp_min(sum(payment_transactions_total{operation=\"authorize\"}), 1)",
           "legendFormat": "% Declined",
           "range": true,
           "refId": "A"
@@ -560,7 +560,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (reason, channel) (payment_declines_transactions_total)",
+          "expr": "sum by (reason, channel) ({__name__=~\"payment_declines.*_total\"})",
           "legendFormat": "[{{channel}}] {{reason}}",
           "range": true,
           "refId": "A"
