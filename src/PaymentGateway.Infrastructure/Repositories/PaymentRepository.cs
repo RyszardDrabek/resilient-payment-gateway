@@ -77,6 +77,18 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<Payment>> GetExpiredThreeDsPaymentsAsync(DateTimeOffset now, CancellationToken ct = default)
+    {
+        return await dbContext.Payments
+            .Where(p => p.State == PaymentState.RequiresAction &&
+                        p.ThreeDsAction != null &&
+                        p.ThreeDsAction.ExpiresAt != null &&
+                        p.ThreeDsAction.ExpiresAt <= now)
+            .OrderBy(p => p.CreatedAt)
+            .Take(100)
+            .ToListAsync(ct);
+    }
+
 
     private void DispatchDomainEventsToOutbox(Payment payment)
     {

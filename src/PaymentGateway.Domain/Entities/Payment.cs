@@ -238,6 +238,27 @@ public sealed class Payment
         }
     }
 
+    public void ExpireThreeDs()
+    {
+        if (State != PaymentState.RequiresAction)
+        {
+            throw new PaymentInvalidStateException(State, "ExpireThreeDs");
+        }
+
+        State = PaymentState.Declined;
+        DeclineReason = "ThreeDsExpired";
+        ThreeDsAction = null;
+        Version++;
+        _domainEvents.Add(new Events.PaymentTransitionDomainEvent(
+            Id,
+            PartyId,
+            Enums.PaymentLifecycleOutcome.Declined,
+            Amount,
+            Currency,
+            Version,
+            DateTimeOffset.UtcNow));
+    }
+
     public void Capture(string channelReference, long? amount = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channelReference);

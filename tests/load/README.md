@@ -12,6 +12,7 @@ This directory contains automated performance, load, stress, and resilience scen
 | **02. Load & SLA** | `scenarios/02-load-sla.js` | Sustained multi-tenant load test against SLA targets | `p95 < 2000ms`, `p99 < 3000ms`, error rate `< 1%` |
 | **03. Rate Limiting** | `scenarios/03-rate-limiting.js` | Overload resilience & RFC 7807 429 Too Many Requests verification | Rate limiter engages, 429 problem details verified |
 | **04. Spike & Recovery** | `scenarios/04-spike-and-recovery.js` | Sudden severe traffic spike (5 → 75 VUs) and post-spike latency recovery | `p95 < 1000ms` post-recovery, zero 5xx server errors |
+| **05. 3DS2 Challenge Flow** | `scenarios/05-3ds2-challenge-flow.js` | End-to-end 2-stage SCA challenge and resolution load test | `http_req_failed < 1%`, `p95 < 2000ms`, `count > 50` |
 
 ---
 

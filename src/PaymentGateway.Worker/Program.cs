@@ -39,6 +39,7 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services.AddHostedService<PaymentGateway.Worker.Web3ConfirmationWatcherWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.OutboxRetentionCleanupWorker>();
+builder.Services.AddHostedService<PaymentGateway.Worker.ThreeDsExpirationWorker>();
 
 var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PaymentGateway.Worker");

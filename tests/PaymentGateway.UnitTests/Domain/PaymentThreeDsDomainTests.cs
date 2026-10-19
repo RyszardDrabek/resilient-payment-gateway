@@ -131,4 +131,35 @@ public sealed class PaymentThreeDsDomainTests
         payment.State.Should().Be(PaymentState.Authorized);
         payment.ChannelReference.Should().Be("ref_final");
     }
+
+    [Fact]
+    public void ExpireThreeDs_TransitionsToDeclined_WithThreeDsExpiredReason()
+    {
+        var actionDetails = new ThreeDsActionDetails("threeDS2", "https://bank.example.com", "token");
+        var payment = Payment.CreateRequiresAction("merch_acme", 5000, "EUR", "mocked-adyen", "ref_orig", actionDetails);
+        payment.ClearDomainEvents();
+
+        payment.ExpireThreeDs();
+
+        payment.State.Should().Be(PaymentState.Declined);
+        payment.DeclineReason.Should().Be("ThreeDsExpired");
+        payment.ThreeDsAction.Should().BeNull();
+        payment.Version.Should().Be(2);
+
+        payment.DomainEvents.Should().ContainSingle();
+        var evt = payment.DomainEvents.First() as PaymentTransitionDomainEvent;
+        evt.Should().NotBeNull();
+        evt!.Outcome.Should().Be(PaymentLifecycleOutcome.Declined);
+    }
+
+    [Fact]
+    public void ExpireThreeDs_WhenNotInRequiresAction_ThrowsPaymentInvalidStateException()
+    {
+        var payment = new Payment("pay_1", "merch_acme", 1000, "EUR", "mocked-adyen", PaymentState.Authorized);
+
+        var act = () => payment.ExpireThreeDs();
+
+        act.Should().Throw<PaymentInvalidStateException>()
+            .Which.RequestedTransition.Should().Be("ExpireThreeDs");
+    }
 }

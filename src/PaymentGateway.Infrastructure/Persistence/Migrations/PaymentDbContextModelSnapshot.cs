@@ -415,6 +415,40 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
 
                     b.ToTable("OutboxMessages", "pay");
                 });
+
+            modelBuilder.Entity("PaymentGateway.Domain.Entities.Payment", b =>
+                {
+                    b.OwnsOne("PaymentGateway.Domain.Entities.ThreeDsActionDetails", "ThreeDsAction", b1 =>
+                        {
+                            b1.Property<string>("PaymentId")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("ActionType")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)");
+
+                            b1.Property<DateTimeOffset?>("ExpiresAt")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("TargetUrl")
+                                .HasMaxLength(1024)
+                                .HasColumnType("character varying(1024)");
+
+                            b1.Property<string>("Token")
+                                .HasMaxLength(4096)
+                                .HasColumnType("character varying(4096)");
+
+                            b1.HasKey("PaymentId");
+
+                            b1.ToTable("Payments", "pay");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PaymentId");
+                        });
+
+                    b.Navigation("ThreeDsAction");
+                });
 #pragma warning restore 612, 618
         }
     }
