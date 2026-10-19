@@ -18,7 +18,7 @@ import {
   ObservabilitySummaryDto,
 } from '../types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5080';
+const API_BASE_URL = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : 'http://localhost:5080';
 
 export class ApiError extends Error {
   public status: number;

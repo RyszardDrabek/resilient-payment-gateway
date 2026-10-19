@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "payment-gateway.fullname" . }}-portal
+  labels:
+    {{- include "payment-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: portal
+spec:
+  replicas: {{ .Values.portal.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "payment-gateway.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: portal
+  template:
+    metadata:
+      labels:
+        {{- include "payment-gateway.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: portal
+    spec:
+      serviceAccountName: {{ include "payment-gateway.serviceAccountName" . }}
+      containers:
+        - name: portal
+          image: "{{ .Values.portal.image.repository }}:{{ .Values.portal.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.portal.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.portal.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.portal.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.portal.resources | nindent 12 }}

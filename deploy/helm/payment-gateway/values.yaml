@@ -1,0 +1,168 @@
+# Default values for payment-gateway.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  environment: production
+  imagePullSecrets: []
+
+api:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/ryszarddrabek/resilient-payment-gateway-api
+    pullPolicy: IfNotPresent
+    tag: "1.0.0"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "8080"
+
+worker:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/ryszarddrabek/resilient-payment-gateway-worker
+    pullPolicy: IfNotPresent
+    tag: "1.0.0"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "8080"
+
+portal:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/ryszarddrabek/resilient-payment-gateway-portal
+    pullPolicy: IfNotPresent
+    tag: "1.0.0"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: gateway.payment.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /health
+          pathType: Prefix
+          service: api
+        - path: /metrics
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: portal
+  tls: []
+  #  - secretName: payment-gateway-tls
+  #    hosts:
+  #      - gateway.payment.local
+
+config:
+  database:
+    host: postgres-postgresql.database.svc.cluster.local
+    port: 5432
+    databaseName: payment_gateway
+    username: postgres
+    sslMode: prefer
+    autoMigrate: false
+  rabbitmq:
+    host: rabbitmq.messaging.svc.cluster.local
+    port: 5672
+    username: guest
+    useInMemory: false
+  telemetry:
+    otlpEndpoint: "http://jaeger-collector.observability.svc.cluster.local:4317"
+    otlpLogsEndpoint: "http://loki.observability.svc.cluster.local:3100/otlp/v1/logs"
+  alertmanager:
+    url: "http://alertmanager.monitoring.svc.cluster.local:9093"
+  prometheus:
+    url: "http://prometheus.monitoring.svc.cluster.local:9090"
+  cors:
+    allowedOrigins:
+      - "https://gateway.payment.local"
+
+secrets:
+  # Base64 or plain string for production deployment; recommended to use ExternalSecrets/Vault
+  jwtSigningKey: "PRODUCTION_JWT_SECRET_KEY_MUST_BE_MINIMUM_32_CHARS_LONG!!"
+  dbPassword: "change_me_db_password"
+  rabbitmqPassword: "change_me_rabbitmq_password"
+
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""

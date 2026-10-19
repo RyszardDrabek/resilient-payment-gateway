@@ -1,0 +1,258 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payment-gateway
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-gateway-config
+  namespace: payment-gateway
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  Database__AutoMigrate: "false"
+  RabbitMq__UseInMemory: "false"
+  RabbitMq__Host: "rabbitmq.messaging.svc.cluster.local"
+  RabbitMq__Port: "5672"
+  RabbitMq__Username: "guest"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.observability.svc.cluster.local:4317"
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: "http://loki.observability.svc.cluster.local:3100/otlp/v1/logs"
+  OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/protobuf"
+  Alertmanager__Url: "http://alertmanager.monitoring.svc.cluster.local:9093"
+  Prometheus__Url: "http://prometheus.monitoring.svc.cluster.local:9090"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payment-gateway-secrets
+  namespace: payment-gateway
+type: Opaque
+stringData:
+  Auth__JwtSigningKey: "PRODUCTION_JWT_SECRET_KEY_MUST_BE_MINIMUM_32_CHARS_LONG!!"
+  ConnectionStrings__PaymentDb: "Host=postgres-postgresql.database.svc.cluster.local;Port=5432;Database=payment_gateway;Username=postgres;Password=change_me_db_password;SslMode=prefer"
+  ConnectionStrings__RiskDb: "Host=postgres-postgresql.database.svc.cluster.local;Port=5432;Database=payment_gateway;Username=postgres;Password=change_me_db_password;SslMode=prefer"
+  RabbitMq__Password: "change_me_rabbitmq_password"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-gateway-api
+  namespace: payment-gateway
+  labels:
+    app: payment-gateway
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-gateway
+      component: api
+  template:
+    metadata:
+      labels:
+        app: payment-gateway
+        component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/ryszarddrabek/resilient-payment-gateway-api:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: payment-gateway-config
+            - secretRef:
+                name: payment-gateway-secrets
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-gateway-api
+  namespace: payment-gateway
+  labels:
+    app: payment-gateway
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: payment-gateway
+    component: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-gateway-worker
+  namespace: payment-gateway
+  labels:
+    app: payment-gateway
+    component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-gateway
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: payment-gateway
+        component: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/ryszarddrabek/resilient-payment-gateway-worker:1.0.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: payment-gateway-config
+            - secretRef:
+                name: payment-gateway-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-gateway-portal
+  namespace: payment-gateway
+  labels:
+    app: payment-gateway
+    component: portal
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-gateway
+      component: portal
+  template:
+    metadata:
+      labels:
+        app: payment-gateway
+        component: portal
+    spec:
+      containers:
+        - name: portal
+          image: ghcr.io/ryszarddrabek/resilient-payment-gateway-portal:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-gateway-portal
+  namespace: payment-gateway
+  labels:
+    app: payment-gateway
+    component: portal
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+  selector:
+    app: payment-gateway
+    component: portal
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payment-gateway-ingress
+  namespace: payment-gateway
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: gateway.payment.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-gateway-api
+                port:
+                  number: 8080
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-gateway-api
+                port:
+                  number: 8080
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-gateway-api
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-gateway-portal
+                port:
+                  number: 80

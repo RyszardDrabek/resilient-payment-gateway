@@ -78,4 +78,25 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK, because: await response.Content.ReadAsStringAsync());
         (await response.Content.ReadAsStringAsync()).Should().Contain("Healthy");
     }
+
+    [Fact]
+    public async Task Healthz_liveness_endpoint_returns_ok_without_requiring_database()
+    {
+        await using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("ConnectionStrings:PaymentDb", "Host=localhost;Database=dummy;Username=dummy;Password=dummy");
+                builder.UseSetting("ConnectionStrings:RiskDb", "Host=localhost;Database=dummy;Username=dummy;Password=dummy");
+                builder.UseSetting("RabbitMq:UseInMemory", "true");
+                builder.UseSetting("Auth:JwtSigningKey", "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!");
+            });
+
+        var client = factory.CreateClient();
+        var response = await client.GetAsync("/healthz");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Contain("Healthy");
+        content.Should().Contain("PaymentGateway.Api");
+    }
 }
