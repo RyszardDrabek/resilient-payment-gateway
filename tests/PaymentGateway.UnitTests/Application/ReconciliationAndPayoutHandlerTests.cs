@@ -71,6 +71,11 @@ public sealed class ReconciliationAndPayoutHandlerTests
             Task.FromResult(Batches.FirstOrDefault(b => b.Id == id));
         public Task<IReadOnlyList<MerchantPayoutBatch>> ListByMerchantIdAsync(string merchantId, int skip = 0, int take = 50, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<MerchantPayoutBatch>>(Batches.Where(b => b.MerchantId == merchantId).Skip(skip).Take(take).ToList());
+        public Task<HashSet<string>> GetPaidOutPaymentIdsAsync(IEnumerable<string> paymentIds, CancellationToken ct = default)
+        {
+            var paid = Batches.SelectMany(b => b.Items).Select(i => i.PaymentId).Intersect(paymentIds).ToHashSet();
+            return Task.FromResult(paid);
+        }
         public Task SaveAsync(MerchantPayoutBatch batch, CancellationToken ct = default)
         {
             Batches.RemoveAll(b => b.Id == batch.Id);
@@ -213,5 +218,49 @@ public sealed class ReconciliationAndPayoutHandlerTests
         result.CsvContent.Should().Contain("# Total Gross: 10000 EUR");
         result.CsvContent.Should().Contain("# Total Fees: 130 EUR");
         result.CsvContent.Should().Contain("# Total Net: 9870 EUR");
+    }
+
+    [Fact]
+    public async Task FeeCalculator_HalfUpRounding_RoundsFractionsToNearestMinorUnit()
+    {
+        var feeRepo = new FakeFeeScheduleRepository();
+        var calculator = new FeeCalculator(feeRepo);
+
+        // Default: 10 fixed + 120 bps (1.20%).
+        // 155 * 120 bps = 18600. Half-up: (18600 + 5000) / 10000 = 2 cents. Fixed + percentage = 10 + 2 = 12 cents.
+        var fee155 = await calculator.CalculateFeeAsync("merch_1", "EUR", 155, DateTimeOffset.UtcNow);
+        fee155.Should().Be(12);
+
+        // 120 * 120 bps = 14400. Half-up: (14400 + 5000) / 10000 = 1 cent. Fixed + percentage = 10 + 1 = 11 cents.
+        var fee120 = await calculator.CalculateFeeAsync("merch_1", "EUR", 120, DateTimeOffset.UtcNow);
+        fee120.Should().Be(11);
+    }
+
+    [Fact]
+    public async Task GeneratePayoutBatchHandler_ExcludesAlreadyPaidOutPayments_PreventsDuplicates()
+    {
+        var paymentRepo = new FakePaymentRepository();
+        var payoutRepo = new FakePayoutRepository();
+        var feeRepo = new FakeFeeScheduleRepository();
+        var feeCalc = new FeeCalculator(feeRepo);
+
+        var p1 = new Payment("pay_1", "merch_1", 10000, "EUR", "ADYEN", PaymentState.Captured, channelReference: "psp_1", capturedAmount: 10000);
+        var p2 = new Payment("pay_2", "merch_1", 20000, "EUR", "ADYEN", PaymentState.Captured, channelReference: "psp_2", capturedAmount: 20000);
+        paymentRepo.CapturedPayments.AddRange([p1, p2]);
+
+        var handler = new GeneratePayoutBatchCommandHandler(paymentRepo, payoutRepo, feeCalc);
+        var periodStart = DateTimeOffset.UtcNow.AddDays(-1);
+        var periodEnd = DateTimeOffset.UtcNow;
+        var command = new GeneratePayoutBatchCommand("merch_1", periodStart, periodEnd, "EUR");
+
+        // First run: generates batch with 2 items
+        var firstRun = await handler.Handle(command, CancellationToken.None);
+        firstRun.Items.Should().HaveCount(2);
+        payoutRepo.Batches.Should().ContainSingle();
+
+        // Second run: payments are already paid out, returns existing batch without creating new one
+        var secondRun = await handler.Handle(command, CancellationToken.None);
+        secondRun.Id.Should().Be(firstRun.Id);
+        payoutRepo.Batches.Should().ContainSingle(); // Still only 1 batch, no duplicate created!
     }
 }

@@ -265,7 +265,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(i => i.Currency).IsRequired().HasMaxLength(12);
 
             b.HasIndex(i => i.PayoutBatchId);
-            b.HasIndex(i => i.PaymentId);
+            b.HasIndex(i => i.PaymentId).IsUnique();
         });
     }
 }

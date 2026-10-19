@@ -39,8 +39,9 @@ public sealed class DailyReconciliationWorkerTests
 
             if (request is GeneratePayoutBatchCommand cmd)
             {
+                var item = new PayoutItemDto("pi_1", "pay_1", 5000, 70, 4930, cmd.Currency, DateTimeOffset.UtcNow);
                 var batch = new MerchantPayoutBatchDto(
-                    "payout_1", cmd.MerchantId, cmd.PeriodStart, cmd.PeriodEnd, 5000, 70, 4930, cmd.Currency, "Completed", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, []);
+                    "payout_1", cmd.MerchantId, cmd.PeriodStart, cmd.PeriodEnd, 5000, 70, 4930, cmd.Currency, "Completed", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, [item]);
                 return Task.FromResult((TResponse)(object)batch);
             }
 

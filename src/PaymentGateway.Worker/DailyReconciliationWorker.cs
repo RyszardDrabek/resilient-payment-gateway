@@ -62,8 +62,21 @@ public sealed class DailyReconciliationWorker(
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var paymentRepo = scope.ServiceProvider.GetRequiredService<IPaymentRepository>();
 
-        var to = asOf ?? DateTimeOffset.UtcNow;
-        var from = to.AddDays(-1);
+        DateTimeOffset from;
+        DateTimeOffset to;
+
+        if (asOf.HasValue)
+        {
+            to = asOf.Value;
+            from = to.AddDays(-1);
+        }
+        else
+        {
+            // Scheduled run: target yesterday's closed calendar day UTC [00:00:00, 00:00:00 today)
+            var yesterdayUtc = DateTime.UtcNow.Date.AddDays(-1);
+            from = new DateTimeOffset(yesterdayUtc, TimeSpan.Zero);
+            to = from.AddDays(1);
+        }
 
         // 1. Run reconciliation for payments captured in the settlement window
         var reconResult = await mediator.Send(new RunReconciliationCommand(from, to), ct);
@@ -78,13 +91,16 @@ public sealed class DailyReconciliationWorker(
         {
             try
             {
-                await mediator.Send(new GeneratePayoutBatchCommand(
+                var batch = await mediator.Send(new GeneratePayoutBatchCommand(
                     group.Key.PartyId,
                     from,
                     to,
                     group.Key.Currency), ct);
 
-                batchesGenerated++;
+                if (batch.Items.Count > 0)
+                {
+                    batchesGenerated++;
+                }
             }
             catch (Exception ex)
             {

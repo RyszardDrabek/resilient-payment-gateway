@@ -34,6 +34,34 @@ public sealed class GeneratePayoutBatchCommandHandler(
             request.Currency,
             ct);
 
+        // Filter out payments that have already been included in a payout batch
+        var paymentIds = payments.Select(p => p.Id).ToList();
+        var alreadyPaidOutIds = await payoutRepository.GetPaidOutPaymentIdsAsync(paymentIds, ct);
+        var unsettledPayments = payments.Where(p => !alreadyPaidOutIds.Contains(p.Id)).ToList();
+
+        if (unsettledPayments.Count == 0)
+        {
+            var existingBatches = await payoutRepository.ListByMerchantIdAsync(request.MerchantId, 0, 10, ct);
+            var existing = existingBatches.FirstOrDefault(b =>
+                b.Currency == request.Currency &&
+                b.PeriodStart == request.PeriodStart &&
+                b.PeriodEnd == request.PeriodEnd);
+
+            if (existing is not null)
+            {
+                return existing.ToDto();
+            }
+
+            var emptyBatch = new MerchantPayoutBatch(
+                $"payout_{Guid.NewGuid():N}",
+                request.MerchantId,
+                request.PeriodStart,
+                request.PeriodEnd,
+                request.Currency);
+            emptyBatch.MarkCompleted(DateTimeOffset.UtcNow);
+            return emptyBatch.ToDto();
+        }
+
         var batch = new MerchantPayoutBatch(
             $"payout_{Guid.NewGuid():N}",
             request.MerchantId,
@@ -41,7 +69,7 @@ public sealed class GeneratePayoutBatchCommandHandler(
             request.PeriodEnd,
             request.Currency);
 
-        foreach (var payment in payments)
+        foreach (var payment in unsettledPayments)
         {
             var fee = await feeCalculator.CalculateFeeAsync(
                 request.MerchantId,
@@ -62,11 +90,7 @@ public sealed class GeneratePayoutBatchCommandHandler(
             batch.AddItem(item);
         }
 
-        if (batch.Items.Count > 0)
-        {
-            batch.MarkCompleted(DateTimeOffset.UtcNow);
-        }
-
+        batch.MarkCompleted(DateTimeOffset.UtcNow);
         await payoutRepository.SaveAsync(batch, ct);
 
         return batch.ToDto();

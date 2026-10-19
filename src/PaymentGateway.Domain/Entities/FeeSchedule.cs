@@ -43,8 +43,8 @@ public sealed class FeeSchedule
             return 0;
         }
 
-        // Percentage fee in basis points (100 bps = 1.00%, so divide by 10,000)
-        var percentageFee = (amountMinorUnits * PercentageFeeBps) / 10000;
+        // Half-up rounding for basis points percentage fee: (amount * bps + 5000) / 10000
+        var percentageFee = (amountMinorUnits * PercentageFeeBps + 5000) / 10000;
         return FixedFeeMinorUnits + percentageFee;
     }
 }

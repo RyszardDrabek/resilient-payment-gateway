@@ -121,7 +121,8 @@ public partial class AddReconciliationAndPayouts : Migration
             name: "IX_PayoutItems_PaymentId",
             schema: "pay",
             table: "PayoutItems",
-            column: "PaymentId");
+            column: "PaymentId",
+            unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_PayoutItems_PayoutBatchId",

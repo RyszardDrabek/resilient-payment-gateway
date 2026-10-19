@@ -26,7 +26,8 @@ public sealed class FeeCalculator(IFeeScheduleRepository feeScheduleRepository) 
             return schedule.CalculateFee(amountMinorUnits);
         }
 
-        var percentageFee = (amountMinorUnits * DefaultPercentageBps) / 10000;
+        // Half-up rounding for basis points percentage fee: (amount * bps + 5000) / 10000
+        var percentageFee = (amountMinorUnits * DefaultPercentageBps + 5000) / 10000;
         return DefaultFixedFee + percentageFee;
     }
 }

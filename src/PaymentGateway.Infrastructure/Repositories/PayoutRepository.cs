@@ -29,6 +29,23 @@ public sealed class PayoutRepository(PaymentDbContext dbContext) : IPayoutReposi
             .ToListAsync(ct);
     }
 
+    public async Task<HashSet<string>> GetPaidOutPaymentIdsAsync(IEnumerable<string> paymentIds, CancellationToken ct = default)
+    {
+        var idList = paymentIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        var paidOut = await dbContext.PayoutItems
+            .Where(pi => idList.Contains(pi.PaymentId))
+            .Select(pi => pi.PaymentId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return paidOut.ToHashSet();
+    }
+
     public async Task SaveAsync(MerchantPayoutBatch batch, CancellationToken ct = default)
     {
         var exists = await dbContext.PayoutBatches.AnyAsync(b => b.Id == batch.Id, ct);
