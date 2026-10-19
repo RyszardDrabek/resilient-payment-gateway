@@ -64,24 +64,31 @@ public sealed class RecurringAndSubscriptionsIntegrationTests : IAsyncLifetime
 
     private WebApplicationFactory<Program> CreateFactory()
     {
+        var connectionString = _dockerAvailable && _postgres is not null
+            ? _postgres.GetConnectionString()
+            : "Host=localhost;Database=dummy;Username=dummy;Password=dummy";
+
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("ConnectionStrings:PaymentDb", connectionString);
+            builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
+            builder.UseSetting("RabbitMq:UseInMemory", "true");
+            builder.UseSetting("Auth:JwtSigningKey", JwtKey);
+
             builder.ConfigureAppConfiguration((_, config) =>
             {
                 var dict = new Dictionary<string, string?>
                 {
-                    ["Jwt:Key"] = JwtKey,
+                    ["ConnectionStrings:PaymentDb"] = connectionString,
+                    ["ConnectionStrings:RiskDb"] = connectionString,
+                    ["Auth:JwtSigningKey"] = JwtKey,
+                    ["Auth:Issuer"] = "payment-gateway",
+                    ["Auth:Audience"] = "payment-gateway",
                     ["RabbitMq:UseInMemory"] = "true",
                     ["Adyen:IsLiveMode"] = "false",
                     ["Adyen:AutoStartMockServer"] = "true",
                     ["PaymentGateway:ActiveChannel"] = "ADYEN"
                 };
-
-                if (_dockerAvailable && _postgres is not null)
-                {
-                    dict["ConnectionStrings:PaymentDb"] = _postgres.GetConnectionString();
-                    dict["ConnectionStrings:RiskDb"] = _postgres.GetConnectionString();
-                }
 
                 config.AddInMemoryCollection(dict);
             });
@@ -96,13 +103,15 @@ public sealed class RecurringAndSubscriptionsIntegrationTests : IAsyncLifetime
         {
             Subject = new ClaimsIdentity([
                 new Claim(ClaimTypes.NameIdentifier, partyId),
+                new Claim("sub", partyId),
+                new Claim("party_id", partyId),
                 new Claim("merchant_id", partyId),
-                new Claim("role", "MerchantOperator"),
+                new Claim("role", "merchant"),
                 new Claim("scope", "payments:write payments:read")
             ]),
             Expires = DateTime.UtcNow.AddHours(1),
-            Issuer = "PaymentGateway",
-            Audience = "PaymentGateway",
+            Issuer = "payment-gateway",
+            Audience = "payment-gateway",
             SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
         });
         return handler.WriteToken(token);
