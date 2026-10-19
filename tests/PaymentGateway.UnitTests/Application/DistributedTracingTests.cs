@@ -145,6 +145,86 @@ public sealed class DistributedTracingTests
         headerValue.Should().StartWith($"00-{simulatedTraceId}-");
     }
 
+    [Fact]
+    public async Task TracingPipelineBehavior_WhenNextThrows_SetsActivityStatusError()
+    {
+        using var activityListener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == PaymentTracing.ActivitySourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
+        };
+        ActivitySource.AddActivityListener(activityListener);
+
+        Activity? capturedActivity = null;
+        var behavior = new TracingPipelineBehavior<TestSampleCommand, string>();
+        RequestHandlerDelegate<string> next = _ =>
+        {
+            capturedActivity = Activity.Current;
+            throw new InvalidOperationException("Simulated pipeline failure");
+        };
+
+        var act = () => behavior.Handle(new TestSampleCommand("cmd_err"), next, CancellationToken.None);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+
+        capturedActivity.Should().NotBeNull();
+        capturedActivity!.Status.Should().Be(ActivityStatusCode.Error);
+        capturedActivity.StatusDescription.Should().Be("Simulated pipeline failure");
+        capturedActivity.Events.Should().Contain(e => e.Name == "exception");
+    }
+
+    [Fact]
+    public async Task MerchantWebhookDispatcher_WhenExhausted_SetsActivityStatusError()
+    {
+        using var activityListener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == PaymentTracing.ActivitySourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
+        };
+        ActivitySource.AddActivityListener(activityListener);
+
+        Activity? capturedActivity = null;
+        var handler = new DelegatingHandlerStub((req, ct) =>
+        {
+            capturedActivity = Activity.Current;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        });
+
+        using var httpClient = new HttpClient(handler);
+        var repo = new FakeWebhookSubscriptionRepository();
+        var signer = new FakeWebhookSigner();
+
+        var options = Microsoft.Extensions.Options.Options.Create(new MerchantWebhookOptions
+        {
+            DefaultEndpointUrl = "https://merchant.example.com/webhook",
+            DefaultSecretKey = "whsec_test123",
+            MaxRetryAttempts = 1,
+            TimeoutSeconds = 5
+        });
+
+        var dispatcher = new MerchantWebhookDispatcher(
+            repo,
+            httpClient,
+            signer,
+            options,
+            NullLogger<MerchantWebhookDispatcher>.Instance);
+
+        var evt = new PaymentLifecycleEvent(
+            EventId: "evt_err",
+            PaymentId: "pay_err",
+            PartyId: "merchant_err",
+            Outcome: "captured",
+            Amount: 1000,
+            Currency: "EUR",
+            Version: 1,
+            OccurredAt: DateTimeOffset.UtcNow);
+
+        var result = await dispatcher.DispatchAsync(evt, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        capturedActivity.Should().NotBeNull();
+        capturedActivity!.Status.Should().Be(ActivityStatusCode.Error);
+    }
+
     private sealed class DelegatingHandlerStub(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
         : DelegatingHandler
     {

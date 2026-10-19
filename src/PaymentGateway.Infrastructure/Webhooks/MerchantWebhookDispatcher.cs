@@ -124,6 +124,8 @@ public sealed class MerchantWebhookDispatcher(
                         "Webhook delivered successfully for event {EventId} (status {StatusCode}, attempt {Attempt})",
                         lifecycleEvent.EventId, (int)response.StatusCode, attempt);
 
+                    activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
+
                     return new MerchantWebhookDispatchResult(
                         Success: true,
                         EndpointUrl: endpointUrl,
@@ -169,6 +171,7 @@ public sealed class MerchantWebhookDispatcher(
         }
 
         PaymentGateway.Application.Metrics.PaymentMetrics.RecordWebhookDispatch("exhausted");
+        activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, lastError ?? "Delivery attempts exhausted.");
 
         logger.LogError(
             "Webhook delivery exhausted all {MaxAttempts} attempts for event {EventId} to {Url}. Last error: {LastError}",

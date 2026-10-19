@@ -18,6 +18,21 @@ public sealed class TracingPipelineBehavior<TRequest, TResponse> : IPipelineBeha
 
         activity?.SetTag("mediatr.request", requestName);
 
-        return await next();
+        try
+        {
+            var response = await next();
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName },
+                { "exception.message", ex.Message }
+            }));
+            throw;
+        }
     }
 }

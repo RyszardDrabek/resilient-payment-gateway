@@ -86,12 +86,26 @@ public sealed class OutboxDispatcherService(
                         activity?.SetTag("payment.id", evt.PaymentId);
                         activity?.SetTag("payment.party_id", evt.PartyId);
 
-                        var sw = System.Diagnostics.Stopwatch.StartNew();
-                        await publishEndpoint.Publish(evt, ct);
-                        sw.Stop();
+                        try
+                        {
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            await publishEndpoint.Publish(evt, ct);
+                            sw.Stop();
 
-                        PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDispatch("success");
-                        PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDuration(sw.Elapsed.TotalSeconds);
+                            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
+                            PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDispatch("success");
+                            PaymentGateway.Application.Metrics.PaymentMetrics.RecordOutboxDuration(sw.Elapsed.TotalSeconds);
+                        }
+                        catch (Exception ex)
+                        {
+                            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
+                            activity?.AddEvent(new System.Diagnostics.ActivityEvent("exception", tags: new System.Diagnostics.ActivityTagsCollection
+                            {
+                                { "exception.type", ex.GetType().FullName },
+                                { "exception.message", ex.Message }
+                            }));
+                            throw;
+                        }
                     }
                 }
 
