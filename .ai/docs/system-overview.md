@@ -119,6 +119,25 @@ Payments left **unresolved** after Adyen reconciliation window or Web3 finality 
 - **Operator query API:** authenticated read (`GET /api/v1/payments/unresolved` via JWT `role: merchant` or `role: risk`/`ops`) listing unresolved payments filtered by channel and minimum age in minutes (ADR-012).
 - **Mutation:** only via apply-acquirer-outcome when channel truth arrives (ADR-002).
 
+## Distributed Tracing & W3C Context Propagation
+
+End-to-end distributed tracing is implemented natively via OpenTelemetry and the W3C Trace Context specification ([ADR-015](adr/adr-015-distributed-tracing-w3c-context-propagation.md)):
+- **Edge API & MediatR:** ASP.NET Core instrumentation and MediatR `TracingPipelineBehavior` generate spans tagged with `mediatr.request` and record `ActivityStatusCode.Error` on failure.
+- **Transactional Outbox Lineage:** Ambient trace context (`Activity.Current?.Id`) is serialized into `pay.OutboxMessages` as `TraceParent`. `OutboxDispatcherService` extracts and resumes the span (`Outbox.Dispatch`) across asynchronous worker execution without context loss.
+- **Merchant Webhooks:** Outbound dispatches propagate the standard `traceparent` HTTP header to merchant endpoints.
+- **Masking & Export:** Export through OTLP to Jaeger (`jaeger:4317`) with strict PAN/token redaction (`AddInstrumentMasking`).
+
+## Operational Observability & Alerting Architecture
+
+Real-time telemetry and cluster alerting are managed via Prometheus, Alertmanager, and an in-portal operational cockpit ([ADR-016](adr/adr-016-operational-observability-alerting-console.md)):
+- **PromQL Alert Rules (`compose/alert.rules.yml`):**
+  - `HighPaymentDeclineRate`: Triggers if payment decline rate exceeds 5% over 5m.
+  - `AcquirerSettlementLatencySlaBreach`: Triggers if acquirer p95 latency exceeds 2.0s over 5m.
+  - `MerchantWebhookDlqSpike`: Triggers on elevated webhook DLQ exhaustion or replay volume.
+  - `OutboxDeliveryDelayOrFailure`: Triggers on outbox drain delays or dead-letter accumulation.
+- **Alertmanager Routing (`compose/alertmanager.yml`):** Deduplicates, groups, and routes firing alerts.
+- **Portal Observability Cockpit:** Exposes `GET /api/v1/ops/observability` aggregating cluster health, active alerts, latency percentiles, and queue backlogs with direct remediation links to DLQ and Unresolved consoles. Independent resources are evaluated concurrently via `Task.WhenAll`.
+
 ## MVP knobs (config, not SLAs)
 
 | Knob | Default (illustrative) | Owner |
@@ -151,5 +170,7 @@ Payments left **unresolved** after Adyen reconciliation window or Web3 finality 
 | [ADR-012](adr/adr-012-operational-hardening-outbox-webhooks-query.md) | Operational hardening — outbox retention, merchant outbound webhooks, and unresolved query |
 | [ADR-013](adr/adr-013-web-portal-architecture-hosting-cors.md) | Web Portal Architecture, Docker Hosting & CORS Integration |
 | [ADR-014](adr/adr-014-design-system.md) | Design System |
+| [ADR-015](adr/adr-015-distributed-tracing-w3c-context-propagation.md) | Distributed Tracing and W3C Trace Context Propagation |
+| [ADR-016](adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
 
 > ADR-008 intentionally unused — compose-only hosting is recorded in this overview, not a separate ADR.

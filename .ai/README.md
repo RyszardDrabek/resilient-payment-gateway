@@ -46,5 +46,7 @@
 | [ADR-012](docs/adr/adr-012-operational-hardening-outbox-webhooks-query.md) | Operational hardening — outbox retention, merchant outbound webhooks, and unresolved query |
 | [ADR-013](docs/adr/adr-013-web-portal-architecture-hosting-cors.md) | Web Portal Architecture, Docker Hosting & CORS Integration |
 | [ADR-014](docs/adr/adr-014-design-system.md) | Design System |
+| [ADR-015](docs/adr/adr-015-distributed-tracing-w3c-context-propagation.md) | Distributed Tracing and W3C Trace Context Propagation |
+| [ADR-016](docs/adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
 
 Standards: [definition-of-done.md](standards/definition-of-done.md), [coding-conventions.md](standards/coding-conventions.md), [stack-context.md](standards/stack-context.md).
