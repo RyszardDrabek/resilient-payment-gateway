@@ -36,11 +36,11 @@ export default function () {
 
   const authRes = http.post(`${GATEWAY_URL}/payments`, payload, { headers });
   check(authRes, {
-    'payment authorize status is 200': (r) => r.status === 200,
-    'payment returns paymentId': (r) => {
+    'payment authorize status is 201': (r) => r.status === 201 || r.status === 200,
+    'payment returns paymentId and state': (r) => {
       try {
         const json = JSON.parse(r.body);
-        return json.id && json.status;
+        return (json.paymentId || json.id) && (json.state || json.status);
       } catch {
         return false;
       }

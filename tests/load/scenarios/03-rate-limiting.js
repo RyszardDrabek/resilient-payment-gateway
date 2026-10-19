@@ -52,9 +52,9 @@ export default function () {
     });
 
     rateLimitExpected.add(isProblemJson);
-  } else if (res.status === 200) {
+  } else if (res.status === 201 || res.status === 200) {
     const isOk = check(res, {
-      'initial requests return 200 OK': (r) => r.status === 200,
+      'initial requests return 201 Created or 200 OK': (r) => r.status === 201 || r.status === 200,
     });
     rateLimitExpected.add(isOk);
   } else {

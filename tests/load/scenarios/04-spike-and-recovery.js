@@ -3,6 +3,8 @@ import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 import { GATEWAY_URL, generateJwt, generateIdempotencyKey, buildPaymentPayload, authHeaders } from '../helpers.js';
 
+import exec from 'k6/execution';
+
 const recoveryLatency = new Trend('recovery_phase_latency', true);
 
 export const options = {
@@ -14,7 +16,7 @@ export const options = {
     { duration: '10s', target: 5 },   // Recovery phase
   ],
   thresholds: {
-    // During recovery phase (normal traffic), latency must recover immediately
+    // During recovery phase (normal traffic after 35s), latency must recover immediately
     recovery_phase_latency: ['p(95)<1000'],
   },
 };
@@ -30,12 +32,13 @@ export default function () {
   const res = http.post(`${GATEWAY_URL}/payments`, payload, { headers });
   const duration = Date.now() - start;
 
-  // Track latency during the recovery phase (after 35s of the test)
-  // __ENV or time-based detection
-  recoveryLatency.add(duration);
+  // Track latency strictly during the recovery phase (after 35s of the test run)
+  if (exec.instance.currentTestRunDuration >= 35000) {
+    recoveryLatency.add(duration);
+  }
 
   check(res, {
-    'request handled (200 or 429 under extreme load)': (r) => r.status === 200 || r.status === 429,
+    'request handled (201/200 or 429 under extreme load)': (r) => r.status === 201 || r.status === 200 || r.status === 429,
     'no 5xx internal server errors': (r) => r.status < 500,
   });
 

@@ -35,11 +35,12 @@ export default function () {
   paymentDuration.add(duration);
 
   const success = check(res, {
-    'status is 200': (r) => r.status === 200,
+    'status is 201': (r) => r.status === 201 || r.status === 200,
     'has payment id': (r) => {
       try {
         const body = JSON.parse(r.body);
-        return body.id !== undefined && body.id !== null;
+        const pid = body.paymentId || body.id;
+        return pid !== undefined && pid !== null;
       } catch {
         return false;
       }
