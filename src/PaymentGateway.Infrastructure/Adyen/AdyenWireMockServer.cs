@@ -141,6 +141,46 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                     // Ignore JSON parsing failures in stub
                 }
 
+                // Stored token simulation
+                string? storedToken = null;
+                if (body.Contains("\"storePaymentMethod\":true", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("\"storePaymentMethod\": true", StringComparison.OrdinalIgnoreCase))
+                {
+                    storedToken = $"adyen_tok_{Guid.NewGuid():N}";
+                }
+
+                // MIT Recurring simulation (ContAuth)
+                if (body.Contains("ContAuth", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (body.Contains("invalid", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var refuseResponse = new AdyenPaymentResponse(
+                            pspRef,
+                            "Refused",
+                            "InvalidCard",
+                            merchantRef);
+                        return CreateJsonResponse(200, refuseResponse);
+                    }
+
+                    if (body.Contains("expired", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var refuseResponse = new AdyenPaymentResponse(
+                            pspRef,
+                            "Refused",
+                            "ExpiredCard",
+                            merchantRef);
+                        return CreateJsonResponse(200, refuseResponse);
+                    }
+
+                    var mitSuccessResponse = new AdyenPaymentResponse(
+                        pspRef,
+                        "Authorised",
+                        null,
+                        merchantRef,
+                        StoredPaymentMethodId: storedToken);
+                    return CreateJsonResponse(200, mitSuccessResponse);
+                }
+
                 // Timeout simulation
                 if (body.Contains("timeout", StringComparison.OrdinalIgnoreCase))
                 {
@@ -189,7 +229,8 @@ public sealed class AdyenWireMockServer : IHostedService, IDisposable
                     pspRef,
                     "Authorised",
                     null,
-                    merchantRef);
+                    merchantRef,
+                    StoredPaymentMethodId: storedToken);
 
                 return CreateJsonResponse(200, successResponse);
             }));

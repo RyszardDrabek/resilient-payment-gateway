@@ -13,4 +13,5 @@ public sealed record AdyenPaymentResponse(
     [property: JsonPropertyName("resultCode")] string ResultCode,
     [property: JsonPropertyName("refusalReason")] string? RefusalReason = null,
     [property: JsonPropertyName("merchantReference")] string? MerchantReference = null,
-    [property: JsonPropertyName("action")] AdyenAction? Action = null);
+    [property: JsonPropertyName("action")] AdyenAction? Action = null,
+    [property: JsonPropertyName("storedPaymentMethodId")] string? StoredPaymentMethodId = null);

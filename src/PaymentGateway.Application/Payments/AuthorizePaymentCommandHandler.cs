@@ -12,7 +12,8 @@ namespace PaymentGateway.Application.Payments;
 public sealed class AuthorizePaymentCommandHandler(
     ISettlementPort settlementPort,
     IPaymentRepository repository,
-    IIdempotencyRepository idempotencyRepository) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
+    IIdempotencyRepository idempotencyRepository,
+    IPaymentMethodRepository? paymentMethodRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(AuthorizePaymentCommand request, CancellationToken ct)
     {
@@ -76,6 +77,26 @@ public sealed class AuthorizePaymentCommandHandler(
             await idempotencyRepository.AddAsync(record, ct);
         }
 
+        string? storedTokenString = null;
+        if (!string.IsNullOrWhiteSpace(request.PaymentMethodId) && paymentMethodRepository is not null)
+        {
+            var storedMethod = await paymentMethodRepository.GetByIdAsync(request.PaymentMethodId, ct);
+            if (storedMethod is null || storedMethod.Status != PaymentMethodStatus.Active)
+            {
+                throw new InvalidOperationException($"Payment method '{request.PaymentMethodId}' not found or is revoked.");
+            }
+
+            if (storedMethod.IsExpired())
+            {
+                throw new InvalidOperationException($"Payment method '{request.PaymentMethodId}' is expired.");
+            }
+
+            storedTokenString = storedMethod.Token;
+        }
+
+        var isMit = string.Equals(request.TransactionOrigin, "MIT", StringComparison.OrdinalIgnoreCase);
+        var originEnum = isMit ? TransactionOrigin.Mit : TransactionOrigin.Cit;
+
         SettlementResult settlement;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
@@ -86,6 +107,9 @@ public sealed class AuthorizePaymentCommandHandler(
                 request.Currency,
                 request.SettlementChannel,
                 request.IdempotencyKey,
+                storedTokenString,
+                isMit,
+                request.StorePaymentMethod,
                 ct);
         }
         catch (Exception ex)
@@ -108,6 +132,28 @@ public sealed class AuthorizePaymentCommandHandler(
                 : settlement.IsUnanswered
                     ? Payment.CreatePending(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason)
                     : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
+
+        payment.SetRecurringDetails(originEnum, request.PaymentMethodId, request.SubscriptionId);
+
+        // If storePaymentMethod was requested and token was returned, save PaymentMethodToken
+        if (request.StorePaymentMethod &&
+            settlement.IsAuthorized &&
+            !string.IsNullOrWhiteSpace(settlement.StoredPaymentMethodId) &&
+            paymentMethodRepository is not null)
+        {
+            var newMethod = new PaymentMethodToken(
+                $"pm_{Guid.NewGuid():N}",
+                request.PartyId,
+                payment.SettlementChannel,
+                "visa",
+                "**** **** **** 1111",
+                12,
+                DateTimeOffset.UtcNow.Year + 3,
+                settlement.StoredPaymentMethodId);
+
+            await paymentMethodRepository.SaveAsync(newMethod, ct);
+            payment.SetRecurringDetails(originEnum, newMethod.Id, request.SubscriptionId);
+        }
 
         await repository.AddAsync(payment, ct);
 

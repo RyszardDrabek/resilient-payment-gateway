@@ -8,4 +8,5 @@ public sealed record AdyenPaymentMethod(
     [property: JsonPropertyName("expiryMonth")] string? ExpiryMonth = null,
     [property: JsonPropertyName("expiryYear")] string? ExpiryYear = null,
     [property: JsonPropertyName("cvc")] string? Cvc = null,
-    [property: JsonPropertyName("holderName")] string? HolderName = null);
+    [property: JsonPropertyName("holderName")] string? HolderName = null,
+    [property: JsonPropertyName("storedPaymentMethodId")] string? StoredPaymentMethodId = null);

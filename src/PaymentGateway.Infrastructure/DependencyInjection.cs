@@ -83,6 +83,8 @@ public static class DependencyInjection
         services.AddScoped<PaymentGateway.Domain.Ports.IMerchantWebhookSubscriptionRepository, PaymentGateway.Infrastructure.Repositories.MerchantWebhookSubscriptionRepository>();
         services.AddScoped<PaymentGateway.Domain.Ports.IMerchantApiKeyRepository, PaymentGateway.Infrastructure.Repositories.MerchantApiKeyRepository>();
         services.AddScoped<PaymentGateway.Domain.Ports.IMerchantWebhookDeadLetterRepository, PaymentGateway.Infrastructure.Repositories.MerchantWebhookDeadLetterRepository>();
+        services.AddScoped<PaymentGateway.Domain.Ports.IPaymentMethodRepository, PaymentGateway.Infrastructure.Repositories.PaymentMethodRepository>();
+        services.AddScoped<PaymentGateway.Domain.Ports.ISubscriptionRepository, PaymentGateway.Infrastructure.Repositories.SubscriptionRepository>();
         services.AddHttpClient();
         services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookDispatcher, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookDispatcher>();
         services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookSimulator, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookSimulator>();

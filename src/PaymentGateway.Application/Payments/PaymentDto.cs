@@ -14,4 +14,7 @@ public record PaymentDto(
     long RemainingAuthorizedAmount = 0,
     long RefundedAmount = 0,
     long RemainingRefundableAmount = 0,
-    ThreeDsActionDto? Action = null);
+    ThreeDsActionDto? Action = null,
+    string? TransactionOrigin = null,
+    string? PaymentMethodId = null,
+    string? SubscriptionId = null);

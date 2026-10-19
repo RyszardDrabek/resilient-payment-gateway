@@ -8,13 +8,18 @@ public record SettlementResult(
     bool IsUnanswered = false,
     string? MerchantReference = null,
     bool IsConfigurationFail = false,
-    PaymentGateway.Domain.Entities.ThreeDsActionDetails? ThreeDsAction = null)
+    PaymentGateway.Domain.Entities.ThreeDsActionDetails? ThreeDsAction = null,
+    string? StoredPaymentMethodId = null)
 {
     public bool IsSuccessful => IsAuthorized && !IsUnanswered && !IsConfigurationFail && !IsActionRequired;
     public bool IsActionRequired => ThreeDsAction != null;
 
-    public static SettlementResult Success(string channel, string channelReference, string? merchantReference = null) =>
-        new(true, channel, channelReference, null, false, merchantReference, false);
+    public static SettlementResult Success(
+        string channel,
+        string channelReference,
+        string? merchantReference = null,
+        string? storedPaymentMethodId = null) =>
+        new(true, channel, channelReference, null, false, merchantReference, false, null, storedPaymentMethodId);
 
     public static SettlementResult ActionRequired(
         string channel,

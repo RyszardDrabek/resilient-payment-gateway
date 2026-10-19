@@ -53,12 +53,24 @@ public sealed class AdyenSettlementPort : ISettlementPort
         CancellationToken ct = default) =>
         AuthorizeAsync(partyId, amount, currency, channel, null, ct);
 
+    public Task<SettlementResult> AuthorizeAsync(
+        string partyId,
+        long amount,
+        string currency,
+        string? channel,
+        string? idempotencyKey,
+        CancellationToken ct = default) =>
+        AuthorizeAsync(partyId, amount, currency, channel, idempotencyKey, null, false, false, ct);
+
     public async Task<SettlementResult> AuthorizeAsync(
         string partyId,
         long amount,
         string currency,
         string? channel,
         string? idempotencyKey,
+        string? storedPaymentMethodId,
+        bool isRecurringMit = false,
+        bool storePaymentMethod = false,
         CancellationToken ct = default)
     {
         var resolvedChannel = !string.IsNullOrWhiteSpace(channel) ? channel : "ADYEN";
@@ -77,7 +89,7 @@ public sealed class AdyenSettlementPort : ISettlementPort
 
         return await _pipeline.ExecuteAsync(async cancellationToken =>
         {
-            return await ExecuteSingleAuthorizeAttemptAsync(partyId, amount, currency, resolvedChannel, merchantReference, cancellationToken);
+            return await ExecuteSingleAuthorizeAttemptAsync(partyId, amount, currency, resolvedChannel, merchantReference, storedPaymentMethodId, isRecurringMit, storePaymentMethod, cancellationToken);
         }, ct);
     }
 
@@ -87,6 +99,9 @@ public sealed class AdyenSettlementPort : ISettlementPort
         string currency,
         string resolvedChannel,
         string merchantReference,
+        string? storedPaymentMethodId,
+        bool isRecurringMit,
+        bool storePaymentMethod,
         CancellationToken ct)
     {
         // Configure request instrument fields (AC-4) and mock triggers
@@ -98,17 +113,25 @@ public sealed class AdyenSettlementPort : ISettlementPort
         var cardNumber = isChallenge ? "4111111111110002" : (isDecline ? "4111111111110003" : "4111111111111111");
         var refString = isTimeout ? $"{merchantReference}_timeout" : (isServerError ? $"{merchantReference}_server_error" : merchantReference);
 
-        var paymentRequest = new AdyenPaymentRequest(
-            new AdyenAmount(currency, amount),
-            _options.MerchantAccount,
-            refString,
-            new AdyenPaymentMethod(
+        AdyenPaymentMethod paymentMethod = !string.IsNullOrWhiteSpace(storedPaymentMethodId)
+            ? new AdyenPaymentMethod(Type: "scheme", StoredPaymentMethodId: storedPaymentMethodId)
+            : new AdyenPaymentMethod(
                 Type: "scheme",
                 Number: cardNumber,
                 ExpiryMonth: "03",
                 ExpiryYear: "2030",
                 Cvc: "737",
-                HolderName: "J. Doe"));
+                HolderName: "J. Doe");
+
+        var paymentRequest = new AdyenPaymentRequest(
+            new AdyenAmount(currency, amount),
+            _options.MerchantAccount,
+            refString,
+            paymentMethod,
+            StorePaymentMethod: storePaymentMethod ? true : null,
+            ShopperInteraction: isRecurringMit ? "ContAuth" : (storePaymentMethod ? "Ecommerce" : null),
+            RecurringProcessingModel: isRecurringMit ? "Subscription" : (storePaymentMethod ? "Subscription" : null),
+            ShopperReference: partyId);
 
         try
         {
@@ -166,7 +189,8 @@ public sealed class AdyenSettlementPort : ISettlementPort
                 return SettlementResult.Success(
                     resolvedChannel,
                     adyenResponse.PspReference,
-                    merchantReference);
+                    merchantReference,
+                    adyenResponse.StoredPaymentMethodId);
             }
 
             if (string.Equals(adyenResponse.ResultCode, "ChallengeShopper", StringComparison.OrdinalIgnoreCase) ||

@@ -226,6 +226,8 @@ app.UseRateLimiter();
 app.MapGet("/", () => Results.Ok(new { service = "PaymentGateway.Api", status = "ok" }));
 app.MapPrometheusScrapingEndpoint().AllowAnonymous();
 app.MapPaymentEndpoints();
+app.MapPaymentMethodEndpoints();
+app.MapSubscriptionEndpoints();
 app.MapUnresolvedPaymentEndpoints();
 app.MapAdyenWebhookEndpoints();
 app.MapOpsReconciliationEndpoints();
