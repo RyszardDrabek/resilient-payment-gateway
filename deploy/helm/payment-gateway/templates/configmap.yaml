@@ -17,4 +17,6 @@ data:
   OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/protobuf"
   Alertmanager__Url: {{ .Values.config.alertmanager.url | quote }}
   Prometheus__Url: {{ .Values.config.prometheus.url | quote }}
-  Cors__AllowedOrigins__0: {{ index .Values.config.cors.allowedOrigins 0 | quote }}
+  {{- range $index, $origin := .Values.config.cors.allowedOrigins }}
+  Cors__AllowedOrigins__{{ $index }}: {{ $origin | quote }}
+  {{- end }}

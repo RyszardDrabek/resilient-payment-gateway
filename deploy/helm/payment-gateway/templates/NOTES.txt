@@ -7,9 +7,9 @@ To verify that the payment gateway pods are running:
 
 To check the API status:
 {{- if .Values.ingress.enabled }}
-  curl -k https://{{ (index .Values.ingress.hosts 0).host }}/healthz
+  curl -k https://{{ (index .Values.ingress.hosts 0).host }}/health
 {{- else }}
   export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "payment-gateway.name" . }},app.kubernetes.io/component=api" -o jsonpath="{.items[0].metadata.name}")
   kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:8080
-  curl http://localhost:8080/healthz
+  curl http://localhost:8080/health
 {{- end }}

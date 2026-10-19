@@ -35,7 +35,7 @@ spec:
               service:
                 name: {{ include "payment-gateway.fullname" $ }}-{{ .service }}
                 port:
-                  number: {{ ternary 8080 80 (eq .service "api") }}
+                  number: {{ eq .service "api" | ternary $.Values.api.service.port $.Values.portal.service.port }}
           {{- end }}
     {{- end }}
 {{- end }}
