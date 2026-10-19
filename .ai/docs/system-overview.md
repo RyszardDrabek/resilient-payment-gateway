@@ -156,8 +156,8 @@ flowchart LR
     Handlers --> PaymentAggregate
     Handlers --> Ports
     
-    Ports <|.. Repos
-    Ports <|.. RoutingPort
+    Repos -.->|implements| Ports
+    RoutingPort -.->|implements| Ports
     RoutingPort --> AdyenAdapter
     RoutingPort --> Web3Adapter
     Repos --> OutboxSvc
