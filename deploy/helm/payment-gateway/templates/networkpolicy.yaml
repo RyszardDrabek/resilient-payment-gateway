@@ -1,0 +1,25 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "payment-gateway.fullname" . }}-netpol
+  labels:
+    {{- include "payment-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "payment-gateway.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress traffic to API on 8080 and Portal on 80
+    - ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+  egress:
+    # Allow all egress (DB, RabbitMQ, telemetry, acquirers, DNS)
+    - {}
+{{- end }}

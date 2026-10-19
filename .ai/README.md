@@ -48,5 +48,6 @@
 | [ADR-014](docs/adr/adr-014-design-system.md) | Design System |
 | [ADR-015](docs/adr/adr-015-distributed-tracing-w3c-context-propagation.md) | Distributed Tracing and W3C Trace Context Propagation |
 | [ADR-016](docs/adr/adr-016-operational-observability-alerting-console.md) | Real-time Operational Observability and Alerting Console |
+| [ADR-017](docs/adr/adr-017-cicd-containerization-and-kubernetes-deployment.md) | CI/CD Pipeline Automation, Containerization & Kubernetes Deployment |
 
 Standards: [definition-of-done.md](standards/definition-of-done.md), [coding-conventions.md](standards/coding-conventions.md), [stack-context.md](standards/stack-context.md).

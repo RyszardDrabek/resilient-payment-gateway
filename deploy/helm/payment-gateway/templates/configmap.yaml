@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "payment-gateway.fullname" . }}-config
+  labels:
+    {{- include "payment-gateway.labels" . | nindent 4 }}
+data:
+  ASPNETCORE_ENVIRONMENT: {{ .Values.global.environment | quote }}
+  ASPNETCORE_URLS: "http://+:8080"
+  Database__AutoMigrate: {{ .Values.config.database.autoMigrate | quote }}
+  RabbitMq__UseInMemory: {{ .Values.config.rabbitmq.useInMemory | quote }}
+  RabbitMq__Host: {{ .Values.config.rabbitmq.host | quote }}
+  RabbitMq__Port: {{ .Values.config.rabbitmq.port | quote }}
+  RabbitMq__Username: {{ .Values.config.rabbitmq.username | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.telemetry.otlpEndpoint | quote }}
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: {{ .Values.config.telemetry.otlpLogsEndpoint | quote }}
+  OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/protobuf"
+  Alertmanager__Url: {{ .Values.config.alertmanager.url | quote }}
+  Prometheus__Url: {{ .Values.config.prometheus.url | quote }}
+  Cors__AllowedOrigins__0: {{ index .Values.config.cors.allowedOrigins 0 | quote }}
