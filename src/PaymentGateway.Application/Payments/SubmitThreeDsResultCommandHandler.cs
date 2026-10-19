@@ -20,11 +20,6 @@ public sealed class SubmitThreeDsResultCommandHandler(
 
         if (payment.State != PaymentState.RequiresAction)
         {
-            if (payment.State is PaymentState.Authorized or PaymentState.Declined)
-            {
-                return PaymentMapper.ToDto(payment);
-            }
-
             throw new PaymentInvalidStateException(payment.State, "SubmitThreeDsResult");
         }
 
