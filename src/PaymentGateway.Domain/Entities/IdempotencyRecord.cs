@@ -61,6 +61,11 @@ public sealed class IdempotencyRecord
         LockedUntil = utcNow.Add(effectiveLease);
     }
 
+    public void ExpireLease(DateTimeOffset? expiredAt = null)
+    {
+        LockedUntil = expiredAt ?? DateTimeOffset.UtcNow.AddSeconds(-1);
+    }
+
     public void Complete(int statusCode, string responsePayload, string? paymentId = null)
     {
         Status = IdempotencyStatus.Completed;

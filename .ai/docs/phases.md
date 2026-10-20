@@ -184,5 +184,20 @@
 - **DATA** — Amazon Aurora Serverless v2 PostgreSQL (pgvector compatible) and Amazon MQ RabbitMQ broker with AWS Secrets Manager credentials.
   - _Depends on:_ IAC, EKS, DATA
 
+## Phase 15: chaos-engineering-and-resilience-verification
+
+**Objective:** Validate zero-data-loss, transactional outbox guarantees, and fault-tolerant recovery under network partitions, database transient drops, message broker outages, and acquirer latency spikes using automated chaos engineering and Toxiproxy fault injection.
+**Evaluation criteria:** Automated integration tests in `PaymentGateway.IntegrationTests.Chaos` verify that when PostgreSQL or RabbitMQ suffers transient resets or outages, zero transactions are lost, outbox events queue cleanly in Postgres and catch up upon recovery, Polly retry policies prevent duplicate authorizations, acquirer timeouts trigger circuit breaker / problem details without thread starvation, and k6 chaos load drills achieve 100% data consistency.
+
+### Topics
+
+- **CHAOS** — Network fault injection via Toxiproxy (latency, packet loss, bandwidth limit, TCP reset), automated chaos test fixtures, and chaos drill automation (`tests/chaos/run-chaos-suite.ps1`).
+  - _Depends on:_ CHAOS, EVT
+- **EVT** — Transactional Outbox zero-loss resilience verification under broker partition, automatic queue catchup, and consumer crash redelivery idempotency.
+  - _Depends on:_ EVT, PAY
+- **EDGE** — Acquirer latency degradation handling, timeout problem details, circuit breaker recovery, and k6 chaos resilience scenario.
+  - _Depends on:_ EDGE, PAY
+
+
 
 
