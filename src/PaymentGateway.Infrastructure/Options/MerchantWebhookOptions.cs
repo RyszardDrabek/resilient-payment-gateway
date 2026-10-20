@@ -9,4 +9,6 @@ public sealed class MerchantWebhookOptions
     public int MaxRetryAttempts { get; set; } = 5;
     public double InitialBackoffSeconds { get; set; } = 2.0;
     public int TimeoutSeconds { get; set; } = 5;
+    public int DeadLetterRetentionDays { get; set; } = 90;
+    public int RetentionCleanupIntervalHours { get; set; } = 24;
 }

@@ -13,4 +13,5 @@ public interface IMerchantWebhookDeadLetterRepository
         int pageSize = 50,
         CancellationToken ct = default);
     Task UpdateAsync(MerchantWebhookDeadLetter deadLetter, CancellationToken ct = default);
+    Task<int> CleanupExpiredAsync(DateTimeOffset cutoff, CancellationToken ct = default) => Task.FromResult(0);
 }

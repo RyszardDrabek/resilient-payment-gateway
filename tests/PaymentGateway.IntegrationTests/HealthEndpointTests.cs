@@ -1,6 +1,7 @@
 using System.Net;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Testcontainers.PostgreSql;
 
@@ -98,5 +99,52 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("Healthy");
         content.Should().Contain("PaymentGateway.Api");
+    }
+
+    [Fact]
+    public async Task Health_returns_degraded_when_outbox_queue_has_stale_pending_messages()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var connectionString = _postgres.GetConnectionString();
+
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<PaymentGateway.Infrastructure.Persistence.PaymentDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+
+        await using (var db = new PaymentGateway.Infrastructure.Persistence.PaymentDbContext(options))
+        {
+            await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database);
+            db.OutboxMessages.Add(new PaymentGateway.Infrastructure.Persistence.OutboxMessageRecord
+            {
+                EventType = "PaymentTransitioned",
+                Payload = "{\"test\": true}",
+                CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+                ProcessedAt = null,
+                DeliveryAttempts = 0
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("ConnectionStrings:PaymentDb", connectionString);
+                builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
+                builder.UseSetting("RabbitMq:UseInMemory", "true");
+                builder.UseSetting("Auth:JwtSigningKey", "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!");
+                builder.UseSetting("Outbox:Enabled", "false");
+            });
+
+        var client = factory.CreateClient();
+        var response = await client.GetAsync("/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Contain("Degraded");
+        content.Should().Contain("outboxLagSeconds");
     }
 }

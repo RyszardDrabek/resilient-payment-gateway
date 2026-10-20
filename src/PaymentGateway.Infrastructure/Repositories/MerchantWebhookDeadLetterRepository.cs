@@ -53,4 +53,11 @@ public sealed class MerchantWebhookDeadLetterRepository(PaymentDbContext dbConte
         dbContext.MerchantWebhookDeadLetters.Update(deadLetter);
         await dbContext.SaveChangesAsync(ct);
     }
+
+    public async Task<int> CleanupExpiredAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    {
+        return await dbContext.MerchantWebhookDeadLetters
+            .Where(d => d.FailedAt < cutoff)
+            .ExecuteDeleteAsync(ct);
+    }
 }
