@@ -170,4 +170,19 @@
 - **PORTAL** — OIDC client integration with PKCE, session management, token refresh, login redirect, user profile display, and dev toggle fallback.
   - _Depends on:_ PORTAL, EDGE, IAM
 
+## Phase 14: cloud-infrastructure-terraform-aws
+
+**Objective:** Provision enterprise-grade cloud infrastructure as code (IaC) using Terraform / OpenTofu for AWS, including multi-AZ VPC network isolation, Amazon EKS managed Kubernetes cluster with IRSA, Amazon Aurora Serverless PostgreSQL with pgvector, Amazon MQ for RabbitMQ, and KMS envelope encryption for PCI-DSS compliance.
+**Evaluation criteria:** Modular Terraform manifests (`modules/{vpc,eks,rds,mq,kms}`) pass formatting and validation (`terraform fmt`, `terraform validate`); dev and prod environments configure appropriate tiering (single-NAT vs multi-NAT, spot vs on-demand node groups, deletion protection); outputs seamlessly bind into existing Helm chart `values.yaml` for database connection, broker URI, and IAM role annotations.
+
+### Topics
+
+- **IAC** — Terraform modules for AWS VPC (public, private app, private data), KMS CMK envelope encryption, security group isolation.
+  - _Depends on:_ IAC
+- **EKS** — Amazon EKS managed cluster, managed node groups, OIDC provider, IRSA policies, and VPC CNI / CoreDNS / EBS CSI addons.
+  - _Depends on:_ IAC, EKS
+- **DATA** — Amazon Aurora Serverless v2 PostgreSQL (pgvector compatible) and Amazon MQ RabbitMQ broker with AWS Secrets Manager credentials.
+  - _Depends on:_ IAC, EKS, DATA
+
+
 
