@@ -23,4 +23,8 @@
     <ProjectReference Include="..\PaymentGateway.Application\PaymentGateway.Application.csproj" />
     <ProjectReference Include="..\PaymentGateway.Domain\PaymentGateway.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PaymentGateway.UnitTests" />
+    <InternalsVisibleTo Include="PaymentGateway.IntegrationTests" />
+  </ItemGroup>
 </Project>
