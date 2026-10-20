@@ -297,6 +297,9 @@ public sealed class PaymentDbContext(
 
             b.HasIndex(q => q.ExpiresAt);
             b.HasIndex(q => q.Status);
+            b.HasIndex(q => q.ExpiresAt)
+                .HasDatabaseName("IX_CurrencyQuotes_Active_ExpiresAt")
+                .HasFilter("\"Status\" = 'Active'");
         });
     }
 

@@ -43,6 +43,7 @@ builder.Services.AddHostedService<PaymentGateway.Worker.IdempotencyRetentionClea
 builder.Services.AddHostedService<PaymentGateway.Worker.ThreeDsExpirationWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.SubscriptionBillingWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.DailyReconciliationWorker>();
+builder.Services.AddHostedService<PaymentGateway.Worker.FxQuoteExpirationWorker>();
 
 var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PaymentGateway.Worker");
