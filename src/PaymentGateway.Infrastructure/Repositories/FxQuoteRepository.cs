@@ -23,4 +23,23 @@ public sealed class FxQuoteRepository(PaymentDbContext dbContext) : IFxQuoteRepo
         dbContext.CurrencyQuotes.Update(quote);
         await dbContext.SaveChangesAsync(ct);
     }
+
+    public async Task<int> ExpireStaleQuotesAsync(DateTimeOffset now, int batchSize = 1000, CancellationToken ct = default)
+    {
+        var staleIds = await dbContext.CurrencyQuotes
+            .Where(q => q.Status == PaymentGateway.Domain.Enums.CurrencyQuoteStatus.Active && q.ExpiresAt <= now)
+            .OrderBy(q => q.ExpiresAt)
+            .Select(q => q.Id)
+            .Take(batchSize)
+            .ToListAsync(ct);
+
+        if (staleIds.Count == 0)
+        {
+            return 0;
+        }
+
+        return await dbContext.CurrencyQuotes
+            .Where(q => staleIds.Contains(q.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(q => q.Status, PaymentGateway.Domain.Enums.CurrencyQuoteStatus.Expired), ct);
+    }
 }

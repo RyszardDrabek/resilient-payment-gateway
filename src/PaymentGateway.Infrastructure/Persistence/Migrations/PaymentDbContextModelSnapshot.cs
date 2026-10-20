@@ -152,7 +152,9 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExpiresAt");
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_CurrencyQuotes_Active_ExpiresAt")
+                        .HasFilter("\"Status\" = 'Active'");
 
                     b.HasIndex("Status");
 
