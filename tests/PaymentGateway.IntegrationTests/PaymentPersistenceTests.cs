@@ -278,4 +278,45 @@ public sealed class PaymentPersistenceTests : IAsyncLifetime
 
         await act.Should().ThrowAsync<PaymentGateway.Domain.Exceptions.PaymentConcurrencyException>();
     }
+
+    [Fact]
+    public async Task PaymentDbContext_DirectAddAndSave_AutomaticallyCapturesDomainEventsToOutbox()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .AddInterceptors(new DomainEventsToOutboxInterceptor())
+            .Options;
+
+        await using var dbContext = new PaymentDbContext(options);
+
+        var payment = Payment.Authorize(
+            partyId: "merchant_direct_save",
+            amount: 7500,
+            currency: "PLN",
+            settlementChannel: "MOCK",
+            channelReference: "ref_direct_123");
+
+        payment.DomainEvents.Should().NotBeEmpty();
+
+        // Direct DbContext addition without PaymentRepository to prove interceptor captures events
+        dbContext.Payments.Add(payment);
+        await dbContext.SaveChangesAsync();
+
+        payment.DomainEvents.Should().BeEmpty();
+
+        await using var verifyDb = new PaymentDbContext(options);
+        var outboxMessage = await verifyDb.OutboxMessages
+            .FirstOrDefaultAsync(m => m.Payload.Contains(payment.Id));
+
+        outboxMessage.Should().NotBeNull();
+        outboxMessage!.EventType.Should().Be(PaymentGateway.Application.Events.PaymentLifecycleEvent.EventType);
+        outboxMessage.Payload.Should().Contain("\"Outcome\":\"authorized\"");
+        outboxMessage.Payload.Should().Contain("\"Amount\":7500");
+        outboxMessage.ProcessedAt.Should().BeNull();
+    }
 }

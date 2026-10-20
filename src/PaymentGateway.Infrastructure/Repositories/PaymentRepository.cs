@@ -10,14 +10,12 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
     public async Task AddAsync(Payment payment, CancellationToken ct = default)
     {
         dbContext.Payments.Add(payment);
-        DispatchDomainEventsToOutbox(payment);
         await dbContext.SaveChangesAsync(ct);
     }
 
     public async Task UpdateAsync(Payment payment, CancellationToken ct = default)
     {
         dbContext.Payments.Update(payment);
-        DispatchDomainEventsToOutbox(payment);
         try
         {
             await dbContext.SaveChangesAsync(ct);
@@ -111,37 +109,5 @@ public sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRepo
         }
 
         return await query.OrderBy(p => p.CreatedAt).ToListAsync(ct);
-    }
-
-    private void DispatchDomainEventsToOutbox(Payment payment)
-    {
-        foreach (var domainEvent in payment.DomainEvents)
-        {
-            if (domainEvent is PaymentGateway.Domain.Events.PaymentTransitionDomainEvent transition)
-            {
-                var lifecycleEvent = new PaymentGateway.Application.Events.PaymentLifecycleEvent(
-                    EventId: $"evt_{Guid.NewGuid():N}",
-                    PaymentId: transition.PaymentId,
-                    PartyId: transition.PartyId,
-                    Outcome: transition.Outcome.ToString().ToLowerInvariant(),
-                    Amount: transition.Amount,
-                    Currency: transition.Currency,
-                    Version: transition.Version,
-                    OccurredAt: transition.OccurredAt,
-                    TraceParent: System.Diagnostics.Activity.Current?.Id);
-
-                var outboxMessage = new OutboxMessageRecord
-                {
-                    Id = Guid.NewGuid(),
-                    EventType = PaymentGateway.Application.Events.PaymentLifecycleEvent.EventType,
-                    Payload = System.Text.Json.JsonSerializer.Serialize(lifecycleEvent),
-                    CreatedAt = DateTimeOffset.UtcNow
-                };
-
-                dbContext.OutboxMessages.Add(outboxMessage);
-            }
-        }
-
-        payment.ClearDomainEvents();
     }
 }

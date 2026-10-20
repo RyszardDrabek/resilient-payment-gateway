@@ -289,4 +289,64 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.HasIndex(q => q.Status);
         });
     }
+
+    /// <summary>
+    /// Scans all tracked entities implementing <see cref="PaymentGateway.Domain.Events.IHasDomainEvents"/>,
+    /// serializes domain events to transactional outbox records (<see cref="OutboxMessageRecord"/>), and clears
+    /// domain events on the entities. Idempotent: safe to run multiple times per change-tracking cycle.
+    /// </summary>
+    public void ConvertDomainEventsToOutboxMessages()
+    {
+        var entries = ChangeTracker.Entries<PaymentGateway.Domain.Events.IHasDomainEvents>()
+            .Select(e => e.Entity)
+            .Where(e => e.DomainEvents.Count > 0)
+            .ToList();
+
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var entity in entries)
+        {
+            foreach (var domainEvent in entity.DomainEvents)
+            {
+                if (domainEvent is PaymentGateway.Domain.Events.PaymentTransitionDomainEvent transition)
+                {
+                    var lifecycleEvent = new PaymentGateway.Application.Events.PaymentLifecycleEvent(
+                        EventId: $"evt_{Guid.NewGuid():N}",
+                        PaymentId: transition.PaymentId,
+                        PartyId: transition.PartyId,
+                        Outcome: transition.Outcome.ToString().ToLowerInvariant(),
+                        Amount: transition.Amount,
+                        Currency: transition.Currency,
+                        Version: transition.Version,
+                        OccurredAt: transition.OccurredAt,
+                        TraceParent: System.Diagnostics.Activity.Current?.Id);
+
+                    OutboxMessages.Add(new OutboxMessageRecord
+                    {
+                        Id = Guid.NewGuid(),
+                        EventType = PaymentGateway.Application.Events.PaymentLifecycleEvent.EventType,
+                        Payload = System.Text.Json.JsonSerializer.Serialize(lifecycleEvent),
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+
+            entity.ClearDomainEvents();
+        }
+    }
+
+    public override int SaveChanges()
+    {
+        ConvertDomainEventsToOutboxMessages();
+        return base.SaveChanges();
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        ConvertDomainEventsToOutboxMessages();
+        return await base.SaveChangesAsync(cancellationToken);
+    }
 }
