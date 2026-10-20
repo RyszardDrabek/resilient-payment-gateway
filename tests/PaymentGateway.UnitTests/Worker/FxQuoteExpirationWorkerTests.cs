@@ -55,6 +55,40 @@ public sealed class FxQuoteExpirationWorkerTests
             .WithMessage("Database connectivity failure during FX quote expiration cycle.");
     }
 
+    [Fact]
+    public async Task ProcessCycleAsync_WhenBatchIsFull_DrainsBacklogUpToMaxBatchesPerCycle()
+    {
+        var fakeService = new DrainingFxQuoteExpirationService(batchResults: [100, 100, 100, 42]);
+        var services = new ServiceCollection();
+        services.AddScoped<IFxQuoteExpirationService>(_ => fakeService);
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new FxQuoteExpirationOptions { BatchSize = 100 });
+        var worker = new FxQuoteExpirationWorker(scopeFactory, options, NullLogger<FxQuoteExpirationWorker>.Instance);
+
+        var expired = await worker.ProcessCycleAsync(CancellationToken.None);
+
+        expired.Should().Be(342);
+        fakeService.ExpireCallCount.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task ProcessCycleAsync_WhenBacklogExceedsMaxDrainIterations_CapsAtFiveIterations()
+    {
+        var fakeService = new DrainingFxQuoteExpirationService(batchResults: [100, 100, 100, 100, 100, 100]);
+        var services = new ServiceCollection();
+        services.AddScoped<IFxQuoteExpirationService>(_ => fakeService);
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new FxQuoteExpirationOptions { BatchSize = 100 });
+        var worker = new FxQuoteExpirationWorker(scopeFactory, options, NullLogger<FxQuoteExpirationWorker>.Instance);
+
+        var expired = await worker.ProcessCycleAsync(CancellationToken.None);
+
+        expired.Should().Be(500);
+        fakeService.ExpireCallCount.Should().Be(5);
+    }
+
     private sealed class FakeFxQuoteExpirationService(int expiredCount) : IFxQuoteExpirationService
     {
         public int ExpireCallCount { get; private set; }
@@ -63,6 +97,18 @@ public sealed class FxQuoteExpirationWorkerTests
         {
             ExpireCallCount++;
             return Task.FromResult(expiredCount);
+        }
+    }
+
+    private sealed class DrainingFxQuoteExpirationService(int[] batchResults) : IFxQuoteExpirationService
+    {
+        public int ExpireCallCount { get; private set; }
+
+        public Task<int> ExpireStaleQuotesAsync(CancellationToken ct = default)
+        {
+            var result = ExpireCallCount < batchResults.Length ? batchResults[ExpireCallCount] : 0;
+            ExpireCallCount++;
+            return Task.FromResult(result);
         }
     }
 

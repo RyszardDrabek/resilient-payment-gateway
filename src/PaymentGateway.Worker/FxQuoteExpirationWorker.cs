@@ -57,10 +57,27 @@ public sealed class FxQuoteExpirationWorker(
         logger.LogInformation("FxQuoteExpirationWorker stopped.");
     }
 
+    private const int MaxDrainIterationsPerCycle = 5;
+
     public async Task<int> ProcessCycleAsync(CancellationToken ct = default)
     {
-        using var scope = scopeFactory.CreateScope();
-        var expirationService = scope.ServiceProvider.GetRequiredService<IFxQuoteExpirationService>();
-        return await expirationService.ExpireStaleQuotesAsync(ct);
+        var batchSize = _options.BatchSize > 0 ? _options.BatchSize : 1000;
+        var totalExpired = 0;
+
+        for (var iteration = 0; iteration < MaxDrainIterationsPerCycle; iteration++)
+        {
+            using var scope = scopeFactory.CreateScope();
+            var expirationService = scope.ServiceProvider.GetRequiredService<IFxQuoteExpirationService>();
+            var expiredThisBatch = await expirationService.ExpireStaleQuotesAsync(ct);
+
+            totalExpired += expiredThisBatch;
+
+            if (expiredThisBatch < batchSize)
+            {
+                break;
+            }
+        }
+
+        return totalExpired;
     }
 }

@@ -295,7 +295,6 @@ public sealed class PaymentDbContext(
             b.Property(q => q.Status).HasConversion<string>().HasMaxLength(16);
             b.Property(q => q.ConsumedByPaymentId).HasMaxLength(64);
 
-            b.HasIndex(q => q.ExpiresAt);
             b.HasIndex(q => q.Status);
             b.HasIndex(q => q.ExpiresAt)
                 .HasDatabaseName("IX_CurrencyQuotes_Active_ExpiresAt")
