@@ -62,10 +62,12 @@ public sealed class InlineRiskGatingTests
     private class StubSettlementPort : ISettlementPort
     {
         public int AuthorizeCallCount { get; private set; }
+        public Func<string, long, string, string?, SettlementResult>? AuthorizeHandler { get; set; }
 
         public Task<SettlementResult> AuthorizeAsync(string partyId, long amount, string currency, string? channel = null, CancellationToken ct = default)
         {
             AuthorizeCallCount++;
+            if (AuthorizeHandler is not null) return Task.FromResult(AuthorizeHandler(partyId, amount, currency, channel));
             return Task.FromResult(SettlementResult.Success(channel ?? "MOCK", "ref_123", "ch_123"));
         }
 
@@ -81,6 +83,7 @@ public sealed class InlineRiskGatingTests
             CancellationToken ct = default)
         {
             AuthorizeCallCount++;
+            if (AuthorizeHandler is not null) return Task.FromResult(AuthorizeHandler(partyId, amount, currency, channel));
             return Task.FromResult(SettlementResult.Success(channel ?? "MOCK", "ref_123", "ch_123"));
         }
 
@@ -256,6 +259,57 @@ public sealed class InlineRiskGatingTests
 
         result.State.Should().Be("Authorized");
         settlementPort.AuthorizeCallCount.Should().Be(1);
+        riskFlagRepo.SavedFlags.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenRiskEvaluatorReturnsChallenge3Ds_ProceedsToSettlementPortForScaEnforcement()
+    {
+        var actionDetails = new ThreeDsActionDetails("Redirect", "https://checkoutshopper.adyen.com/3ds2/challenge", "action_token_abc");
+        var settlementPort = new StubSettlementPort
+        {
+            AuthorizeHandler = (_, _, _, ch) => SettlementResult.ActionRequired(ch ?? "MOCK", "ref_3ds_challenge_01", actionDetails)
+        };
+
+        var paymentRepo = new InMemoryPaymentRepository();
+        var idempRepo = new InMemoryIdempotencyRepository();
+        var riskFlagRepo = new StubRiskFlagRepository();
+        var riskEvaluator = new StubInlineRiskEvaluator
+        {
+            Handler = (_, _, _) => InlineRiskEvaluation.Challenge3Ds(72, "Suspicious pattern warrants mandatory 3DS step-up challenge")
+        };
+
+        var handler = new AuthorizePaymentCommandHandler(
+            settlementPort,
+            paymentRepo,
+            idempRepo,
+            paymentMethodRepository: null,
+            inlineRiskEvaluator: riskEvaluator,
+            riskFlagRepository: riskFlagRepo);
+
+        var command = new AuthorizePaymentCommand(
+            "idem-challenge-3ds-01",
+            "party_challenge_needed",
+            5000,
+            "EUR",
+            "MOCK");
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        // Verification: settlement is NOT skipped; it is invoked to challenge customer
+        settlementPort.AuthorizeCallCount.Should().Be(1);
+
+        // State is RequiresAction with 3DS challenge details
+        result.State.Should().Be("RequiresAction");
+        result.Action.Should().NotBeNull();
+        result.Action!.ActionType.Should().Be("Redirect");
+        result.Action.TargetUrl.Should().Be("https://checkoutshopper.adyen.com/3ds2/challenge");
+
+        // Entity is saved as RequiresAction
+        paymentRepo.SavedPayments.Should().HaveCount(1);
+        paymentRepo.SavedPayments[0].State.Should().Be(PaymentState.RequiresAction);
+
+        // No upfront block flag was created
         riskFlagRepo.SavedFlags.Should().BeEmpty();
     }
 }

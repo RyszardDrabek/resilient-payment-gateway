@@ -114,13 +114,6 @@ public sealed class InlineRiskDegradationChaosTests : IAsyncLifetime
         return new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("ConnectionStrings:PaymentDb", connectionString);
-                builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
-                builder.UseSetting("RabbitMq:UseInMemory", "true");
-                builder.UseSetting("Auth:JwtSigningKey", JwtKey);
-                builder.UseSetting("PaymentGateway:ActiveChannel", "MOCK");
-                builder.UseSetting("InlineRisk:Enabled", "true");
-                builder.UseSetting("InlineRisk:TimeoutMilliseconds", "50");
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
                     var dict = new Dictionary<string, string?>

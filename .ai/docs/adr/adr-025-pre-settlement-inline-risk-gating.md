@@ -26,6 +26,10 @@ To protect merchants and the gateway, an ultra-fast inline fraud evaluation step
    - Every blocked transaction immediately persists a `RiskFlag` in PostgreSQL for compliance inspection in the Operator Portal.
    - Metrics are recorded under `PaymentMetrics.RecordDecline("FRAUD_BLOCKED", channel)`.
 
+5. **HTTP Contract & Idempotency Semantics for Upfront Blocks:**
+   - When an authorization is blocked upfront by inline risk rules, the system creates and persists a `Payment` entity in the `Declined` state and completes the idempotency lease with HTTP `201 Created` (containing `State = "Declined"` and `DeclineReason = "FRAUD_BLOCKED: {reason}"`).
+   - **Rationale (201 Created vs 422/400):** A payment resource is successfully created and ledgered in the database. Returning 201 preserves uniform API contracts with all other decline scenarios (e.g. acquirer card decline), allows merchants to query the declined payment by ID (`GET /payments/{id}`), and guarantees transparent idempotency replays via `Idempotency-Key` without breaking client SDK exception handling.
+
 ## Consequences
 - **Positive:**
   - Upfront protection against card-testing bots, high-risk fraud rings, and suspicious transaction spikes.

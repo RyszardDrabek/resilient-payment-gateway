@@ -12,8 +12,17 @@ public sealed class InlineRiskEvaluator : IInlineRiskEvaluator
     private readonly InlineRiskOptions _options;
     private readonly IRiskContextStore? _contextStore;
     private readonly ILogger<InlineRiskEvaluator>? _logger;
+    /// <summary>
+    /// Thread-safe sliding-window velocity cache shared across transient/scoped evaluator instances within the process.
+    /// In production, maintaining static state avoids captive DI dependencies on IRiskContextStore (scoped) while
+    /// preserving velocity counters across rapid-fire HTTP requests without requiring external network calls.
+    /// In test suites, call <see cref="ResetVelocity"/> during test initialization and disposal to maintain test isolation.
+    /// </summary>
     private static readonly ConcurrentDictionary<string, ConcurrentQueue<DateTimeOffset>> _velocityWindows = new();
 
+    /// <summary>
+    /// Resets all in-memory velocity tracking windows. Intended for test fixture setup/teardown.
+    /// </summary>
     public static void ResetVelocity() => _velocityWindows.Clear();
 
     public InlineRiskEvaluator(
