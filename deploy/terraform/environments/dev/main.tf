@@ -45,8 +45,8 @@ module "vpc" {
   azs         = var.azs
 
   public_subnet_cidrs       = ["10.10.1.0/24", "10.10.2.0/24", "10.10.3.0/24"]
-  private_app_subnet_cidrs   = ["10.10.11.0/24", "10.10.12.0/24", "10.10.13.0/24"]
-  private_data_subnet_cidrs  = ["10.10.21.0/24", "10.10.22.0/24", "10.10.23.0/24"]
+  private_app_subnet_cidrs  = ["10.10.11.0/24", "10.10.12.0/24", "10.10.13.0/24"]
+  private_data_subnet_cidrs = ["10.10.21.0/24", "10.10.22.0/24", "10.10.23.0/24"]
 
   # Single NAT Gateway to optimize dev environment cost
   single_nat_gateway = true
@@ -91,12 +91,12 @@ module "rds" {
 module "mq" {
   source = "../../modules/mq"
 
-  project           = var.project
-  environment       = var.environment
-  engine_version    = "3.13"
+  project            = var.project
+  environment        = var.environment
+  engine_version     = "3.13"
   host_instance_type = "mq.t3.micro"
-  deployment_mode   = "SINGLE_INSTANCE"
-  subnet_ids        = module.vpc.private_data_subnet_ids
-  security_group_id = module.vpc.mq_security_group_id
-  kms_key_arn       = module.kms.mq_key_arn
+  deployment_mode    = "SINGLE_INSTANCE"
+  subnet_ids         = module.vpc.private_data_subnet_ids
+  security_group_id  = module.vpc.mq_security_group_id
+  kms_key_arn        = module.kms.mq_key_arn
 }

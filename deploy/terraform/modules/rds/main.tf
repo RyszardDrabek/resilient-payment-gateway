@@ -72,8 +72,8 @@ resource "aws_rds_cluster" "aurora" {
   deletion_protection = var.deletion_protection
   skip_final_snapshot = var.environment != "prod"
 
-  backup_retention_period   = var.backup_retention_period
-  preferred_backup_window   = "02:00-03:00"
+  backup_retention_period      = var.backup_retention_period
+  preferred_backup_window      = "02:00-03:00"
   preferred_maintenance_window = "sun:04:00-sun:05:00"
 
   serverlessv2_scaling_configuration {

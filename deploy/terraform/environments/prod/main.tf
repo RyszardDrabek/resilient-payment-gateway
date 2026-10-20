@@ -46,8 +46,8 @@ module "vpc" {
   azs         = var.azs
 
   public_subnet_cidrs       = ["10.20.1.0/24", "10.20.2.0/24", "10.20.3.0/24"]
-  private_app_subnet_cidrs   = ["10.20.11.0/24", "10.20.12.0/24", "10.20.13.0/24"]
-  private_data_subnet_cidrs  = ["10.20.21.0/24", "10.20.22.0/24", "10.20.23.0/24"]
+  private_app_subnet_cidrs  = ["10.20.11.0/24", "10.20.12.0/24", "10.20.13.0/24"]
+  private_data_subnet_cidrs = ["10.20.21.0/24", "10.20.22.0/24", "10.20.23.0/24"]
 
   # High-Availability: 1 NAT Gateway per AZ (3 total)
   single_nat_gateway = false
@@ -92,12 +92,12 @@ module "rds" {
 module "mq" {
   source = "../../modules/mq"
 
-  project           = var.project
-  environment       = var.environment
-  engine_version    = "3.13"
+  project            = var.project
+  environment        = var.environment
+  engine_version     = "3.13"
   host_instance_type = "mq.m5.large"
-  deployment_mode   = "CLUSTER_MULTI_AZ"
-  subnet_ids        = module.vpc.private_data_subnet_ids
-  security_group_id = module.vpc.mq_security_group_id
-  kms_key_arn       = module.kms.mq_key_arn
+  deployment_mode    = "CLUSTER_MULTI_AZ"
+  subnet_ids         = module.vpc.private_data_subnet_ids
+  security_group_id  = module.vpc.mq_security_group_id
+  kms_key_arn        = module.kms.mq_key_arn
 }

@@ -4,8 +4,8 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = merge(var.tags, {
-    Name                                           = "${var.project}-${var.environment}-vpc"
-    Environment                                    = var.environment
+    Name                                                      = "${var.project}-${var.environment}-vpc"
+    Environment                                               = var.environment
     "kubernetes.io/cluster/${var.project}-${var.environment}" = "shared"
   })
 }
@@ -28,10 +28,10 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(var.tags, {
-    Name                                           = "${var.project}-${var.environment}-public-${var.azs[count.index]}"
-    Tier                                           = "Public"
-    Environment                                    = var.environment
-    "kubernetes.io/role/elb"                       = "1"
+    Name                                                      = "${var.project}-${var.environment}-public-${var.azs[count.index]}"
+    Tier                                                      = "Public"
+    Environment                                               = var.environment
+    "kubernetes.io/role/elb"                                  = "1"
     "kubernetes.io/cluster/${var.project}-${var.environment}" = "shared"
   })
 }
@@ -44,10 +44,10 @@ resource "aws_subnet" "private_app" {
   availability_zone = var.azs[count.index]
 
   tags = merge(var.tags, {
-    Name                                           = "${var.project}-${var.environment}-app-${var.azs[count.index]}"
-    Tier                                           = "Private-App"
-    Environment                                    = var.environment
-    "kubernetes.io/role/internal-elb"              = "1"
+    Name                                                      = "${var.project}-${var.environment}-app-${var.azs[count.index]}"
+    Tier                                                      = "Private-App"
+    Environment                                               = var.environment
+    "kubernetes.io/role/internal-elb"                         = "1"
     "kubernetes.io/cluster/${var.project}-${var.environment}" = "shared"
   })
 }
@@ -219,8 +219,8 @@ resource "aws_security_group" "eks_nodes" {
   }
 
   tags = merge(var.tags, {
-    Name                                           = "${var.project}-${var.environment}-eks-nodes-sg"
-    Environment                                    = var.environment
+    Name                                                      = "${var.project}-${var.environment}-eks-nodes-sg"
+    Environment                                               = var.environment
     "kubernetes.io/cluster/${var.project}-${var.environment}" = "owned"
   })
 }
