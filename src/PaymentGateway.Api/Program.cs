@@ -285,6 +285,7 @@ app.MapMerchantWebhookEndpoints();
 app.MapMerchantApiKeyEndpoints();
 app.MapMerchantWebhookDlqEndpoints();
 app.MapOpsObservabilityEndpoints();
+app.MapFxEndpoints();
 app.MapGet("/healthz", () => Results.Ok(new { service = "PaymentGateway.Api", status = "Healthy" })).AllowAnonymous();
 app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, CancellationToken ct) =>
 {

@@ -17,7 +17,8 @@ public sealed class AuthorizePaymentCommandHandler(
     IIdempotencyRepository idempotencyRepository,
     IPaymentMethodRepository? paymentMethodRepository = null,
     IInlineRiskEvaluator? inlineRiskEvaluator = null,
-    IRiskFlagRepository? riskFlagRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
+    IRiskFlagRepository? riskFlagRepository = null,
+    IFxQuoteRepository? fxQuoteRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(AuthorizePaymentCommand request, CancellationToken ct)
     {
@@ -98,6 +99,41 @@ public sealed class AuthorizePaymentCommandHandler(
             storedTokenString = storedMethod.Token;
         }
 
+        CurrencyQuote? quote = null;
+        if (!string.IsNullOrWhiteSpace(request.QuoteId) && fxQuoteRepository is not null)
+        {
+            quote = await fxQuoteRepository.GetByIdAsync(request.QuoteId, ct);
+            if (quote is null)
+            {
+                throw new QuoteNotFoundException(request.QuoteId);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (quote.Status == CurrencyQuoteStatus.Consumed)
+            {
+                if (existing is null || quote.ConsumedByPaymentId != existing.PaymentId)
+                {
+                    throw new QuoteAlreadyConsumedException(quote.Id, quote.ConsumedByPaymentId ?? "unknown");
+                }
+            }
+            else if (quote.Status == CurrencyQuoteStatus.Expired || now >= quote.ExpiresAt)
+            {
+                quote.Expire(now);
+                await fxQuoteRepository.UpdateAsync(quote, ct);
+                throw new QuoteExpiredException(quote.Id, quote.ExpiresAt);
+            }
+
+            if (!string.Equals(quote.TargetCurrency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new QuoteMismatchException($"Quote target currency '{quote.TargetCurrency}' does not match payment request currency '{request.Currency}'.");
+            }
+
+            if (quote.TargetAmount != request.Amount)
+            {
+                throw new QuoteMismatchException($"Quote target amount '{quote.TargetAmount}' does not match payment request amount '{request.Amount}'.");
+            }
+        }
+
         var isMit = string.Equals(request.TransactionOrigin, "MIT", StringComparison.OrdinalIgnoreCase);
         var originEnum = isMit ? TransactionOrigin.Mit : TransactionOrigin.Cit;
 
@@ -118,7 +154,18 @@ public sealed class AuthorizePaymentCommandHandler(
                 var blockedPayment = Payment.Decline(request.PartyId, request.Amount, request.Currency, blockedChannel, null, declineReason);
                 blockedPayment.SetRecurringDetails(originEnum, request.PaymentMethodId, request.SubscriptionId);
 
+                if (quote is not null)
+                {
+                    blockedPayment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
+                }
+
                 await repository.AddAsync(blockedPayment, ct);
+
+                if (quote is not null)
+                {
+                    quote.Consume(blockedPayment.Id, DateTimeOffset.UtcNow);
+                    await fxQuoteRepository!.UpdateAsync(quote, ct);
+                }
 
                 if (riskFlagRepository is not null)
                 {
@@ -183,6 +230,11 @@ public sealed class AuthorizePaymentCommandHandler(
 
         payment.SetRecurringDetails(originEnum, request.PaymentMethodId, request.SubscriptionId);
 
+        if (quote is not null)
+        {
+            payment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
+        }
+
         // If storePaymentMethod was requested and token was returned, save PaymentMethodToken
         if (request.StorePaymentMethod &&
             settlement.IsAuthorized &&
@@ -203,7 +255,17 @@ public sealed class AuthorizePaymentCommandHandler(
             payment.SetRecurringDetails(originEnum, newMethod.Id, request.SubscriptionId);
         }
 
+        // Note on Transactional Atomicity:
+        // Payment persistence is executed first. If saving the payment aggregate fails, the quote is not prematurely consumed.
+        // In a dedicated refactoring phase, cross-aggregate coordination (Payment + Quote + Idempotency)
+        // should be formally wrapped in an IUnitOfWork or IDbContextTransaction.
         await repository.AddAsync(payment, ct);
+
+        if (quote is not null)
+        {
+            quote.Consume(payment.Id, DateTimeOffset.UtcNow);
+            await fxQuoteRepository!.UpdateAsync(quote, ct);
+        }
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), channel ?? "UNKNOWN", "authorize");
         PaymentMetrics.RecordChannelDuration(sw.Elapsed.TotalSeconds, channel ?? "UNKNOWN", "authorize", payment.State.ToString());

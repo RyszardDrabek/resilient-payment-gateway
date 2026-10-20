@@ -11,4 +11,5 @@ public record AuthorizePaymentCommand(
     string? TransactionOrigin = null,
     string? PaymentMethodId = null,
     string? SubscriptionId = null,
-    bool StorePaymentMethod = false) : IRequest<PaymentDto>;
+    bool StorePaymentMethod = false,
+    string? QuoteId = null) : IRequest<PaymentDto>;

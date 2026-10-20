@@ -14,6 +14,7 @@ using PaymentGateway.Api.Endpoints;
 using PaymentGateway.Application.Payments;
 using PaymentGateway.Edge.Problems;
 using PaymentGateway.Infrastructure.Persistence;
+using PaymentGateway.Infrastructure.Risk;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -27,6 +28,7 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        InlineRiskEvaluator.ResetVelocity();
         try
         {
             _postgres = new PostgreSqlBuilder("postgres:16-alpine")
@@ -42,6 +44,12 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
                 .Options;
             await using var db = new PaymentDbContext(options);
             await db.Database.MigrateAsync();
+
+            var riskOptions = new DbContextOptionsBuilder<RiskDbContext>()
+                .UseNpgsql(_postgres.GetConnectionString(), npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "risk"))
+                .Options;
+            await using var riskDb = new RiskDbContext(riskOptions);
+            await riskDb.Database.MigrateAsync();
         }
         catch
         {
@@ -56,6 +64,7 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        InlineRiskEvaluator.ResetVelocity();
         if (_postgres is not null)
         {
             await _postgres.DisposeAsync().AsTask();
@@ -104,13 +113,14 @@ public sealed class PaymentTransitionEndpointsTests : IAsyncLifetime
         return tokenHandler.WriteToken(token);
     }
 
-    private async Task<PaymentDto> CreateAuthorizedPayment(HttpClient client)
+    private async Task<PaymentDto> CreateAuthorizedPayment(HttpClient client, string? partyId = null)
     {
         var idempotencyKey = $"idem_auth_{Guid.NewGuid():N}";
         client.DefaultRequestHeaders.Remove("Idempotency-Key");
         client.DefaultRequestHeaders.Add("Idempotency-Key", idempotencyKey);
 
-        var request = new AuthorizePaymentRequest("party_trans", 5000, "EUR");
+        var party = partyId ?? $"party_trans_{Guid.NewGuid():N}";
+        var request = new AuthorizePaymentRequest(party, 5000, "EUR");
         var response = await client.PostAsJsonAsync("/payments", request);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         var dto = await response.Content.ReadFromJsonAsync<PaymentDto>();

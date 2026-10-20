@@ -17,6 +17,7 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<PaymentGateway.Domain.Entities.FeeSchedule> FeeSchedules => Set<PaymentGateway.Domain.Entities.FeeSchedule>();
     public DbSet<PaymentGateway.Domain.Entities.MerchantPayoutBatch> PayoutBatches => Set<PaymentGateway.Domain.Entities.MerchantPayoutBatch>();
     public DbSet<PaymentGateway.Domain.Entities.PayoutItem> PayoutItems => Set<PaymentGateway.Domain.Entities.PayoutItem>();
+    public DbSet<PaymentGateway.Domain.Entities.CurrencyQuote> CurrencyQuotes => Set<PaymentGateway.Domain.Entities.CurrencyQuote>();
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -39,6 +40,9 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.Property(p => p.Version).IsRequired().HasDefaultValue(1).IsConcurrencyToken();
             b.Property(p => p.CapturedAmount).IsRequired().HasDefaultValue(0L);
             b.Property(p => p.RefundedAmount).IsRequired().HasDefaultValue(0L);
+            b.Property(p => p.QuoteId).HasMaxLength(64);
+            b.Property(p => p.OriginalCurrency).HasMaxLength(12);
+            b.Property(p => p.ExchangeRate).HasPrecision(18, 6);
             b.OwnsOne(p => p.ThreeDsAction, a =>
             {
                 a.Property(x => x.ActionType).HasMaxLength(64);
@@ -266,6 +270,23 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 
             b.HasIndex(i => i.PayoutBatchId);
             b.HasIndex(i => i.PaymentId).IsUnique();
+        });
+
+        modelBuilder.Entity<PaymentGateway.Domain.Entities.CurrencyQuote>(b =>
+        {
+            b.ToTable("CurrencyQuotes");
+            b.HasKey(q => q.Id);
+            b.Property(q => q.Id).HasMaxLength(64);
+            b.Property(q => q.PartyId).HasMaxLength(128);
+            b.Property(q => q.BaseCurrency).IsRequired().HasMaxLength(12);
+            b.Property(q => q.TargetCurrency).IsRequired().HasMaxLength(12);
+            b.Property(q => q.SpotRate).HasPrecision(18, 6);
+            b.Property(q => q.ExchangeRate).HasPrecision(18, 6);
+            b.Property(q => q.Status).HasConversion<string>().HasMaxLength(16);
+            b.Property(q => q.ConsumedByPaymentId).HasMaxLength(64);
+
+            b.HasIndex(q => q.ExpiresAt);
+            b.HasIndex(q => q.Status);
         });
     }
 }

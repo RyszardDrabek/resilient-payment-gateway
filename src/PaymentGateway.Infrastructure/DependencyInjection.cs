@@ -95,6 +95,9 @@ public static class DependencyInjection
         services.AddHttpClient<PaymentGateway.Application.Webhooks.IMerchantWebhookSimulator, PaymentGateway.Infrastructure.Webhooks.MerchantWebhookSimulator>();
         services.AddHttpClient<PaymentGateway.Application.Webhooks.ReplayMerchantWebhookCommandHandler>();
         services.AddScoped<PaymentGateway.Application.Observability.IObservabilityService, PaymentGateway.Infrastructure.Services.ObservabilityService>();
+        services.Configure<PaymentGateway.Application.Fx.Models.FxOptions>(configuration.GetSection(PaymentGateway.Application.Fx.Models.FxOptions.SectionName));
+        services.AddSingleton<PaymentGateway.Application.Fx.Ports.IFxRateProvider, PaymentGateway.Infrastructure.Fx.CachedFxRateProvider>();
+        services.AddScoped<PaymentGateway.Domain.Ports.IFxQuoteRepository, PaymentGateway.Infrastructure.Repositories.FxQuoteRepository>();
 
         services.AddMassTransit(x =>
         {
