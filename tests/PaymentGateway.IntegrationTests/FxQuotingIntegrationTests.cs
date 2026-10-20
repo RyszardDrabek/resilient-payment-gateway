@@ -213,4 +213,46 @@ public sealed class FxQuotingIntegrationTests : IAsyncLifetime
         doc.RootElement.GetProperty("baseCurrency").GetString().Should().Be("EUR");
         doc.RootElement.GetProperty("rates").GetProperty("USDC").GetDecimal().Should().Be(1.0850m);
     }
+
+    [Fact]
+    public async Task GetRates_UnsupportedCurrency_Returns400ProblemDetails()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwtToken());
+
+        var response = await client.GetAsync("/fx/rates?baseCurrency=XYZ");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Contain(PaymentProblemTypes.Validation);
+        content.Should().Contain("Unsupported base currency");
+    }
+
+    [Fact]
+    public async Task AuthorizePayment_InvalidQuoteIdFormat_Returns400ProblemDetails()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwtToken());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", $"idem_bad_quote_{Guid.NewGuid():N}");
+
+        var payRequest = new AuthorizePaymentRequest(
+            PartyId: "merch_cross",
+            Amount: 1000,
+            Currency: "USDC",
+            SettlementChannel: "MOCK",
+            QuoteId: "invalid_quote_id");
+
+        var response = await client.PostAsJsonAsync("/payments", payRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Contain(PaymentProblemTypes.Validation);
+        content.Should().Contain("Invalid QuoteId format");
+    }
 }

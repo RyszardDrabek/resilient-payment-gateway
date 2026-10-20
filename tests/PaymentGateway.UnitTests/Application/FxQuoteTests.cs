@@ -303,4 +303,93 @@ public sealed class FxQuoteTests
         await act.Should().ThrowAsync<QuoteNotFoundException>()
             .WithMessage("*not found*");
     }
+
+    [Fact]
+    public void FxQuoteMapper_ToDto_MapsAllFieldsAndCalculatesRemainingSeconds()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var quote = CurrencyQuote.Create(
+            id: "fxq_mapper_test",
+            partyId: "merchant_1",
+            baseCurrency: "EUR",
+            baseAmount: 10000,
+            targetCurrency: "USDC",
+            spotRate: 1.0850m,
+            spreadBps: 50,
+            ttl: TimeSpan.FromMinutes(10),
+            now: now);
+
+        var dto = PaymentGateway.Application.Fx.FxQuoteMapper.ToDto(quote, now.AddMinutes(2));
+
+        dto.QuoteId.Should().Be("fxq_mapper_test");
+        dto.PartyId.Should().Be("merchant_1");
+        dto.BaseCurrency.Should().Be("EUR");
+        dto.BaseAmount.Should().Be(10000);
+        dto.TargetCurrency.Should().Be("USDC");
+        dto.SpotRate.Should().Be(1.0850m);
+        dto.SpreadBps.Should().Be(50);
+        dto.Status.Should().Be("Active");
+        dto.RemainingSeconds.Should().Be(480); // 8 minutes remaining
+    }
+
+    private sealed class FailingPaymentRepository : IPaymentRepository
+    {
+        public Task AddAsync(Payment payment, CancellationToken ct = default) =>
+            throw new InvalidOperationException("DB error during payment persistence");
+
+        public Task UpdateAsync(Payment payment, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<Payment?> GetByIdAsync(string id, CancellationToken ct = default) => Task.FromResult<Payment?>(null);
+        public Task<Payment?> GetByChannelReferenceAsync(string channelReference, CancellationToken ct = default) => Task.FromResult<Payment?>(null);
+        public Task<IReadOnlyList<Payment>> GetUnresolvedAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Payment>>(new List<Payment>());
+        public Task<(IReadOnlyList<Payment> Items, int TotalCount)> GetUnresolvedPaginatedAsync(
+            DateTimeOffset createdBefore, string? channel = null, int page = 1, int pageSize = 50, CancellationToken ct = default) =>
+            Task.FromResult<(IReadOnlyList<Payment> Items, int TotalCount)>((new List<Payment>(), 0));
+    }
+
+    [Fact]
+    public async Task AuthorizePayment_WhenPaymentPersistenceFails_QuoteIsNotUpdatedAsConsumedInRepository()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var quote = CurrencyQuote.Create(
+            id: "fxq_rollback_test",
+            partyId: "m1",
+            baseCurrency: "PLN",
+            baseAmount: 10000,
+            targetCurrency: "USDC",
+            spotRate: 0.2520m,
+            spreadBps: 50,
+            ttl: TimeSpan.FromMinutes(15),
+            now: now);
+
+        var quoteRepo = new InMemoryFxQuoteRepository();
+        await quoteRepo.AddAsync(quote);
+
+        var failingPaymentRepo = new FailingPaymentRepository();
+        var idemRepo = new InMemoryIdempotencyRepository();
+        var settlementPort = new StubSettlementPort();
+
+        var handler = new AuthorizePaymentCommandHandler(
+            settlementPort,
+            failingPaymentRepo,
+            idemRepo,
+            fxQuoteRepository: quoteRepo);
+
+        var command = new AuthorizePaymentCommand(
+            IdempotencyKey: "idem_quote_fail",
+            PartyId: "m1",
+            Amount: quote.TargetAmount,
+            Currency: "USDC",
+            SettlementChannel: "MOCK",
+            QuoteId: quote.Id);
+
+        var act = () => handler.Handle(command, CancellationToken.None);
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*DB error during payment persistence*");
+
+        // Verify quote in repository is still Active and not marked Consumed
+        var quoteInRepo = await quoteRepo.GetByIdAsync(quote.Id);
+        quoteInRepo.Should().NotBeNull();
+        quoteInRepo!.Status.Should().Be(CurrencyQuoteStatus.Active);
+        quoteInRepo.ConsumedByPaymentId.Should().BeNull();
+    }
 }

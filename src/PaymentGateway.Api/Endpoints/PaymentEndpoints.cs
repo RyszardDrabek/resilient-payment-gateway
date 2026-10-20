@@ -62,6 +62,17 @@ public static class PaymentEndpoints
                     "Invalid payment request parameters. Amount must be greater than zero, PartyId is required, and Currency must be a 3-letter ISO code or supported crypto asset.");
             }
 
+            if (request.QuoteId is not null &&
+                (string.IsNullOrWhiteSpace(request.QuoteId) || !request.QuoteId.StartsWith("fxq_", StringComparison.OrdinalIgnoreCase)))
+            {
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Validation Failed",
+                    "Invalid QuoteId format. When provided, QuoteId must start with 'fxq_'.");
+            }
+
             var command = new AuthorizePaymentCommand(
                 idempotencyKey,
                 request.PartyId,

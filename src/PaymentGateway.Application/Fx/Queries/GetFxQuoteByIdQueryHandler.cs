@@ -24,21 +24,6 @@ public sealed class GetFxQuoteByIdQueryHandler(IFxQuoteRepository quoteRepositor
             await quoteRepository.UpdateAsync(quote, ct);
         }
 
-        var remainingSeconds = (int)Math.Max(0, (quote.ExpiresAt - now).TotalSeconds);
-
-        return new FxQuoteDto(
-            QuoteId: quote.Id,
-            PartyId: quote.PartyId,
-            BaseCurrency: quote.BaseCurrency,
-            BaseAmount: quote.BaseAmount,
-            TargetCurrency: quote.TargetCurrency,
-            TargetAmount: quote.TargetAmount,
-            SpotRate: quote.SpotRate,
-            SpreadBps: quote.SpreadBps,
-            ExchangeRate: quote.ExchangeRate,
-            CreatedAt: quote.CreatedAt,
-            ExpiresAt: quote.ExpiresAt,
-            Status: quote.Status.ToString(),
-            RemainingSeconds: remainingSeconds);
+        return FxQuoteMapper.ToDto(quote, now);
     }
 }

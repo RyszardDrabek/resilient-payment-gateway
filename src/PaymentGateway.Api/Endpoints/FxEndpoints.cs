@@ -117,6 +117,7 @@ public static class FxEndpoints
 
         group.MapGet("/rates", async (
             string? baseCurrency,
+            HttpContext httpContext,
             IFxRateProvider rateProvider,
             CancellationToken ct) =>
         {
@@ -128,7 +129,12 @@ public static class FxEndpoints
             }
             catch (NotSupportedException ex)
             {
-                return Results.BadRequest(new { error = ex.Message });
+                return ProblemResult(
+                    httpContext,
+                    StatusCodes.Status400BadRequest,
+                    PaymentProblemTypes.Validation,
+                    "Unsupported Currency",
+                    ex.Message);
             }
         });
 

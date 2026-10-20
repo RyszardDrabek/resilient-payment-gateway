@@ -157,11 +157,15 @@ public sealed class AuthorizePaymentCommandHandler(
                 if (quote is not null)
                 {
                     blockedPayment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
-                    quote.Consume(blockedPayment.Id, DateTimeOffset.UtcNow);
-                    await fxQuoteRepository!.UpdateAsync(quote, ct);
                 }
 
                 await repository.AddAsync(blockedPayment, ct);
+
+                if (quote is not null)
+                {
+                    quote.Consume(blockedPayment.Id, DateTimeOffset.UtcNow);
+                    await fxQuoteRepository!.UpdateAsync(quote, ct);
+                }
 
                 if (riskFlagRepository is not null)
                 {
@@ -229,8 +233,6 @@ public sealed class AuthorizePaymentCommandHandler(
         if (quote is not null)
         {
             payment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
-            quote.Consume(payment.Id, DateTimeOffset.UtcNow);
-            await fxQuoteRepository!.UpdateAsync(quote, ct);
         }
 
         // If storePaymentMethod was requested and token was returned, save PaymentMethodToken
@@ -253,7 +255,17 @@ public sealed class AuthorizePaymentCommandHandler(
             payment.SetRecurringDetails(originEnum, newMethod.Id, request.SubscriptionId);
         }
 
+        // Note on Transactional Atomicity:
+        // Payment persistence is executed first. If saving the payment aggregate fails, the quote is not prematurely consumed.
+        // In a dedicated refactoring phase, cross-aggregate coordination (Payment + Quote + Idempotency)
+        // should be formally wrapped in an IUnitOfWork or IDbContextTransaction.
         await repository.AddAsync(payment, ct);
+
+        if (quote is not null)
+        {
+            quote.Consume(payment.Id, DateTimeOffset.UtcNow);
+            await fxQuoteRepository!.UpdateAsync(quote, ct);
+        }
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), channel ?? "UNKNOWN", "authorize");
         PaymentMetrics.RecordChannelDuration(sw.Elapsed.TotalSeconds, channel ?? "UNKNOWN", "authorize", payment.State.ToString());
