@@ -55,6 +55,7 @@ public sealed class UnitOfWorkCommandHandlerTests
     {
         public readonly ConcurrentDictionary<string, Payment> Payments = new();
         public bool ShouldThrowOnAdd { get; set; }
+        public bool ShouldThrowOnUpdate { get; set; }
 
         public Task AddAsync(Payment payment, CancellationToken ct = default)
         {
@@ -69,6 +70,11 @@ public sealed class UnitOfWorkCommandHandlerTests
 
         public Task UpdateAsync(Payment payment, CancellationToken ct = default)
         {
+            if (ShouldThrowOnUpdate)
+            {
+                throw new InvalidOperationException("Simulated database failure during payment update.");
+            }
+
             Payments[payment.Id] = payment;
             return Task.CompletedTask;
         }
@@ -285,6 +291,36 @@ public sealed class UnitOfWorkCommandHandlerTests
         result.State.Should().Be("Captured");
         uow.TransactionCount.Should().Be(1);
         uow.CommitCount.Should().Be(1);
+        uow.RollbackCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CapturePayment_WhenPersistenceThrows_RollsBackUnitOfWorkTransaction()
+    {
+        var payment = Payment.Authorize("merchant_uow", 10000, "EUR", "MOCK", "ch_ref_cap_fail");
+        var paymentRepo = new InMemoryPaymentRepository();
+        await paymentRepo.AddAsync(payment);
+        paymentRepo.ShouldThrowOnUpdate = true;
+
+        var idemRepo = new InMemoryIdempotencyRepository();
+        var settlementPort = new StubSettlementPort();
+        var uow = new TrackingUnitOfWork();
+
+        var handler = new CapturePaymentCommandHandler(
+            paymentRepo,
+            settlementPort,
+            idemRepo,
+            unitOfWork: uow);
+
+        var command = new CapturePaymentCommand(payment.Id, "idem_uow_cap_fail", 10000);
+        var act = () => handler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Simulated database failure during payment update*");
+
+        uow.TransactionCount.Should().Be(1);
+        uow.CommitCount.Should().Be(0);
+        uow.RollbackCount.Should().Be(1);
     }
 
     [Fact]

@@ -126,10 +126,13 @@ public sealed class CrossAggregateTransactionIntegrationTests : IAsyncLifetime
         var quoteId = $"fxq_uow_{Guid.NewGuid():N}";
         var idemKey = $"idem_uow_{Guid.NewGuid():N}";
 
+        // Note: Using db.<Set>.Add() directly here is an intentional design choice for this unit-of-work test:
+        // it specifically isolates and asserts the multi-entity transaction boundary and EF Core change tracker
+        // behavior of IUnitOfWork itself, independent of individual repository implementations.
+        // Full end-to-end repository usage is verified in AuthorizePayment_WithCurrencyQuote_RollsBackOrCommitsCrossAggregateAtomically.
         await uow.ExecuteTransactionAsync(async ct =>
         {
             var payment = Payment.Authorize("merch_uow_test", 5000, "EUR", "MOCK", "ref_tx_1");
-            // Set Id via reflection or factory
             db.Payments.Add(payment);
 
             var quote = CurrencyQuote.Create(

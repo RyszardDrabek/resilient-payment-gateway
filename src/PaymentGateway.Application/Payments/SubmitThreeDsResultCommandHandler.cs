@@ -54,6 +54,9 @@ public sealed class SubmitThreeDsResultCommandHandler(
 
         if (unitOfWork is not null)
         {
+            // Note: Even though SubmitThreeDsResult currently persists a single aggregate, wrapping
+            // via UnitOfWork ensures consistent transaction boundary handling across all mutation handlers
+            // and allows future outbox events or audit log coordination without breaking handler signatures.
             await unitOfWork.ExecuteTransactionAsync(token => repository.UpdateAsync(payment, token), ct);
         }
         else
