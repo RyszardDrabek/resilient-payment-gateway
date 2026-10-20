@@ -15,11 +15,13 @@ public static class DependencyInjection
         _ = configuration.GetConnectionString("PaymentDb")
             ?? throw new InvalidOperationException("Connection string 'PaymentDb' is required.");
 
+        services.AddSingleton<DomainEventsToOutboxInterceptor>();
         services.AddDbContext<PaymentDbContext>((sp, options) =>
         {
             var cs = sp.GetRequiredService<IConfiguration>().GetConnectionString("PaymentDb")
                 ?? throw new InvalidOperationException("Connection string 'PaymentDb' is required.");
             options.UseNpgsql(cs, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", "pay"));
+            options.AddInterceptors(sp.GetRequiredService<DomainEventsToOutboxInterceptor>());
         });
 
         services.AddDbContext<RiskDbContext>((sp, options) =>

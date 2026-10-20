@@ -1,8 +1,9 @@
+using PaymentGateway.Domain.Events;
 using PaymentGateway.Domain.Exceptions;
 
 namespace PaymentGateway.Domain.Entities;
 
-public sealed class Payment
+public sealed class Payment : IHasDomainEvents
 {
     public string Id { get; private set; } = string.Empty;
     public string PartyId { get; private set; } = string.Empty;

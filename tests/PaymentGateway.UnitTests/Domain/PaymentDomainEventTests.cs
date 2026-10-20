@@ -47,4 +47,17 @@ public sealed class PaymentDomainEventTests
         evt.OccurredAt.Should().Be(now);
         evt.Should().BeAssignableTo<IDomainEvent>();
     }
+
+    [Fact]
+    public void Payment_Implements_IHasDomainEvents()
+    {
+        var payment = PaymentGateway.Domain.Entities.Payment.Authorize("party_test", 5000, "EUR", "MOCK", "ref_test");
+
+        payment.Should().BeAssignableTo<IHasDomainEvents>();
+        payment.DomainEvents.Should().NotBeEmpty();
+        payment.DomainEvents.Should().ContainSingle();
+
+        payment.ClearDomainEvents();
+        payment.DomainEvents.Should().BeEmpty();
+    }
 }

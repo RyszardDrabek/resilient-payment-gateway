@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace PaymentGateway.Infrastructure.Persistence;
 
 /// <summary>PAY/outbox DbContext. Tables arrive with features; scaffold keeps an empty model + migration.</summary>
-public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbContext(options)
+public sealed class PaymentDbContext(
+    DbContextOptions<PaymentDbContext> options,
+    Microsoft.Extensions.Logging.ILogger<PaymentDbContext>? logger = null) : DbContext(options)
 {
     public DbSet<PaymentGateway.Domain.Entities.Payment> Payments => Set<PaymentGateway.Domain.Entities.Payment>();
     public DbSet<PaymentGateway.Domain.Entities.IdempotencyRecord> IdempotencyRecords => Set<PaymentGateway.Domain.Entities.IdempotencyRecord>();
@@ -288,5 +291,84 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             b.HasIndex(q => q.ExpiresAt);
             b.HasIndex(q => q.Status);
         });
+    }
+
+    /// <summary>
+    /// Scans all tracked entities implementing <see cref="PaymentGateway.Domain.Events.IHasDomainEvents"/>,
+    /// serializes domain events to transactional outbox records (<see cref="OutboxMessageRecord"/>), and clears
+    /// domain events on the entities.
+    /// <para>
+    /// Idempotency &amp; Double-call safety: If <see cref="DomainEventsToOutboxInterceptor"/> runs first on
+    /// SavingChanges, it converts and clears domain events; subsequent invocation inside <see cref="SaveChangesAsync"/>
+    /// finds 0 pending events (<c>entries.Count == 0</c>) and immediately returns, guaranteeing zero duplicate outbox records.
+    /// </para>
+    /// </summary>
+    internal void ConvertDomainEventsToOutboxMessages()
+    {
+        var entries = ChangeTracker.Entries<PaymentGateway.Domain.Events.IHasDomainEvents>()
+            .Select(e => e.Entity)
+            .Where(e => e.DomainEvents.Count > 0)
+            .ToList();
+
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var entity in entries)
+        {
+            foreach (var domainEvent in entity.DomainEvents)
+            {
+                if (domainEvent is PaymentGateway.Domain.Events.PaymentTransitionDomainEvent transition)
+                {
+                    var lifecycleEvent = new PaymentGateway.Application.Events.PaymentLifecycleEvent(
+                        EventId: $"evt_{Guid.NewGuid():N}",
+                        PaymentId: transition.PaymentId,
+                        PartyId: transition.PartyId,
+                        Outcome: transition.Outcome.ToString().ToLowerInvariant(),
+                        Amount: transition.Amount,
+                        Currency: transition.Currency,
+                        Version: transition.Version,
+                        OccurredAt: transition.OccurredAt,
+                        TraceParent: System.Diagnostics.Activity.Current?.Id);
+
+                    OutboxMessages.Add(new OutboxMessageRecord
+                    {
+                        Id = Guid.NewGuid(),
+                        EventType = PaymentGateway.Application.Events.PaymentLifecycleEvent.EventType,
+                        Payload = System.Text.Json.JsonSerializer.Serialize(lifecycleEvent),
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+                }
+                else
+                {
+                    logger?.LogWarning(
+                        "Unmapped domain event type {EventType} encountered; generating generic domain outbox record.",
+                        domainEvent.GetType().Name);
+
+                    OutboxMessages.Add(new OutboxMessageRecord
+                    {
+                        Id = Guid.NewGuid(),
+                        EventType = $"domain.{domainEvent.GetType().Name.ToLowerInvariant()}",
+                        Payload = System.Text.Json.JsonSerializer.Serialize(domainEvent, domainEvent.GetType()),
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+
+            entity.ClearDomainEvents();
+        }
+    }
+
+    public override int SaveChanges()
+    {
+        ConvertDomainEventsToOutboxMessages();
+        return base.SaveChanges();
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        ConvertDomainEventsToOutboxMessages();
+        return await base.SaveChangesAsync(cancellationToken);
     }
 }
