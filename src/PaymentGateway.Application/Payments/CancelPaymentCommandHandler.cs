@@ -12,7 +12,8 @@ namespace PaymentGateway.Application.Payments;
 public sealed class CancelPaymentCommandHandler(
     IPaymentRepository repository,
     ISettlementPort settlementPort,
-    IIdempotencyRepository idempotencyRepository) : IRequestHandler<CancelPaymentCommand, PaymentDto>
+    IIdempotencyRepository idempotencyRepository,
+    IUnitOfWork? unitOfWork = null) : IRequestHandler<CancelPaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(CancelPaymentCommand request, CancellationToken ct)
     {
@@ -106,15 +107,27 @@ public sealed class CancelPaymentCommandHandler(
         }
 
         payment.Cancel(settlement.ChannelReference);
-        await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "cancel");
 
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);
 
-        record.Complete(200, serializedDto, payment.Id);
-        await idempotencyRepository.UpdateAsync(record, ct);
+        async Task CommitCancelAsync(CancellationToken token)
+        {
+            await repository.UpdateAsync(payment, token);
+            record.Complete(200, serializedDto, payment.Id);
+            await idempotencyRepository.UpdateAsync(record, token);
+        }
+
+        if (unitOfWork is not null)
+        {
+            await unitOfWork.ExecuteTransactionAsync(CommitCancelAsync, ct);
+        }
+        else
+        {
+            await CommitCancelAsync(ct);
+        }
 
         return dto;
     }

@@ -12,7 +12,8 @@ namespace PaymentGateway.Application.Payments;
 public sealed class CapturePaymentCommandHandler(
     IPaymentRepository repository,
     ISettlementPort settlementPort,
-    IIdempotencyRepository idempotencyRepository) : IRequestHandler<CapturePaymentCommand, PaymentDto>
+    IIdempotencyRepository idempotencyRepository,
+    IUnitOfWork? unitOfWork = null) : IRequestHandler<CapturePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(CapturePaymentCommand request, CancellationToken ct)
     {
@@ -121,12 +122,25 @@ public sealed class CapturePaymentCommandHandler(
         if (settlement.IsUnanswered && !string.IsNullOrWhiteSpace(settlement.ChannelReference))
         {
             payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference);
-            await repository.UpdateAsync(payment, ct);
 
             var pendingDto = PaymentMapper.ToDto(payment);
             var serializedPending = JsonSerializer.Serialize(pendingDto);
-            record.Complete(200, serializedPending, payment.Id);
-            await idempotencyRepository.UpdateAsync(record, ct);
+
+            async Task CommitPendingAsync(CancellationToken token)
+            {
+                await repository.UpdateAsync(payment, token);
+                record.Complete(200, serializedPending, payment.Id);
+                await idempotencyRepository.UpdateAsync(record, token);
+            }
+
+            if (unitOfWork is not null)
+            {
+                await unitOfWork.ExecuteTransactionAsync(CommitPendingAsync, ct);
+            }
+            else
+            {
+                await CommitPendingAsync(ct);
+            }
 
             return pendingDto;
         }
@@ -142,7 +156,6 @@ public sealed class CapturePaymentCommandHandler(
 
         // AC-1: Move to captured/partially captured state with channel reference
         payment.Capture(settlement.ChannelReference, effectiveAmount);
-        await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "capture");
         PaymentMetrics.RecordVolume(effectiveAmount, payment.Currency, payment.SettlementChannel ?? "UNKNOWN", "capture", payment.State.ToString());
@@ -150,8 +163,21 @@ public sealed class CapturePaymentCommandHandler(
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);
 
-        record.Complete(200, serializedDto, payment.Id);
-        await idempotencyRepository.UpdateAsync(record, ct);
+        async Task CommitCaptureAsync(CancellationToken token)
+        {
+            await repository.UpdateAsync(payment, token);
+            record.Complete(200, serializedDto, payment.Id);
+            await idempotencyRepository.UpdateAsync(record, token);
+        }
+
+        if (unitOfWork is not null)
+        {
+            await unitOfWork.ExecuteTransactionAsync(CommitCaptureAsync, ct);
+        }
+        else
+        {
+            await CommitCaptureAsync(ct);
+        }
 
         return dto;
     }

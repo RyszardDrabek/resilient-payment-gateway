@@ -18,7 +18,8 @@ public sealed class AuthorizePaymentCommandHandler(
     IPaymentMethodRepository? paymentMethodRepository = null,
     IInlineRiskEvaluator? inlineRiskEvaluator = null,
     IRiskFlagRepository? riskFlagRepository = null,
-    IFxQuoteRepository? fxQuoteRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
+    IFxQuoteRepository? fxQuoteRepository = null,
+    IUnitOfWork? unitOfWork = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(AuthorizePaymentCommand request, CancellationToken ct)
     {
@@ -159,12 +160,30 @@ public sealed class AuthorizePaymentCommandHandler(
                     blockedPayment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
                 }
 
-                await repository.AddAsync(blockedPayment, ct);
+                var blockedDto = PaymentMapper.ToDto(blockedPayment);
+                var serializedBlockedDto = JsonSerializer.Serialize(blockedDto);
 
-                if (quote is not null)
+                async Task CommitBlockedAsync(CancellationToken token)
                 {
-                    quote.Consume(blockedPayment.Id, DateTimeOffset.UtcNow);
-                    await fxQuoteRepository!.UpdateAsync(quote, ct);
+                    await repository.AddAsync(blockedPayment, token);
+
+                    if (quote is not null)
+                    {
+                        quote.Consume(blockedPayment.Id, DateTimeOffset.UtcNow);
+                        await fxQuoteRepository!.UpdateAsync(quote, token);
+                    }
+
+                    record.Complete(201, serializedBlockedDto, blockedPayment.Id);
+                    await idempotencyRepository.UpdateAsync(record, token);
+                }
+
+                if (unitOfWork is not null)
+                {
+                    await unitOfWork.ExecuteTransactionAsync(CommitBlockedAsync, ct);
+                }
+                else
+                {
+                    await CommitBlockedAsync(ct);
                 }
 
                 if (riskFlagRepository is not null)
@@ -181,12 +200,6 @@ public sealed class AuthorizePaymentCommandHandler(
 
                 PaymentMetrics.RecordTransaction(blockedPayment.State.ToString(), blockedChannel, "authorize");
                 PaymentMetrics.RecordDecline("FRAUD_BLOCKED", blockedChannel);
-
-                var blockedDto = PaymentMapper.ToDto(blockedPayment);
-                var serializedBlockedDto = JsonSerializer.Serialize(blockedDto);
-
-                record.Complete(201, serializedBlockedDto, blockedPayment.Id);
-                await idempotencyRepository.UpdateAsync(record, ct);
 
                 return blockedDto;
             }
@@ -235,13 +248,13 @@ public sealed class AuthorizePaymentCommandHandler(
             payment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
         }
 
-        // If storePaymentMethod was requested and token was returned, save PaymentMethodToken
+        PaymentMethodToken? newMethod = null;
         if (request.StorePaymentMethod &&
             settlement.IsAuthorized &&
             !string.IsNullOrWhiteSpace(settlement.StoredPaymentMethodId) &&
             paymentMethodRepository is not null)
         {
-            var newMethod = new PaymentMethodToken(
+            newMethod = new PaymentMethodToken(
                 $"pm_{Guid.NewGuid():N}",
                 request.PartyId,
                 payment.SettlementChannel,
@@ -251,20 +264,38 @@ public sealed class AuthorizePaymentCommandHandler(
                 DateTimeOffset.UtcNow.Year + 3,
                 settlement.StoredPaymentMethodId);
 
-            await paymentMethodRepository.SaveAsync(newMethod, ct);
             payment.SetRecurringDetails(originEnum, newMethod.Id, request.SubscriptionId);
         }
 
-        // Note on Transactional Atomicity:
-        // Payment persistence is executed first. If saving the payment aggregate fails, the quote is not prematurely consumed.
-        // In a dedicated refactoring phase, cross-aggregate coordination (Payment + Quote + Idempotency)
-        // should be formally wrapped in an IUnitOfWork or IDbContextTransaction.
-        await repository.AddAsync(payment, ct);
+        var dto = PaymentMapper.ToDto(payment);
+        var serializedDto = JsonSerializer.Serialize(dto);
 
-        if (quote is not null)
+        async Task CommitAuthorizedAsync(CancellationToken token)
         {
-            quote.Consume(payment.Id, DateTimeOffset.UtcNow);
-            await fxQuoteRepository!.UpdateAsync(quote, ct);
+            if (newMethod is not null && paymentMethodRepository is not null)
+            {
+                await paymentMethodRepository.SaveAsync(newMethod, token);
+            }
+
+            await repository.AddAsync(payment, token);
+
+            if (quote is not null)
+            {
+                quote.Consume(payment.Id, DateTimeOffset.UtcNow);
+                await fxQuoteRepository!.UpdateAsync(quote, token);
+            }
+
+            record.Complete(201, serializedDto, payment.Id);
+            await idempotencyRepository.UpdateAsync(record, token);
+        }
+
+        if (unitOfWork is not null)
+        {
+            await unitOfWork.ExecuteTransactionAsync(CommitAuthorizedAsync, ct);
+        }
+        else
+        {
+            await CommitAuthorizedAsync(ct);
         }
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), channel ?? "UNKNOWN", "authorize");
@@ -275,12 +306,6 @@ public sealed class AuthorizePaymentCommandHandler(
         {
             PaymentMetrics.RecordDecline(settlement.DeclineReason ?? "Declined", channel ?? "UNKNOWN");
         }
-
-        var dto = PaymentMapper.ToDto(payment);
-        var serializedDto = JsonSerializer.Serialize(dto);
-
-        record.Complete(201, serializedDto, payment.Id);
-        await idempotencyRepository.UpdateAsync(record, ct);
 
         return dto;
     }

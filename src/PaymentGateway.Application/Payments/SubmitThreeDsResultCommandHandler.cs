@@ -9,7 +9,8 @@ namespace PaymentGateway.Application.Payments;
 
 public sealed class SubmitThreeDsResultCommandHandler(
     IPaymentRepository repository,
-    ISettlementPort settlementPort) : IRequestHandler<SubmitThreeDsResultCommand, PaymentDto>
+    ISettlementPort settlementPort,
+    IUnitOfWork? unitOfWork = null) : IRequestHandler<SubmitThreeDsResultCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(SubmitThreeDsResultCommand request, CancellationToken ct)
     {
@@ -51,7 +52,17 @@ public sealed class SubmitThreeDsResultCommandHandler(
             !string.IsNullOrWhiteSpace(settlement.ChannelReference) ? settlement.ChannelReference : payment.ChannelReference ?? string.Empty,
             settlement.DeclineReason);
 
-        await repository.UpdateAsync(payment, ct);
+        if (unitOfWork is not null)
+        {
+            // Note: Even though SubmitThreeDsResult currently persists a single aggregate, wrapping
+            // via UnitOfWork ensures consistent transaction boundary handling across all mutation handlers
+            // and allows future outbox events or audit log coordination without breaking handler signatures.
+            await unitOfWork.ExecuteTransactionAsync(token => repository.UpdateAsync(payment, token), ct);
+        }
+        else
+        {
+            await repository.UpdateAsync(payment, ct);
+        }
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), channel, "3ds_challenge");
         PaymentMetrics.RecordChannelDuration(sw.Elapsed.TotalSeconds, channel, "3ds_challenge", payment.State.ToString());
