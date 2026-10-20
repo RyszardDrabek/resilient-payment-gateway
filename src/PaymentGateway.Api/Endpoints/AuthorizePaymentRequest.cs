@@ -9,4 +9,5 @@ public record AuthorizePaymentRequest(
     string? TransactionOrigin = null,
     string? PaymentMethodId = null,
     string? SubscriptionId = null,
-    bool StorePaymentMethod = false);
+    bool StorePaymentMethod = false,
+    string? QuoteId = null);

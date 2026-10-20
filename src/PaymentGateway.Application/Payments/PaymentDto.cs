@@ -17,4 +17,8 @@ public record PaymentDto(
     ThreeDsActionDto? Action = null,
     string? TransactionOrigin = null,
     string? PaymentMethodId = null,
-    string? SubscriptionId = null);
+    string? SubscriptionId = null,
+    string? QuoteId = null,
+    long? OriginalAmount = null,
+    string? OriginalCurrency = null,
+    decimal? ExchangeRate = null);

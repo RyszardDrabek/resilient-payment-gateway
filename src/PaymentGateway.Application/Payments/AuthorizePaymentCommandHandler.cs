@@ -17,7 +17,8 @@ public sealed class AuthorizePaymentCommandHandler(
     IIdempotencyRepository idempotencyRepository,
     IPaymentMethodRepository? paymentMethodRepository = null,
     IInlineRiskEvaluator? inlineRiskEvaluator = null,
-    IRiskFlagRepository? riskFlagRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
+    IRiskFlagRepository? riskFlagRepository = null,
+    IFxQuoteRepository? fxQuoteRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(AuthorizePaymentCommand request, CancellationToken ct)
     {
@@ -98,6 +99,41 @@ public sealed class AuthorizePaymentCommandHandler(
             storedTokenString = storedMethod.Token;
         }
 
+        CurrencyQuote? quote = null;
+        if (!string.IsNullOrWhiteSpace(request.QuoteId) && fxQuoteRepository is not null)
+        {
+            quote = await fxQuoteRepository.GetByIdAsync(request.QuoteId, ct);
+            if (quote is null)
+            {
+                throw new QuoteNotFoundException(request.QuoteId);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (quote.Status == CurrencyQuoteStatus.Consumed)
+            {
+                if (existing is null || quote.ConsumedByPaymentId != existing.PaymentId)
+                {
+                    throw new QuoteAlreadyConsumedException(quote.Id, quote.ConsumedByPaymentId ?? "unknown");
+                }
+            }
+            else if (quote.Status == CurrencyQuoteStatus.Expired || now >= quote.ExpiresAt)
+            {
+                quote.Expire(now);
+                await fxQuoteRepository.UpdateAsync(quote, ct);
+                throw new QuoteExpiredException(quote.Id, quote.ExpiresAt);
+            }
+
+            if (!string.Equals(quote.TargetCurrency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new QuoteMismatchException($"Quote target currency '{quote.TargetCurrency}' does not match payment request currency '{request.Currency}'.");
+            }
+
+            if (quote.TargetAmount != request.Amount)
+            {
+                throw new QuoteMismatchException($"Quote target amount '{quote.TargetAmount}' does not match payment request amount '{request.Amount}'.");
+            }
+        }
+
         var isMit = string.Equals(request.TransactionOrigin, "MIT", StringComparison.OrdinalIgnoreCase);
         var originEnum = isMit ? TransactionOrigin.Mit : TransactionOrigin.Cit;
 
@@ -117,6 +153,13 @@ public sealed class AuthorizePaymentCommandHandler(
                 var declineReason = $"FRAUD_BLOCKED: {inlineRisk.Reason}";
                 var blockedPayment = Payment.Decline(request.PartyId, request.Amount, request.Currency, blockedChannel, null, declineReason);
                 blockedPayment.SetRecurringDetails(originEnum, request.PaymentMethodId, request.SubscriptionId);
+
+                if (quote is not null)
+                {
+                    blockedPayment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
+                    quote.Consume(blockedPayment.Id, DateTimeOffset.UtcNow);
+                    await fxQuoteRepository!.UpdateAsync(quote, ct);
+                }
 
                 await repository.AddAsync(blockedPayment, ct);
 
@@ -182,6 +225,13 @@ public sealed class AuthorizePaymentCommandHandler(
                     : Payment.Decline(request.PartyId, request.Amount, request.Currency, channel, settlement.ChannelReference, settlement.DeclineReason);
 
         payment.SetRecurringDetails(originEnum, request.PaymentMethodId, request.SubscriptionId);
+
+        if (quote is not null)
+        {
+            payment.SetQuoteDetails(quote.Id, quote.BaseAmount, quote.BaseCurrency, quote.ExchangeRate);
+            quote.Consume(payment.Id, DateTimeOffset.UtcNow);
+            await fxQuoteRepository!.UpdateAsync(quote, ct);
+        }
 
         // If storePaymentMethod was requested and token was returned, save PaymentMethodToken
         if (request.StorePaymentMethod &&

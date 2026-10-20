@@ -71,7 +71,8 @@ public static class PaymentEndpoints
                 request.TransactionOrigin,
                 request.PaymentMethodId,
                 request.SubscriptionId,
-                request.StorePaymentMethod);
+                request.StorePaymentMethod,
+                request.QuoteId);
 
             // Domain exceptions (IdempotencyConflictException, IdempotencyInFlightException, etc.)
             // are handled by PaymentExceptionHandlerMiddleware — no try/catch needed here.

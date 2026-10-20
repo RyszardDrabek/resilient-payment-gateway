@@ -22,6 +22,10 @@ public sealed class Payment
     public long RefundedAmount { get; private set; }
     public long RemainingAuthorizedAmount => Math.Max(0L, Amount - CapturedAmount);
     public long RemainingRefundableAmount => Math.Max(0L, (CapturedAmount > 0 ? CapturedAmount : (State == PaymentState.Captured ? Amount : 0L)) - RefundedAmount);
+    public string? QuoteId { get; private set; }
+    public long? OriginalAmount { get; private set; }
+    public string? OriginalCurrency { get; private set; }
+    public decimal? ExchangeRate { get; private set; }
 
     private readonly List<Events.IDomainEvent> _domainEvents = [];
     public IReadOnlyCollection<Events.IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
@@ -54,7 +58,11 @@ public sealed class Payment
         ThreeDsActionDetails? threeDsAction = null,
         TransactionOrigin transactionOrigin = TransactionOrigin.Cit,
         string? paymentMethodId = null,
-        string? subscriptionId = null)
+        string? subscriptionId = null,
+        string? quoteId = null,
+        long? originalAmount = null,
+        string? originalCurrency = null,
+        decimal? exchangeRate = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(partyId);
@@ -84,6 +92,10 @@ public sealed class Payment
         TransactionOrigin = transactionOrigin;
         PaymentMethodId = paymentMethodId;
         SubscriptionId = subscriptionId;
+        QuoteId = quoteId;
+        OriginalAmount = originalAmount;
+        OriginalCurrency = originalCurrency?.Trim().ToUpperInvariant();
+        ExchangeRate = exchangeRate;
     }
 
     public void SetRecurringDetails(TransactionOrigin origin, string? paymentMethodId = null, string? subscriptionId = null)
@@ -91,6 +103,19 @@ public sealed class Payment
         TransactionOrigin = origin;
         PaymentMethodId = paymentMethodId;
         SubscriptionId = subscriptionId;
+    }
+
+    public void SetQuoteDetails(string quoteId, long originalAmount, string originalCurrency, decimal exchangeRate)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(quoteId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(originalCurrency);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(originalAmount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(exchangeRate);
+
+        QuoteId = quoteId;
+        OriginalAmount = originalAmount;
+        OriginalCurrency = originalCurrency.Trim().ToUpperInvariant();
+        ExchangeRate = exchangeRate;
     }
 
     public static Payment Authorize(

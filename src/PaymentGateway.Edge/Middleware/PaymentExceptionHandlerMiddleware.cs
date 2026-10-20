@@ -107,6 +107,42 @@ public sealed class PaymentExceptionHandlerMiddleware(
                 "Conflict",
                 ex.Message);
         }
+        catch (QuoteNotFoundException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.NotFound,
+                PaymentProblemTypes.NotFound,
+                "Not Found",
+                ex.Message);
+        }
+        catch (QuoteExpiredException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.Conflict,
+                PaymentProblemTypes.Conflict,
+                "Conflict",
+                ex.Message);
+        }
+        catch (QuoteAlreadyConsumedException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.Conflict,
+                PaymentProblemTypes.Conflict,
+                "Conflict",
+                ex.Message);
+        }
+        catch (QuoteMismatchException ex)
+        {
+            await WriteProblemAsync(
+                context,
+                HttpStatusCode.UnprocessableEntity,
+                PaymentProblemTypes.Validation,
+                "Unprocessable Entity",
+                ex.Message);
+        }
         catch (Exception ex)
         {
             logger.LogError(
