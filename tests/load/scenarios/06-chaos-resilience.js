@@ -52,7 +52,7 @@ export default function () {
   if (res.status === 201) {
     try {
       const body = JSON.parse(res.body);
-      if (body.status === 'Pending') {
+      if (body.state === 'Pending') {
         pendingOutcomes.add(1);
       }
     } catch (e) {

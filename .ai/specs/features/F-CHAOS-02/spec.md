@@ -1,13 +1,13 @@
 ---
 id: F-CHAOS-02
-topic: EVT
+topic: CHAOS
 phase: chaos-engineering-and-resilience-verification
 status: done
 ---
 
 # F-CHAOS-02: Transactional Outbox zero-loss resilience & queue catchup under broker partition
 
-- **Topic:** [EVT](../../topics/evt.md)
+- **Topic:** [CHAOS](../../topics/chaos.md)
 - **Type:** Explicit
 - **Value class:** RESILIENCE
 - **Source:** ADR-024

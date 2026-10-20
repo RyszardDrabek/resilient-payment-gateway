@@ -1,13 +1,13 @@
 ---
 id: F-CHAOS-03
-topic: EDGE
+topic: CHAOS
 phase: chaos-engineering-and-resilience-verification
 status: done
 ---
 
 # F-CHAOS-03: Acquirer latency degradation & database transient failure resilience
 
-- **Topic:** [EDGE](../../topics/edge.md)
+- **Topic:** [CHAOS](../../topics/chaos.md)
 - **Type:** Explicit
 - **Value class:** RESILIENCE
 - **Source:** ADR-024

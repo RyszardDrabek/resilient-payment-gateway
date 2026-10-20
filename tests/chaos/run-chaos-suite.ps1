@@ -62,8 +62,7 @@ if (-not $SkipTests) {
     Write-Host "`n[*] Executing .NET Chaos Resilience Integration Test Suite..." -ForegroundColor Cyan
     $testFilter = "FullyQualifiedName~Chaos"
     
-    $testResult = dotnet test tests/PaymentGateway.IntegrationTests/PaymentGateway.IntegrationTests.csproj -c Release --filter $testFilter --logger "console;verbosity=normal"
-    Write-Host $testResult
+    dotnet test tests/PaymentGateway.IntegrationTests/PaymentGateway.IntegrationTests.csproj -c Release --filter $testFilter --logger "console;verbosity=normal"
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[X] Chaos integration tests FAILED!" -ForegroundColor Red

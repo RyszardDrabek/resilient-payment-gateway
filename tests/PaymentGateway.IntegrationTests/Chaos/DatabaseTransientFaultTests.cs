@@ -146,10 +146,7 @@ public sealed class DatabaseTransientFaultTests : IAsyncLifetime
         await using (var db = new PaymentDbContext(dbOptions))
         {
             var record = await db.IdempotencyRecords.FirstAsync(r => r.Key == key);
-            // Backdate LockedUntil by 60 seconds
-            typeof(IdempotencyRecord)
-                .GetProperty(nameof(IdempotencyRecord.LockedUntil))!
-                .SetValue(record, DateTimeOffset.UtcNow.AddSeconds(-60));
+            record.ExpireLease(DateTimeOffset.UtcNow.AddSeconds(-60));
             await db.SaveChangesAsync();
         }
 
