@@ -98,6 +98,7 @@ public static class DependencyInjection
 
         services.AddMassTransit(x =>
         {
+            x.AddBusObserver<PaymentGateway.Infrastructure.Services.MassTransitReadyBusObserver>();
             x.AddConsumer<PaymentGateway.Infrastructure.Events.PaymentLifecycleTestConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.PaymentLifecycleRiskConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.MerchantWebhookDispatcherConsumer>();
