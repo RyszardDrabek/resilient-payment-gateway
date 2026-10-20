@@ -39,6 +39,7 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services.AddHostedService<PaymentGateway.Worker.Web3ConfirmationWatcherWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.OutboxRetentionCleanupWorker>();
+builder.Services.AddHostedService<PaymentGateway.Worker.IdempotencyRetentionCleanupWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.ThreeDsExpirationWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.SubscriptionBillingWorker>();
 builder.Services.AddHostedService<PaymentGateway.Worker.DailyReconciliationWorker>();
