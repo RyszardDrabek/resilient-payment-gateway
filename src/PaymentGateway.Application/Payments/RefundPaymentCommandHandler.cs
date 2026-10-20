@@ -12,7 +12,8 @@ namespace PaymentGateway.Application.Payments;
 public sealed class RefundPaymentCommandHandler(
     IPaymentRepository repository,
     ISettlementPort settlementPort,
-    IIdempotencyRepository idempotencyRepository) : IRequestHandler<RefundPaymentCommand, PaymentDto>
+    IIdempotencyRepository idempotencyRepository,
+    IUnitOfWork? unitOfWork = null) : IRequestHandler<RefundPaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(RefundPaymentCommand request, CancellationToken ct)
     {
@@ -134,12 +135,25 @@ public sealed class RefundPaymentCommandHandler(
         if (settlement.IsUnanswered && !string.IsNullOrWhiteSpace(settlement.ChannelReference))
         {
             payment.ApplyAcquirerOutcome(PaymentLifecycleOutcome.Pending, settlement.ChannelReference);
-            await repository.UpdateAsync(payment, ct);
 
             var pendingDto = PaymentMapper.ToDto(payment);
             var serializedPending = JsonSerializer.Serialize(pendingDto);
-            record.Complete(200, serializedPending, payment.Id);
-            await idempotencyRepository.UpdateAsync(record, ct);
+
+            async Task CommitPendingAsync(CancellationToken token)
+            {
+                await repository.UpdateAsync(payment, token);
+                record.Complete(200, serializedPending, payment.Id);
+                await idempotencyRepository.UpdateAsync(record, token);
+            }
+
+            if (unitOfWork is not null)
+            {
+                await unitOfWork.ExecuteTransactionAsync(CommitPendingAsync, ct);
+            }
+            else
+            {
+                await CommitPendingAsync(ct);
+            }
 
             return pendingDto;
         }
@@ -154,7 +168,6 @@ public sealed class RefundPaymentCommandHandler(
         }
 
         payment.Refund(settlement.ChannelReference, effectiveAmount);
-        await repository.UpdateAsync(payment, ct);
 
         PaymentMetrics.RecordTransaction(payment.State.ToString(), payment.SettlementChannel ?? "UNKNOWN", "refund");
         PaymentMetrics.RecordVolume(effectiveAmount, payment.Currency, payment.SettlementChannel ?? "UNKNOWN", "refund", payment.State.ToString());
@@ -162,8 +175,21 @@ public sealed class RefundPaymentCommandHandler(
         var dto = PaymentMapper.ToDto(payment);
         var serializedDto = JsonSerializer.Serialize(dto);
 
-        record.Complete(200, serializedDto, payment.Id);
-        await idempotencyRepository.UpdateAsync(record, ct);
+        async Task CommitRefundAsync(CancellationToken token)
+        {
+            await repository.UpdateAsync(payment, token);
+            record.Complete(200, serializedDto, payment.Id);
+            await idempotencyRepository.UpdateAsync(record, token);
+        }
+
+        if (unitOfWork is not null)
+        {
+            await unitOfWork.ExecuteTransactionAsync(CommitRefundAsync, ct);
+        }
+        else
+        {
+            await CommitRefundAsync(ct);
+        }
 
         return dto;
     }
