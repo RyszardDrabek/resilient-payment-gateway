@@ -240,6 +240,13 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
+
+                    b.HasIndex("LockedUntil")
+                        .HasDatabaseName("IX_IdempotencyRecords_InFlight_LockedUntil")
+                        .HasFilter("\"Status\" = 'InFlight' AND \"LockedUntil\" IS NOT NULL");
+
                     b.HasIndex("CommandType", "Key")
                         .IsUnique()
                         .HasFilter("\"CommandType\" = 'Authorize'");

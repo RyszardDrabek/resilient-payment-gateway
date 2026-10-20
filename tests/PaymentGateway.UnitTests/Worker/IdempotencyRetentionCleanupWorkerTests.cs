@@ -18,6 +18,7 @@ public sealed class IdempotencyRetentionCleanupWorkerTests
 
         options.Enabled.Should().BeTrue();
         options.CleanupIntervalMinutes.Should().Be(15);
+        options.BatchSize.Should().Be(1000);
     }
 
     [Fact]

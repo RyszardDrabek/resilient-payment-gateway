@@ -99,6 +99,13 @@ public sealed class PaymentDbContext(
             b.HasIndex(r => new { r.PaymentId, r.CommandType, r.Key })
                 .HasFilter("\"CommandType\" != 'Authorize'")
                 .IsUnique();
+
+            b.HasIndex(r => r.ExpiresAt)
+                .HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
+
+            b.HasIndex(r => r.LockedUntil)
+                .HasDatabaseName("IX_IdempotencyRecords_InFlight_LockedUntil")
+                .HasFilter("\"Status\" = 'InFlight' AND \"LockedUntil\" IS NOT NULL");
         });
 
         modelBuilder.Entity<PaymentGateway.Domain.Entities.AdyenNotification>(b =>

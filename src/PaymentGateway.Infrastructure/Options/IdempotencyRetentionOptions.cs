@@ -6,4 +6,5 @@ public sealed class IdempotencyRetentionOptions
 
     public bool Enabled { get; set; } = true;
     public int CleanupIntervalMinutes { get; set; } = 15;
+    public int BatchSize { get; set; } = 1000;
 }

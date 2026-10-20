@@ -156,6 +156,8 @@ public sealed class IdempotencyRetentionIntegrationTests : IAsyncLifetime
             reaped!.Status.Should().Be(IdempotencyStatus.Failed);
             reaped.ResponseStatusCode.Should().Be(504);
             reaped.ResponsePayload.Should().Contain("lease expired");
+            reaped.ResponsePayload.Should().Contain("\"title\":\"Gateway Timeout\"");
+            reaped.ResponsePayload.Should().Contain("\"status\":504");
             reaped.LockedUntil.Should().BeNull();
 
             var stillActive = await verifyDb.IdempotencyRecords.FirstOrDefaultAsync(r => r.Key == activeLeaseKey);
