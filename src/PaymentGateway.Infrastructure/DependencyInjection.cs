@@ -72,10 +72,12 @@ public static class DependencyInjection
         var rabbitPass = configuration["RabbitMq:Password"] ?? "guest";
 
         services.Configure<PaymentGateway.Infrastructure.Risk.RiskOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Risk.RiskOptions.SectionName));
+        services.Configure<PaymentGateway.Infrastructure.Risk.InlineRiskOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Risk.InlineRiskOptions.SectionName));
         services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskVerdictRepository, PaymentGateway.Infrastructure.Repositories.RiskVerdictRepository>();
         services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskFlagRepository, PaymentGateway.Infrastructure.Repositories.RiskFlagRepository>();
         services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskContextStore, PaymentGateway.Infrastructure.Repositories.PartyRiskContextStore>();
         services.AddScoped<PaymentGateway.Application.Risk.Ports.IRiskScorer, PaymentGateway.Infrastructure.Risk.DeterministicRiskScorer>();
+        services.AddScoped<PaymentGateway.Application.Risk.Ports.IInlineRiskEvaluator, PaymentGateway.Infrastructure.Risk.InlineRiskEvaluator>();
 
         services.Configure<PaymentGateway.Infrastructure.Options.MerchantWebhookOptions>(
             configuration.GetSection(PaymentGateway.Infrastructure.Options.MerchantWebhookOptions.SectionName));

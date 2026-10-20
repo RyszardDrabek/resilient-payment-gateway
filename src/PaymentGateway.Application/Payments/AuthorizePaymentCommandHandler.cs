@@ -1,6 +1,8 @@
 using System.Text.Json;
 using MediatR;
 using PaymentGateway.Application.Metrics;
+using PaymentGateway.Application.Risk.Models;
+using PaymentGateway.Application.Risk.Ports;
 using PaymentGateway.Domain.Entities;
 using PaymentGateway.Domain.Enums;
 using PaymentGateway.Domain.Exceptions;
@@ -13,7 +15,9 @@ public sealed class AuthorizePaymentCommandHandler(
     ISettlementPort settlementPort,
     IPaymentRepository repository,
     IIdempotencyRepository idempotencyRepository,
-    IPaymentMethodRepository? paymentMethodRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
+    IPaymentMethodRepository? paymentMethodRepository = null,
+    IInlineRiskEvaluator? inlineRiskEvaluator = null,
+    IRiskFlagRepository? riskFlagRepository = null) : IRequestHandler<AuthorizePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(AuthorizePaymentCommand request, CancellationToken ct)
     {
@@ -96,6 +100,50 @@ public sealed class AuthorizePaymentCommandHandler(
 
         var isMit = string.Equals(request.TransactionOrigin, "MIT", StringComparison.OrdinalIgnoreCase);
         var originEnum = isMit ? TransactionOrigin.Mit : TransactionOrigin.Cit;
+
+        if (inlineRiskEvaluator is not null)
+        {
+            var inlineRisk = await inlineRiskEvaluator.EvaluateAsync(
+                request.PartyId,
+                request.Amount,
+                request.Currency,
+                request.SettlementChannel,
+                request.PaymentMethodId,
+                ct);
+
+            if (inlineRisk.Decision == InlineRiskDecision.Block)
+            {
+                var blockedChannel = request.SettlementChannel ?? "INLINE_RISK";
+                var declineReason = $"FRAUD_BLOCKED: {inlineRisk.Reason}";
+                var blockedPayment = Payment.Decline(request.PartyId, request.Amount, request.Currency, blockedChannel, null, declineReason);
+                blockedPayment.SetRecurringDetails(originEnum, request.PaymentMethodId, request.SubscriptionId);
+
+                await repository.AddAsync(blockedPayment, ct);
+
+                if (riskFlagRepository is not null)
+                {
+                    var flag = new RiskFlag(
+                        Guid.NewGuid().ToString(),
+                        blockedPayment.Id,
+                        blockedPayment.PartyId,
+                        $"pre_settlement_{blockedPayment.Id}",
+                        $"Inline risk blocked: {inlineRisk.Reason} (score: {inlineRisk.RiskScore})",
+                        DateTimeOffset.UtcNow);
+                    await riskFlagRepository.SaveAsync(flag, ct);
+                }
+
+                PaymentMetrics.RecordTransaction(blockedPayment.State.ToString(), blockedChannel, "authorize");
+                PaymentMetrics.RecordDecline("FRAUD_BLOCKED", blockedChannel);
+
+                var blockedDto = PaymentMapper.ToDto(blockedPayment);
+                var serializedBlockedDto = JsonSerializer.Serialize(blockedDto);
+
+                record.Complete(201, serializedBlockedDto, blockedPayment.Id);
+                await idempotencyRepository.UpdateAsync(record, ct);
+
+                return blockedDto;
+            }
+        }
 
         SettlementResult settlement;
         var sw = System.Diagnostics.Stopwatch.StartNew();

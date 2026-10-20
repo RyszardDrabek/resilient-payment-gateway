@@ -195,9 +195,14 @@
   - _Depends on:_ CHAOS, EVT
 - **EVT** — Transactional Outbox zero-loss resilience verification under broker partition, automatic queue catchup, and consumer crash redelivery idempotency.
   - _Depends on:_ EVT, PAY
-- **EDGE** — Acquirer latency degradation handling, timeout problem details, circuit breaker recovery, and k6 chaos resilience scenario.
-  - _Depends on:_ EDGE, PAY
+## Phase 16: pre-settlement-inline-risk-gating
 
+**Objective:** Implement ultra-low-latency inline pre-settlement fraud evaluation (<50 ms budget) with intelligent risk gating decisions (Allow, Enforce 3DS2 Challenge, Block upfront) and fail-open resilience.
+**Evaluation criteria:** Payments with extreme risk score (>=85 or known fraudulent party prefix) are blocked upfront before reaching the acquirer, saving fees and preventing chargebacks; payments with elevated risk (>=60) enforce 3DS2 challenge authentication; payments exceeding the 50 ms time budget fail open to allow legitimate traffic; all blocked fraud attempts record risk flags and prometheus decline metrics.
 
+### Topics
 
-
+- **RISK** — Fast inline risk evaluator, rule scoring engine, risk thresholds, fail-open timeout budget, and immediate fraud flag creation.
+  - _Depends on:_ RISK, PAY
+- **PAY** — Pre-settlement hook in AuthorizePaymentCommandHandler, upfront fraud decline state without acquirer invocation.
+  - _Depends on:_ PAY, RISK
