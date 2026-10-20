@@ -318,5 +318,6 @@ Real-time telemetry and cluster alerting are managed via Prometheus, Alertmanage
 | [ADR-021](adr/adr-021-reconciliation-fee-calculation-and-merchant-payouts.md) | Reconciliation, Fee Calculation and Merchant Payouts |
 | [ADR-022](adr/adr-022-openid-connect-keycloak-and-jwks-validation.md) | OpenID Connect (OIDC) Authentication, Keycloak Identity Provider & JWKS Validation |
 | [ADR-023](adr/adr-023-cloud-infrastructure-as-code-terraform-aws.md) | Cloud Infrastructure as Code (IaC) with Terraform for AWS EKS, Aurora Serverless & Amazon MQ |
+| [ADR-024](adr/adr-024-chaos-engineering-and-fault-injection.md) | Chaos Engineering, Automated Fault Injection & Zero-Data-Loss Resilience Verification |
 
 > ADR-008 intentionally unused — compose-only hosting is recorded in this overview, not a separate ADR.

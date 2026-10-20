@@ -183,6 +183,20 @@ services:
     depends_on:
       - api
 
+  toxiproxy:
+    profiles: ["chaos"]
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    command: ["-host=0.0.0.0"]
+    ports:
+      - "8474:8474"
+      - "5433:5433"
+      - "5673:5673"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
 networks:
   default:
     name: payment-gateway
