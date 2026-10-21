@@ -147,4 +147,54 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         content.Should().Contain("Degraded");
         content.Should().Contain("outboxLagSeconds");
     }
+
+    [Fact]
+    public async Task Health_ignores_dead_lettered_outbox_messages_when_computing_lag()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var connectionString = _postgres.GetConnectionString();
+
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<PaymentGateway.Infrastructure.Persistence.PaymentDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+
+        await using (var db = new PaymentGateway.Infrastructure.Persistence.PaymentDbContext(options))
+        {
+            await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database);
+            await db.OutboxMessages.ExecuteDeleteAsync();
+
+            db.OutboxMessages.Add(new PaymentGateway.Infrastructure.Persistence.OutboxMessageRecord
+            {
+                EventType = "PaymentTransitioned",
+                Payload = "{\"test\": \"dead_letter\"}",
+                CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-30),
+                ProcessedAt = null,
+                DeliveryAttempts = 5,
+                Error = "Exceeded max delivery attempts"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("ConnectionStrings:PaymentDb", connectionString);
+                builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
+                builder.UseSetting("RabbitMq:UseInMemory", "true");
+                builder.UseSetting("Auth:JwtSigningKey", "DEV_ONLY_CHANGE_ME_32CHARS_MINIMUM!!");
+                builder.UseSetting("Outbox:Enabled", "false");
+            });
+
+        var client = factory.CreateClient();
+        var response = await client.GetAsync("/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Contain("Healthy");
+        content.Should().NotContain("Degraded");
+    }
 }

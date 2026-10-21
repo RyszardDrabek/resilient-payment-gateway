@@ -287,7 +287,13 @@ app.MapMerchantWebhookDlqEndpoints();
 app.MapOpsObservabilityEndpoints();
 app.MapFxEndpoints();
 app.MapGet("/healthz", () => Results.Ok(new { service = "PaymentGateway.Api", status = "Healthy" })).AllowAnonymous();
-app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, TimeProvider timeProvider, CancellationToken ct) =>
+app.MapGet("/health", async (
+    PaymentDbContext db,
+    RiskDbContext riskDb,
+    TimeProvider timeProvider,
+    Microsoft.Extensions.Options.IOptions<PaymentGateway.Infrastructure.Options.OutboxOptions> outboxOptions,
+    ILoggerFactory loggerFactory,
+    CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);
     var canConnectRisk = await riskDb.Database.CanConnectAsync(ct);
@@ -299,8 +305,10 @@ app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, TimeProv
     try
     {
         var now = timeProvider.GetUtcNow();
+        var maxDeliveryAttempts = outboxOptions.Value.MaxDeliveryAttempts > 0 ? outboxOptions.Value.MaxDeliveryAttempts : 5;
+
         var oldestPendingCreatedAt = await db.OutboxMessages
-            .Where(m => m.ProcessedAt == null)
+            .Where(m => m.ProcessedAt == null && m.DeliveryAttempts < maxDeliveryAttempts)
             .OrderBy(m => m.CreatedAt)
             .Select(m => (DateTimeOffset?)m.CreatedAt)
             .FirstOrDefaultAsync(ct);
@@ -313,8 +321,10 @@ app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, TimeProv
 
         return Results.Ok(new { status = "Healthy", outboxLagSeconds = lagSeconds });
     }
-    catch (Exception)
+    catch (Exception ex)
     {
+        var logger = loggerFactory.CreateLogger("Health");
+        logger.LogWarning(ex, "Failed to compute outbox lag in health check; falling back to Healthy.");
         return Results.Ok(new { status = "Healthy" });
     }
 }).AllowAnonymous();
