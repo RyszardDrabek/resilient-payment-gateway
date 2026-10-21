@@ -269,4 +269,56 @@ public sealed class MerchantWebhookDlqIntegrationTests : IAsyncLifetime
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task CleanupExpiredAsync_PrunesRecordsOlderThanCutoff_AndKeepsRecent()
+    {
+        if (!_dockerAvailable || _postgres is null) return;
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        await using var db = new PaymentDbContext(options);
+
+        var now = DateTimeOffset.UtcNow;
+        var oldDlq = MerchantWebhookDeadLetter.Create(
+            eventId: "evt_retention_old",
+            paymentId: "pay_retention_old",
+            merchantId: "merch_retention_test",
+            destinationUrl: "https://example.com/webhook",
+            payloadJson: "{}",
+            deliveryAttempts: 5,
+            lastErrorMessage: "Timed out",
+            lastStatusCode: 504,
+            failedAt: now.AddDays(-100));
+
+        var recentDlq = MerchantWebhookDeadLetter.Create(
+            eventId: "evt_retention_recent",
+            paymentId: "pay_retention_recent",
+            merchantId: "merch_retention_test",
+            destinationUrl: "https://example.com/webhook",
+            payloadJson: "{}",
+            deliveryAttempts: 5,
+            lastErrorMessage: "Timed out",
+            lastStatusCode: 504,
+            failedAt: now.AddDays(-20));
+
+        db.MerchantWebhookDeadLetters.AddRange(oldDlq, recentDlq);
+        await db.SaveChangesAsync();
+
+        var repo = new PaymentGateway.Infrastructure.Repositories.MerchantWebhookDeadLetterRepository(db);
+        var deletedCount = await repo.CleanupExpiredAsync(now.AddDays(-90));
+
+        deletedCount.Should().BeGreaterThanOrEqualTo(1);
+
+        await using (var verifyDb = new PaymentDbContext(options))
+        {
+            var remainingOld = await verifyDb.MerchantWebhookDeadLetters.FindAsync(oldDlq.Id);
+            remainingOld.Should().BeNull();
+
+            var remainingRecent = await verifyDb.MerchantWebhookDeadLetters.FindAsync(recentDlq.Id);
+            remainingRecent.Should().NotBeNull();
+        }
+    }
 }

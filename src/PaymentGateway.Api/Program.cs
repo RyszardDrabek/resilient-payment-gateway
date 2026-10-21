@@ -287,13 +287,46 @@ app.MapMerchantWebhookDlqEndpoints();
 app.MapOpsObservabilityEndpoints();
 app.MapFxEndpoints();
 app.MapGet("/healthz", () => Results.Ok(new { service = "PaymentGateway.Api", status = "Healthy" })).AllowAnonymous();
-app.MapGet("/health", async (PaymentDbContext db, RiskDbContext riskDb, CancellationToken ct) =>
+app.MapGet("/health", async (
+    PaymentDbContext db,
+    RiskDbContext riskDb,
+    TimeProvider timeProvider,
+    Microsoft.Extensions.Options.IOptions<PaymentGateway.Infrastructure.Options.OutboxOptions> outboxOptions,
+    ILoggerFactory loggerFactory,
+    CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);
     var canConnectRisk = await riskDb.Database.CanConnectAsync(ct);
-    return (canConnectPay && canConnectRisk)
-        ? Results.Ok(new { status = "Healthy" })
-        : Results.Json(new { status = "Unhealthy" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    if (!canConnectPay || !canConnectRisk)
+    {
+        return Results.Json(new { status = "Unhealthy", error = "Database connection failed" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    try
+    {
+        var now = timeProvider.GetUtcNow();
+        var maxDeliveryAttempts = outboxOptions.Value.MaxDeliveryAttempts > 0 ? outboxOptions.Value.MaxDeliveryAttempts : 5;
+
+        var oldestPendingCreatedAt = await db.OutboxMessages
+            .Where(m => m.ProcessedAt == null && m.DeliveryAttempts < maxDeliveryAttempts)
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => (DateTimeOffset?)m.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        var lagSeconds = oldestPendingCreatedAt.HasValue ? Math.Round((now - oldestPendingCreatedAt.Value).TotalSeconds, 1) : 0.0;
+        if (lagSeconds > 300)
+        {
+            return Results.Json(new { status = "Degraded", outboxLagSeconds = lagSeconds }, statusCode: StatusCodes.Status200OK);
+        }
+
+        return Results.Ok(new { status = "Healthy", outboxLagSeconds = lagSeconds });
+    }
+    catch (Exception ex)
+    {
+        var logger = loggerFactory.CreateLogger("Health");
+        logger.LogWarning(ex, "Failed to compute outbox lag in health check; falling back to Healthy.");
+        return Results.Ok(new { status = "Healthy" });
+    }
 }).AllowAnonymous();
 
 app.Run();

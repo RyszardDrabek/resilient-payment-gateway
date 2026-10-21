@@ -439,6 +439,8 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FailedAt");
 
+                    b.HasIndex("MerchantId", "FailedAt");
+
                     b.HasIndex("MerchantId", "Status");
 
                     b.ToTable("MerchantWebhookDeadLetters", "pay");
@@ -819,6 +821,10 @@ namespace PaymentGateway.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_OutboxMessages_Pending")
+                        .HasFilter("\"ProcessedAt\" IS NULL");
 
                     b.HasIndex("ProcessedAt");
 

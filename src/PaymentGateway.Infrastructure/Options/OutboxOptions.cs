@@ -9,5 +9,6 @@ public sealed class OutboxOptions
     public int BatchSize { get; set; } = 50;
     public int MaxDeliveryAttempts { get; set; } = 5;
     public int RetentionDays { get; set; } = 14;
+    public int DeadLetterRetentionDays { get; set; } = 30;
     public int RetentionCleanupIntervalHours { get; set; } = 24;
 }

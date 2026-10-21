@@ -75,6 +75,9 @@ public sealed class PaymentDbContext(
             b.Property(o => o.DeliveryAttempts).IsRequired().HasDefaultValue(0);
             b.Property(o => o.Error).HasMaxLength(1024);
             b.HasIndex(o => o.ProcessedAt);
+            b.HasIndex(o => o.CreatedAt)
+                .HasDatabaseName("IX_OutboxMessages_Pending")
+                .HasFilter("\"ProcessedAt\" IS NULL");
         });
 
         modelBuilder.Entity<PaymentGateway.Domain.Entities.IdempotencyRecord>(b =>
@@ -186,6 +189,7 @@ public sealed class PaymentDbContext(
 
             b.HasIndex(d => new { d.MerchantId, d.Status });
             b.HasIndex(d => d.FailedAt);
+            b.HasIndex(d => new { d.MerchantId, d.FailedAt });
         });
 
         modelBuilder.Entity<PaymentGateway.Domain.Entities.PaymentMethodToken>(b =>

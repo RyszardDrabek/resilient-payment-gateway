@@ -250,6 +250,73 @@ public sealed class OutboxRetentionIntegrationTests : IAsyncLifetime
         remaining[0].Id.Should().Be(recentRecord.Id);
     }
 
+    [Fact]
+    public async Task CleanupExpiredOutboxMessagesAsync_PrunesDeadLetteredMessagesOlderThanRetention_AndRetainsRecentDeadLetteredAndPending()
+    {
+        if (!_dockerAvailable || _postgres is null)
+        {
+            return;
+        }
+
+        var options = new DbContextOptionsBuilder<PaymentDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        await using var db = new PaymentDbContext(options);
+        await db.OutboxMessages.ExecuteDeleteAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        var oldDeadLetter = new OutboxMessageRecord
+        {
+            EventType = "PaymentTransitioned",
+            Payload = "{\"test\": \"old_dlq\"}",
+            CreatedAt = now.AddDays(-35),
+            ProcessedAt = null,
+            DeliveryAttempts = 5,
+            Error = "Exceeded max delivery attempts"
+        };
+
+        var recentDeadLetter = new OutboxMessageRecord
+        {
+            EventType = "PaymentTransitioned",
+            Payload = "{\"test\": \"recent_dlq\"}",
+            CreatedAt = now.AddDays(-10),
+            ProcessedAt = null,
+            DeliveryAttempts = 5,
+            Error = "Exceeded max delivery attempts"
+        };
+
+        var oldPending = new OutboxMessageRecord
+        {
+            EventType = "PaymentTransitioned",
+            Payload = "{\"test\": \"old_pending\"}",
+            CreatedAt = now.AddDays(-40),
+            ProcessedAt = null,
+            DeliveryAttempts = 2
+        };
+
+        db.OutboxMessages.AddRange(oldDeadLetter, recentDeadLetter, oldPending);
+        await db.SaveChangesAsync();
+
+        var outboxOptions = Microsoft.Extensions.Options.Options.Create(new OutboxOptions
+        {
+            RetentionDays = 14,
+            DeadLetterRetentionDays = 30,
+            MaxDeliveryAttempts = 5
+        });
+
+        var service = new OutboxRetentionService(db, outboxOptions, NullLogger<OutboxRetentionService>.Instance);
+
+        var prunedCount = await service.CleanupExpiredOutboxMessagesAsync();
+
+        prunedCount.Should().Be(1);
+        var remaining = await db.OutboxMessages.ToListAsync();
+        remaining.Should().HaveCount(2);
+        remaining.Select(m => m.Id).Should().Contain([recentDeadLetter.Id, oldPending.Id]);
+        remaining.Select(m => m.Id).Should().NotContain([oldDeadLetter.Id]);
+    }
+
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;

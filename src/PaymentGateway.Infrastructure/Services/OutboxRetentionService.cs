@@ -18,17 +18,37 @@ public sealed class OutboxRetentionService(
 
     public async Task<int> CleanupExpiredOutboxMessagesAsync(CancellationToken ct = default)
     {
+        var now = _timeProvider.GetUtcNow();
         var retentionDays = _options.RetentionDays > 0 ? _options.RetentionDays : 14;
-        var cutoff = _timeProvider.GetUtcNow().AddDays(-retentionDays);
+        var processedCutoff = now.AddDays(-retentionDays);
 
-        logger.LogInformation("Starting outbox retention cleanup for messages processed before {Cutoff} (retention: {RetentionDays} days)", cutoff, retentionDays);
+        var deadLetterDays = _options.DeadLetterRetentionDays > 0 ? _options.DeadLetterRetentionDays : 30;
+        var deadLetterCutoff = now.AddDays(-deadLetterDays);
+
+        logger.LogInformation(
+            "Starting outbox retention cleanup (processed cutoff: {ProcessedCutoff}, dead-letter cutoff: {DeadLetterCutoff})",
+            processedCutoff,
+            deadLetterCutoff);
 
         // Direct batch deletion without loading deleted message bodies or change tracker entities into memory
-        var deletedCount = await dbContext.OutboxMessages
-            .Where(m => m.ProcessedAt != null && m.ProcessedAt < cutoff)
+        var deletedProcessed = await dbContext.OutboxMessages
+            .Where(m => m.ProcessedAt != null && m.ProcessedAt < processedCutoff)
             .ExecuteDeleteAsync(ct);
 
-        logger.LogInformation("Outbox retention cleanup finished. Pruned {DeletedCount} messages.", deletedCount);
-        return deletedCount;
+        var deletedDeadLettered = await dbContext.OutboxMessages
+            .Where(m => m.ProcessedAt == null && m.DeliveryAttempts >= _options.MaxDeliveryAttempts && m.CreatedAt < deadLetterCutoff)
+            .ExecuteDeleteAsync(ct);
+
+        var totalDeleted = deletedProcessed + deletedDeadLettered;
+
+        if (totalDeleted > 0)
+        {
+            logger.LogInformation(
+                "Outbox retention cleanup finished. Pruned {ProcessedCount} processed and {DeadLetterCount} dead-lettered messages.",
+                deletedProcessed,
+                deletedDeadLettered);
+        }
+
+        return totalDeleted;
     }
 }
