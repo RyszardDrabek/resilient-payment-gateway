@@ -27,7 +27,8 @@ public sealed class PostgresAdvisoryLockProvider(
         try
         {
             var key = ComputeAdvisoryLockKey(resourceName);
-            var connection = new NpgsqlConnection(connectionString);
+            var lockConnectionString = BuildLockConnectionString(connectionString);
+            var connection = new NpgsqlConnection(lockConnectionString);
             await connection.OpenAsync(ct);
 
             await using var cmd = connection.CreateCommand();
@@ -66,6 +67,26 @@ public sealed class PostgresAdvisoryLockProvider(
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(resourceName));
         return BitConverter.ToInt64(hash, 0);
+    }
+
+    internal static string BuildLockConnectionString(string connectionString)
+    {
+        try
+        {
+            var builder = new NpgsqlConnectionStringBuilder(connectionString)
+            {
+                ApplicationName = "pg_advisory_locks",
+                Pooling = true,
+                MaxPoolSize = 10,
+                MinPoolSize = 0,
+                ConnectionIdleLifetime = 15
+            };
+            return builder.ConnectionString;
+        }
+        catch
+        {
+            return connectionString;
+        }
     }
 
     private sealed class PostgresAdvisoryLock(

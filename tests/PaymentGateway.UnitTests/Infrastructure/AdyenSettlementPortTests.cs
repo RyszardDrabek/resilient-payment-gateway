@@ -221,4 +221,47 @@ public class AdyenSettlementPortTests
         res3.DeclineReason.Should().Contain("circuit breaker is OPEN");
         callCount.Should().Be(callsBeforeOpen);
     }
+
+    [Fact]
+    public async Task AuthorizeAsync_WithSharedPipeline_CircuitBreakerStatePersistsAcrossDifferentPortInstances()
+    {
+        var callCount = 0;
+        var handler = new TestHttpMessageHandler(req =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        });
+
+        var client = new HttpClient(handler);
+        var options = new AdyenOptions
+        {
+            BaseUrl = "http://mock-adyen.local",
+            MaxRetryAttempts = 0,
+            CircuitBreakerEnabled = true,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDurationSeconds = 10,
+            CircuitBreakerBreakDurationSeconds = 10
+        };
+
+        // Singleton pipeline shared across distinct port instances (as registered in DI)
+        var sharedPipeline = AdyenSettlementPort.CreatePipeline(options);
+
+        var instance1 = new AdyenSettlementPort(client, Options.Create(options), pipeline: sharedPipeline);
+        var res1 = await instance1.AuthorizeAsync("party_test", 1000, "EUR");
+        res1.IsUnanswered.Should().BeTrue();
+
+        var instance2 = new AdyenSettlementPort(client, Options.Create(options), pipeline: sharedPipeline);
+        var res2 = await instance2.AuthorizeAsync("party_test", 1000, "EUR");
+        res2.IsUnanswered.Should().BeTrue();
+
+        var callsBeforeOpen = callCount;
+
+        // Distinct instance 3 should see OPEN circuit breaker from the shared singleton pipeline
+        var instance3 = new AdyenSettlementPort(client, Options.Create(options), pipeline: sharedPipeline);
+        var res3 = await instance3.AuthorizeAsync("party_test", 1000, "EUR");
+        res3.IsUnanswered.Should().BeTrue();
+        res3.DeclineReason.Should().Contain("circuit breaker is OPEN");
+        callCount.Should().Be(callsBeforeOpen);
+    }
 }

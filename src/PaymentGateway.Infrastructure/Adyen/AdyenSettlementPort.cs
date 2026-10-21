@@ -31,57 +31,57 @@ public sealed class AdyenSettlementPort : ISettlementPort
         _mockServer = mockServer;
         _logger = logger;
 
-        if (pipeline is not null)
+        _pipeline = pipeline ?? CreatePipeline(_options, _logger);
+    }
+
+    public static ResiliencePipeline<SettlementResult> CreatePipeline(
+        AdyenOptions options,
+        ILogger<AdyenSettlementPort>? logger = null)
+    {
+        var builder = new ResiliencePipelineBuilder<SettlementResult>();
+
+        if (options.CircuitBreakerEnabled)
         {
-            _pipeline = pipeline;
+            builder.AddCircuitBreaker(new CircuitBreakerStrategyOptions<SettlementResult>
+            {
+                ShouldHandle = new PredicateBuilder<SettlementResult>()
+                    .Handle<HttpRequestException>()
+                    .Handle<TimeoutException>()
+                    .Handle<TaskCanceledException>()
+                    .HandleResult(r => r.IsUnanswered && !r.IsConfigurationFail),
+                FailureRatio = options.CircuitBreakerFailureRatio,
+                MinimumThroughput = options.CircuitBreakerMinimumThroughput,
+                SamplingDuration = TimeSpan.FromSeconds(options.CircuitBreakerSamplingDurationSeconds),
+                BreakDuration = TimeSpan.FromSeconds(options.CircuitBreakerBreakDurationSeconds),
+                OnOpened = args =>
+                {
+                    logger?.LogWarning("Adyen circuit breaker opened for {BreakDuration}s", args.BreakDuration.TotalSeconds);
+                    return ValueTask.CompletedTask;
+                },
+                OnClosed = _ =>
+                {
+                    logger?.LogInformation("Adyen circuit breaker closed and healthy");
+                    return ValueTask.CompletedTask;
+                }
+            });
         }
-        else
+
+        if (options.MaxRetryAttempts > 0)
         {
-            var builder = new ResiliencePipelineBuilder<SettlementResult>();
-
-            if (_options.CircuitBreakerEnabled)
+            builder.AddRetry(new RetryStrategyOptions<SettlementResult>
             {
-                builder.AddCircuitBreaker(new CircuitBreakerStrategyOptions<SettlementResult>
-                {
-                    ShouldHandle = new PredicateBuilder<SettlementResult>()
-                        .Handle<HttpRequestException>()
-                        .Handle<TimeoutException>()
-                        .Handle<TaskCanceledException>()
-                        .HandleResult(r => r.IsUnanswered && !r.IsConfigurationFail),
-                    FailureRatio = _options.CircuitBreakerFailureRatio,
-                    MinimumThroughput = _options.CircuitBreakerMinimumThroughput,
-                    SamplingDuration = TimeSpan.FromSeconds(_options.CircuitBreakerSamplingDurationSeconds),
-                    BreakDuration = TimeSpan.FromSeconds(_options.CircuitBreakerBreakDurationSeconds),
-                    OnOpened = args =>
-                    {
-                        _logger?.LogWarning("Adyen circuit breaker opened for {BreakDuration}s", args.BreakDuration.TotalSeconds);
-                        return ValueTask.CompletedTask;
-                    },
-                    OnClosed = _ =>
-                    {
-                        _logger?.LogInformation("Adyen circuit breaker closed and healthy");
-                        return ValueTask.CompletedTask;
-                    }
-                });
-            }
-
-            if (_options.MaxRetryAttempts > 0)
-            {
-                builder.AddRetry(new RetryStrategyOptions<SettlementResult>
-                {
-                    ShouldHandle = new PredicateBuilder<SettlementResult>()
-                        .Handle<HttpRequestException>()
-                        .Handle<TimeoutException>()
-                        .Handle<TaskCanceledException>()
-                        .HandleResult(r => r.IsUnanswered && !r.IsConfigurationFail),
-                    MaxRetryAttempts = _options.MaxRetryAttempts,
-                    Delay = TimeSpan.FromMilliseconds(_options.RetryDelayMilliseconds),
-                    BackoffType = DelayBackoffType.Constant
-                });
-            }
-
-            _pipeline = builder.Build();
+                ShouldHandle = new PredicateBuilder<SettlementResult>()
+                    .Handle<HttpRequestException>()
+                    .Handle<TimeoutException>()
+                    .Handle<TaskCanceledException>()
+                    .HandleResult(r => r.IsUnanswered && !r.IsConfigurationFail),
+                MaxRetryAttempts = options.MaxRetryAttempts,
+                Delay = TimeSpan.FromMilliseconds(options.RetryDelayMilliseconds),
+                BackoffType = DelayBackoffType.Constant
+            });
         }
+
+        return builder.Build();
     }
 
     public Task<SettlementResult> AuthorizeAsync(

@@ -47,4 +47,14 @@ public sealed class PostgresAdvisoryLockProviderTests
         await lockB!.DisposeAsync();
         await lock1Reacquired!.DisposeAsync();
     }
+
+    [Fact]
+    public void BuildLockConnectionString_ConfiguresIsolatedPoolAndApplicationName()
+    {
+        var baseConnString = "Host=localhost;Database=payment_gateway;Username=postgres;Password=postgres;Maximum Pool Size=100";
+        var lockConnString = PostgresAdvisoryLockProvider.BuildLockConnectionString(baseConnString);
+
+        lockConnString.Should().Contain("Application Name=pg_advisory_locks");
+        lockConnString.Should().Contain("Maximum Pool Size=10");
+    }
 }
