@@ -313,8 +313,11 @@ app.MapMerchantApiKeyEndpoints();
 app.MapMerchantWebhookDlqEndpoints();
 app.MapOpsObservabilityEndpoints();
 app.MapFxEndpoints();
-app.MapGet("/healthz", () => Results.Ok(new { service = "PaymentGateway.Api", status = "Healthy" })).AllowAnonymous();
-app.MapGet("/health", async (
+var handleLiveness = () => Results.Ok(new { service = "PaymentGateway.Api", status = "Healthy" });
+app.MapGet("/healthz", handleLiveness).AllowAnonymous();
+app.MapGet("/health/live", handleLiveness).AllowAnonymous();
+
+var handleReadiness = async (
     PaymentDbContext db,
     RiskDbContext riskDb,
     TimeProvider timeProvider,
@@ -361,7 +364,10 @@ app.MapGet("/health", async (
         logger.LogWarning(ex, "Failed to compute outbox lag in health check; falling back to Healthy.");
         return Results.Ok(new { status = "Healthy" });
     }
-}).AllowAnonymous();
+};
+
+app.MapGet("/health", handleReadiness).AllowAnonymous();
+app.MapGet("/health/ready", handleReadiness).AllowAnonymous();
 
 app.Run();
 
