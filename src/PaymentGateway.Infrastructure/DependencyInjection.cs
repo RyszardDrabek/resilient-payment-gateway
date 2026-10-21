@@ -112,7 +112,10 @@ public static class DependencyInjection
         services.Configure<PaymentGateway.Application.Fx.Models.FxOptions>(configuration.GetSection(PaymentGateway.Application.Fx.Models.FxOptions.SectionName));
         services.Configure<PaymentGateway.Infrastructure.Options.FxQuoteExpirationOptions>(
             configuration.GetSection(PaymentGateway.Infrastructure.Options.FxQuoteExpirationOptions.SectionName));
-        services.AddSingleton<PaymentGateway.Application.Fx.Ports.IFxRateProvider, PaymentGateway.Infrastructure.Fx.CachedFxRateProvider>();
+        services.Configure<PaymentGateway.Infrastructure.Options.FxRateRefreshOptions>(
+            configuration.GetSection(PaymentGateway.Infrastructure.Options.FxRateRefreshOptions.SectionName));
+        services.AddSingleton<PaymentGateway.Infrastructure.Fx.CachedFxRateProvider>();
+        services.AddSingleton<PaymentGateway.Application.Fx.Ports.IFxRateProvider>(sp => sp.GetRequiredService<PaymentGateway.Infrastructure.Fx.CachedFxRateProvider>());
         services.AddScoped<PaymentGateway.Domain.Ports.IFxQuoteRepository, PaymentGateway.Infrastructure.Repositories.FxQuoteRepository>();
         services.AddScoped<PaymentGateway.Application.Fx.IFxQuoteExpirationService, PaymentGateway.Infrastructure.Services.FxQuoteExpirationService>();
 
