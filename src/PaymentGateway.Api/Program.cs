@@ -293,6 +293,7 @@ app.MapGet("/health", async (
     TimeProvider timeProvider,
     Microsoft.Extensions.Options.IOptions<PaymentGateway.Infrastructure.Options.OutboxOptions> outboxOptions,
     ILoggerFactory loggerFactory,
+    MassTransit.IBusControl bus,
     CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);
@@ -300,6 +301,12 @@ app.MapGet("/health", async (
     if (!canConnectPay || !canConnectRisk)
     {
         return Results.Json(new { status = "Unhealthy", error = "Database connection failed" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var busHealth = bus.CheckHealth();
+    if (busHealth.Status == MassTransit.BusHealthStatus.Unhealthy)
+    {
+        return Results.Json(new { status = "Unhealthy", error = $"Message bus unhealthy: {busHealth.Description}" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     try
@@ -314,7 +321,7 @@ app.MapGet("/health", async (
             .FirstOrDefaultAsync(ct);
 
         var lagSeconds = oldestPendingCreatedAt.HasValue ? Math.Round((now - oldestPendingCreatedAt.Value).TotalSeconds, 1) : 0.0;
-        if (lagSeconds > 300)
+        if (lagSeconds > 300 || busHealth.Status == MassTransit.BusHealthStatus.Degraded)
         {
             return Results.Json(new { status = "Degraded", outboxLagSeconds = lagSeconds }, statusCode: StatusCodes.Status200OK);
         }
