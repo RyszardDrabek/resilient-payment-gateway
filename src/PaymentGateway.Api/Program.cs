@@ -256,10 +256,37 @@ if (builder.Configuration.GetValue<bool>("Database:AutoMigrate", false) ||
     builder.Configuration.GetValue<bool>("DATABASE_AUTOMIGRATE", false))
 {
     using var scope = app.Services.CreateScope();
-    var payDb = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-    await payDb.Database.MigrateAsync();
-    var riskDb = scope.ServiceProvider.GetRequiredService<RiskDbContext>();
-    await riskDb.Database.MigrateAsync();
+    var lockProvider = scope.ServiceProvider.GetRequiredService<PaymentGateway.Application.Locking.IDistributedLockProvider>();
+    app.Logger.LogInformation("Attempting to acquire migration advisory lock...");
+
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+    PaymentGateway.Application.Locking.IDistributedLock? migrationLock = null;
+    while (!cts.IsCancellationRequested && migrationLock is null)
+    {
+        migrationLock = await lockProvider.TryAcquireLockAsync("DatabaseMigration", cts.Token);
+        if (migrationLock is null)
+        {
+            app.Logger.LogInformation("Database migration lock held by another replica. Waiting...");
+            await Task.Delay(1000, cts.Token);
+        }
+    }
+
+    if (migrationLock is not null)
+    {
+        await using (migrationLock)
+        {
+            app.Logger.LogInformation("Acquired database migration lock. Running migrations...");
+            var payDb = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+            await payDb.Database.MigrateAsync();
+            var riskDb = scope.ServiceProvider.GetRequiredService<RiskDbContext>();
+            await riskDb.Database.MigrateAsync();
+            app.Logger.LogInformation("Database migrations completed successfully.");
+        }
+    }
+    else
+    {
+        app.Logger.LogWarning("Timed out waiting for migration lock. Skipping migration execution on this instance.");
+    }
 }
 
 app.UseForwardedHeaders();
@@ -293,6 +320,7 @@ app.MapGet("/health", async (
     TimeProvider timeProvider,
     Microsoft.Extensions.Options.IOptions<PaymentGateway.Infrastructure.Options.OutboxOptions> outboxOptions,
     ILoggerFactory loggerFactory,
+    MassTransit.IBusControl bus,
     CancellationToken ct) =>
 {
     var canConnectPay = await db.Database.CanConnectAsync(ct);
@@ -300,6 +328,12 @@ app.MapGet("/health", async (
     if (!canConnectPay || !canConnectRisk)
     {
         return Results.Json(new { status = "Unhealthy", error = "Database connection failed" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var busHealth = bus.CheckHealth();
+    if (busHealth.Status == MassTransit.BusHealthStatus.Unhealthy)
+    {
+        return Results.Json(new { status = "Unhealthy", error = $"Message bus unhealthy: {busHealth.Description}" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     try
@@ -314,7 +348,7 @@ app.MapGet("/health", async (
             .FirstOrDefaultAsync(ct);
 
         var lagSeconds = oldestPendingCreatedAt.HasValue ? Math.Round((now - oldestPendingCreatedAt.Value).TotalSeconds, 1) : 0.0;
-        if (lagSeconds > 300)
+        if (lagSeconds > 300 || busHealth.Status == MassTransit.BusHealthStatus.Degraded)
         {
             return Results.Json(new { status = "Degraded", outboxLagSeconds = lagSeconds }, statusCode: StatusCodes.Status200OK);
         }

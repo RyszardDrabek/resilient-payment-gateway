@@ -10,7 +10,8 @@ namespace PaymentGateway.Worker;
 
 public sealed class DailyReconciliationWorker(
     IServiceScopeFactory scopeFactory,
-    ILogger<DailyReconciliationWorker> logger) : BackgroundService
+    ILogger<DailyReconciliationWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromMinutes(5);
 
@@ -22,14 +23,37 @@ public sealed class DailyReconciliationWorker(
         {
             try
             {
-                var result = await ProcessReconciliationCycleAsync(ct: stoppingToken);
-                if (result.ReconciledCount > 0 || result.BatchesGenerated > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation(
-                        "Reconciliation cycle completed: {Reconciled} payments reconciled, {Discrepancies} discrepancies, {Batches} payout batches generated.",
-                        result.ReconciledCount,
-                        result.DiscrepancyCount,
-                        result.BatchesGenerated);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(DailyReconciliationWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(DailyReconciliationWorker));
+                    }
+                    else
+                    {
+                        var result = await ProcessReconciliationCycleAsync(ct: stoppingToken);
+                        if (result.ReconciledCount > 0 || result.BatchesGenerated > 0)
+                        {
+                            logger.LogInformation(
+                                "Reconciliation cycle completed: {Reconciled} payments reconciled, {Discrepancies} discrepancies, {Batches} payout batches generated.",
+                                result.ReconciledCount,
+                                result.DiscrepancyCount,
+                                result.BatchesGenerated);
+                        }
+                    }
+                }
+                else
+                {
+                    var result = await ProcessReconciliationCycleAsync(ct: stoppingToken);
+                    if (result.ReconciledCount > 0 || result.BatchesGenerated > 0)
+                    {
+                        logger.LogInformation(
+                            "Reconciliation cycle completed: {Reconciled} payments reconciled, {Discrepancies} discrepancies, {Batches} payout batches generated.",
+                            result.ReconciledCount,
+                            result.DiscrepancyCount,
+                            result.BatchesGenerated);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

@@ -48,6 +48,13 @@ public static class DependencyInjection
             services.AddHostedService(sp => sp.GetRequiredService<PaymentGateway.Infrastructure.Adyen.AdyenWireMockServer>());
         }
 
+        services.AddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentGateway.Infrastructure.Adyen.AdyenOptions>>().Value;
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>>();
+            return PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort.CreatePipeline(options, logger);
+        });
+
         services.AddHttpClient<PaymentGateway.Infrastructure.Adyen.AdyenSettlementPort>((sp, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(adyenOptions.TimeoutSeconds > 0 ? adyenOptions.TimeoutSeconds : 5);
@@ -64,6 +71,7 @@ public static class DependencyInjection
             sp.GetRequiredService<PaymentGateway.Infrastructure.Services.RoutingSettlementPort>());
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<PaymentGateway.Application.Locking.IDistributedLockProvider, PaymentGateway.Infrastructure.Locking.PostgresAdvisoryLockProvider>();
         services.Configure<PaymentGateway.Infrastructure.Options.OutboxOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Options.OutboxOptions.SectionName));
         services.AddScoped<PaymentGateway.Application.Events.IOutboxRetentionService, PaymentGateway.Infrastructure.Services.OutboxRetentionService>();
         services.Configure<PaymentGateway.Infrastructure.Options.IdempotencyRetentionOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Options.IdempotencyRetentionOptions.SectionName));

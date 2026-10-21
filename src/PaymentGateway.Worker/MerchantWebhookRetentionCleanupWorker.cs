@@ -10,7 +10,8 @@ namespace PaymentGateway.Worker;
 public sealed class MerchantWebhookRetentionCleanupWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<MerchantWebhookOptions> options,
-    ILogger<MerchantWebhookRetentionCleanupWorker> logger) : BackgroundService
+    ILogger<MerchantWebhookRetentionCleanupWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private readonly MerchantWebhookOptions _options = options.Value;
 
@@ -26,10 +27,29 @@ public sealed class MerchantWebhookRetentionCleanupWorker(
         {
             try
             {
-                var pruned = await ProcessCycleAsync(stoppingToken);
-                if (pruned > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation("Merchant webhook dead-letter retention cycle pruned {Count} records.", pruned);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(MerchantWebhookRetentionCleanupWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(MerchantWebhookRetentionCleanupWorker));
+                    }
+                    else
+                    {
+                        var pruned = await ProcessCycleAsync(stoppingToken);
+                        if (pruned > 0)
+                        {
+                            logger.LogInformation("Merchant webhook dead-letter retention cycle pruned {Count} records.", pruned);
+                        }
+                    }
+                }
+                else
+                {
+                    var pruned = await ProcessCycleAsync(stoppingToken);
+                    if (pruned > 0)
+                    {
+                        logger.LogInformation("Merchant webhook dead-letter retention cycle pruned {Count} records.", pruned);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
