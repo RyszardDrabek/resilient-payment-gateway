@@ -124,6 +124,11 @@ public static class PaymentRateLimitingExtensions
             httpContext.Response.Headers[CorrelationIdHeader] = correlationId;
         }
 
+        if (!httpContext.Response.Headers.ContainsKey("Retry-After"))
+        {
+            httpContext.Response.Headers["Retry-After"] = "60";
+        }
+
         var problem = new PaymentProblemDetails(
             Type: PaymentProblemTypes.RateLimit,
             Title: "Too Many Requests",
