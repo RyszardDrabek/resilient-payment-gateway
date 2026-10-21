@@ -8,7 +8,8 @@ namespace PaymentGateway.Worker;
 
 public sealed class ThreeDsExpirationWorker(
     IServiceScopeFactory scopeFactory,
-    ILogger<ThreeDsExpirationWorker> logger) : BackgroundService
+    ILogger<ThreeDsExpirationWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromSeconds(30);
 
@@ -20,10 +21,29 @@ public sealed class ThreeDsExpirationWorker(
         {
             try
             {
-                var expiredCount = await ProcessExpirationCycleAsync(stoppingToken);
-                if (expiredCount > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation("Processed 3DS challenge expiration cycle. Expired {Count} abandoned challenges.", expiredCount);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(ThreeDsExpirationWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(ThreeDsExpirationWorker));
+                    }
+                    else
+                    {
+                        var expiredCount = await ProcessExpirationCycleAsync(stoppingToken);
+                        if (expiredCount > 0)
+                        {
+                            logger.LogInformation("Processed 3DS challenge expiration cycle. Expired {Count} abandoned challenges.", expiredCount);
+                        }
+                    }
+                }
+                else
+                {
+                    var expiredCount = await ProcessExpirationCycleAsync(stoppingToken);
+                    if (expiredCount > 0)
+                    {
+                        logger.LogInformation("Processed 3DS challenge expiration cycle. Expired {Count} abandoned challenges.", expiredCount);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

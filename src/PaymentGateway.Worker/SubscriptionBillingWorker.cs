@@ -9,7 +9,8 @@ namespace PaymentGateway.Worker;
 
 public sealed class SubscriptionBillingWorker(
     IServiceScopeFactory scopeFactory,
-    ILogger<SubscriptionBillingWorker> logger) : BackgroundService
+    ILogger<SubscriptionBillingWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromSeconds(30);
 
@@ -21,10 +22,29 @@ public sealed class SubscriptionBillingWorker(
         {
             try
             {
-                var billedCount = await ProcessBillingCycleAsync(stoppingToken);
-                if (billedCount > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation("Processed subscription billing cycle. Evaluated {Count} due subscriptions.", billedCount);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(SubscriptionBillingWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(SubscriptionBillingWorker));
+                    }
+                    else
+                    {
+                        var billedCount = await ProcessBillingCycleAsync(stoppingToken);
+                        if (billedCount > 0)
+                        {
+                            logger.LogInformation("Processed subscription billing cycle. Evaluated {Count} due subscriptions.", billedCount);
+                        }
+                    }
+                }
+                else
+                {
+                    var billedCount = await ProcessBillingCycleAsync(stoppingToken);
+                    if (billedCount > 0)
+                    {
+                        logger.LogInformation("Processed subscription billing cycle. Evaluated {Count} due subscriptions.", billedCount);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

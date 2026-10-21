@@ -10,7 +10,8 @@ namespace PaymentGateway.Worker;
 public sealed class OutboxRetentionCleanupWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<OutboxOptions> options,
-    ILogger<OutboxRetentionCleanupWorker> logger) : BackgroundService
+    ILogger<OutboxRetentionCleanupWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private readonly OutboxOptions _options = options.Value;
 
@@ -25,8 +26,24 @@ public sealed class OutboxRetentionCleanupWorker(
         {
             try
             {
-                var pruned = await ProcessRetentionCleanupCycleAsync(stoppingToken);
-                logger.LogInformation("Outbox retention cleanup finished. Pruned {Count} expired outbox messages.", pruned);
+                if (lockProvider is not null)
+                {
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(OutboxRetentionCleanupWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(OutboxRetentionCleanupWorker));
+                    }
+                    else
+                    {
+                        var pruned = await ProcessRetentionCleanupCycleAsync(stoppingToken);
+                        logger.LogInformation("Outbox retention cleanup finished. Pruned {Count} expired outbox messages.", pruned);
+                    }
+                }
+                else
+                {
+                    var pruned = await ProcessRetentionCleanupCycleAsync(stoppingToken);
+                    logger.LogInformation("Outbox retention cleanup finished. Pruned {Count} expired outbox messages.", pruned);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

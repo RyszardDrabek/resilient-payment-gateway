@@ -7,7 +7,8 @@ namespace PaymentGateway.Worker;
 
 public sealed class Web3ConfirmationWatcherWorker(
     IServiceProvider serviceProvider,
-    ILogger<Web3ConfirmationWatcherWorker> logger) : BackgroundService
+    ILogger<Web3ConfirmationWatcherWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(5);
 
@@ -19,12 +20,33 @@ public sealed class Web3ConfirmationWatcherWorker(
         {
             try
             {
-                using var scope = serviceProvider.CreateScope();
-                var watcherService = scope.ServiceProvider.GetRequiredService<IWeb3FinalityWatcherService>();
-                var results = await watcherService.WatchAllPendingSettlementsAsync(stoppingToken);
-                if (results.Count > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation("Web3ConfirmationWatcherWorker processed {Count} pending settlements", results.Count);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(Web3ConfirmationWatcherWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(Web3ConfirmationWatcherWorker));
+                    }
+                    else
+                    {
+                        using var scope = serviceProvider.CreateScope();
+                        var watcherService = scope.ServiceProvider.GetRequiredService<IWeb3FinalityWatcherService>();
+                        var results = await watcherService.WatchAllPendingSettlementsAsync(stoppingToken);
+                        if (results.Count > 0)
+                        {
+                            logger.LogInformation("Web3ConfirmationWatcherWorker processed {Count} pending settlements", results.Count);
+                        }
+                    }
+                }
+                else
+                {
+                    using var scope = serviceProvider.CreateScope();
+                    var watcherService = scope.ServiceProvider.GetRequiredService<IWeb3FinalityWatcherService>();
+                    var results = await watcherService.WatchAllPendingSettlementsAsync(stoppingToken);
+                    if (results.Count > 0)
+                    {
+                        logger.LogInformation("Web3ConfirmationWatcherWorker processed {Count} pending settlements", results.Count);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

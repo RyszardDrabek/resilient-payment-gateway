@@ -10,7 +10,8 @@ namespace PaymentGateway.Worker;
 public sealed class FxQuoteExpirationWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<FxQuoteExpirationOptions> options,
-    ILogger<FxQuoteExpirationWorker> logger) : BackgroundService
+    ILogger<FxQuoteExpirationWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private readonly FxQuoteExpirationOptions _options = options.Value;
 
@@ -29,10 +30,29 @@ public sealed class FxQuoteExpirationWorker(
         {
             try
             {
-                var expiredCount = await ProcessCycleAsync(stoppingToken);
-                if (expiredCount > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation("FX quote expiration cycle expired {Count} stale quotes.", expiredCount);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(FxQuoteExpirationWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(FxQuoteExpirationWorker));
+                    }
+                    else
+                    {
+                        var expiredCount = await ProcessCycleAsync(stoppingToken);
+                        if (expiredCount > 0)
+                        {
+                            logger.LogInformation("FX quote expiration cycle expired {Count} stale quotes.", expiredCount);
+                        }
+                    }
+                }
+                else
+                {
+                    var expiredCount = await ProcessCycleAsync(stoppingToken);
+                    if (expiredCount > 0)
+                    {
+                        logger.LogInformation("FX quote expiration cycle expired {Count} stale quotes.", expiredCount);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

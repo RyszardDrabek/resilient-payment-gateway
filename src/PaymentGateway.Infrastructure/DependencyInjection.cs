@@ -64,6 +64,7 @@ public static class DependencyInjection
             sp.GetRequiredService<PaymentGateway.Infrastructure.Services.RoutingSettlementPort>());
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<PaymentGateway.Application.Locking.IDistributedLockProvider, PaymentGateway.Infrastructure.Locking.PostgresAdvisoryLockProvider>();
         services.Configure<PaymentGateway.Infrastructure.Options.OutboxOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Options.OutboxOptions.SectionName));
         services.AddScoped<PaymentGateway.Application.Events.IOutboxRetentionService, PaymentGateway.Infrastructure.Services.OutboxRetentionService>();
         services.Configure<PaymentGateway.Infrastructure.Options.IdempotencyRetentionOptions>(configuration.GetSection(PaymentGateway.Infrastructure.Options.IdempotencyRetentionOptions.SectionName));

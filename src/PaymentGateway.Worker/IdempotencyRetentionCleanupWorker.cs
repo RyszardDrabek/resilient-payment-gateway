@@ -10,7 +10,8 @@ namespace PaymentGateway.Worker;
 public sealed class IdempotencyRetentionCleanupWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<IdempotencyRetentionOptions> options,
-    ILogger<IdempotencyRetentionCleanupWorker> logger) : BackgroundService
+    ILogger<IdempotencyRetentionCleanupWorker> logger,
+    PaymentGateway.Application.Locking.IDistributedLockProvider? lockProvider = null) : BackgroundService
 {
     private readonly IdempotencyRetentionOptions _options = options.Value;
 
@@ -31,13 +32,35 @@ public sealed class IdempotencyRetentionCleanupWorker(
         {
             try
             {
-                var (pruned, reaped) = await ProcessCycleAsync(stoppingToken);
-                if (pruned > 0 || reaped > 0)
+                if (lockProvider is not null)
                 {
-                    logger.LogInformation(
-                        "Idempotency retention cycle finished. Pruned {Pruned} expired records, reaped {Reaped} abandoned leases.",
-                        pruned,
-                        reaped);
+                    await using var lockHandle = await lockProvider.TryAcquireLockAsync(nameof(IdempotencyRetentionCleanupWorker), stoppingToken);
+                    if (lockHandle is null)
+                    {
+                        logger.LogDebug("{Worker} cycle skipped; lock held by another instance.", nameof(IdempotencyRetentionCleanupWorker));
+                    }
+                    else
+                    {
+                        var (pruned, reaped) = await ProcessCycleAsync(stoppingToken);
+                        if (pruned > 0 || reaped > 0)
+                        {
+                            logger.LogInformation(
+                                "Idempotency retention cycle finished. Pruned {Pruned} expired records, reaped {Reaped} abandoned leases.",
+                                pruned,
+                                reaped);
+                        }
+                    }
+                }
+                else
+                {
+                    var (pruned, reaped) = await ProcessCycleAsync(stoppingToken);
+                    if (pruned > 0 || reaped > 0)
+                    {
+                        logger.LogInformation(
+                            "Idempotency retention cycle finished. Pruned {Pruned} expired records, reaped {Reaped} abandoned leases.",
+                            pruned,
+                            reaped);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
