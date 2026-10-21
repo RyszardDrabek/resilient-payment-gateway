@@ -182,4 +182,43 @@ public class AdyenSettlementPortTests
         captureResult.ChannelReference.Should().NotBe(refundResult.ChannelReference);
         refundResult.ChannelReference.Should().NotBe(cancelResult.ChannelReference);
     }
+
+    [Fact]
+    public async Task AuthorizeAsync_WhenCircuitBreakerOpens_ShortCircuitsSubsequentRequests()
+    {
+        var callCount = 0;
+        var handler = new TestHttpMessageHandler(req =>
+        {
+            Interlocked.Increment(ref callCount);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        });
+
+        var client = new HttpClient(handler);
+        var options = Options.Create(new AdyenOptions
+        {
+            BaseUrl = "http://mock-adyen.local",
+            MaxRetryAttempts = 0,
+            CircuitBreakerEnabled = true,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDurationSeconds = 10,
+            CircuitBreakerBreakDurationSeconds = 10
+        });
+        var port = new AdyenSettlementPort(client, options);
+
+        // First 2 failures open the circuit
+        var res1 = await port.AuthorizeAsync("party_test", 1000, "EUR");
+        res1.IsUnanswered.Should().BeTrue();
+
+        var res2 = await port.AuthorizeAsync("party_test", 1000, "EUR");
+        res2.IsUnanswered.Should().BeTrue();
+
+        var callsBeforeOpen = callCount;
+
+        // Third call should be short-circuited by the open circuit breaker without invoking the handler
+        var res3 = await port.AuthorizeAsync("party_test", 1000, "EUR");
+        res3.IsUnanswered.Should().BeTrue();
+        res3.DeclineReason.Should().Contain("circuit breaker is OPEN");
+        callCount.Should().Be(callsBeforeOpen);
+    }
 }

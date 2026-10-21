@@ -16,6 +16,12 @@ public sealed class AdyenOptions
     public int MaxRetryAttempts { get; set; } = 2;
     public int RetryDelayMilliseconds { get; set; } = 50;
 
+    public bool CircuitBreakerEnabled { get; set; } = true;
+    public double CircuitBreakerFailureRatio { get; set; } = 0.5;
+    public int CircuitBreakerMinimumThroughput { get; set; } = 5;
+    public int CircuitBreakerSamplingDurationSeconds { get; set; } = 10;
+    public int CircuitBreakerBreakDurationSeconds { get; set; } = 15;
+
     public bool IsLiveMode =>
         string.Equals(Mode, "Live", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(Mode, "Sandbox", StringComparison.OrdinalIgnoreCase) ||
