@@ -47,16 +47,42 @@ public sealed class OutboxDispatcherService(
         var dbContext = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
-        var pendingMessages = await dbContext.OutboxMessages
-            .Where(m => m.ProcessedAt == null && m.DeliveryAttempts < _options.MaxDeliveryAttempts)
-            .OrderBy(m => m.CreatedAt)
-            .Take(_options.BatchSize)
-            .ToListAsync(ct);
+        List<OutboxMessageRecord> pendingMessages;
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction = null;
+
+        if (dbContext.Database.IsNpgsql())
+        {
+            transaction = await dbContext.Database.BeginTransactionAsync(ct);
+            pendingMessages = await dbContext.OutboxMessages
+                .FromSqlInterpolated($@"
+                    SELECT * FROM pay.""OutboxMessages""
+                    WHERE ""ProcessedAt"" IS NULL AND ""DeliveryAttempts"" < {_options.MaxDeliveryAttempts}
+                    ORDER BY ""CreatedAt""
+                    LIMIT {_options.BatchSize}
+                    FOR UPDATE SKIP LOCKED")
+                .ToListAsync(ct);
+        }
+        else
+        {
+            pendingMessages = await dbContext.OutboxMessages
+                .Where(m => m.ProcessedAt == null && m.DeliveryAttempts < _options.MaxDeliveryAttempts)
+                .OrderBy(m => m.CreatedAt)
+                .Take(_options.BatchSize)
+                .ToListAsync(ct);
+        }
 
         if (pendingMessages.Count == 0)
         {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(ct);
+                await transaction.DisposeAsync();
+            }
             return 0;
         }
+
+        try
+        {
 
         foreach (var message in pendingMessages)
         {
@@ -135,7 +161,28 @@ public sealed class OutboxDispatcherService(
             }
         }
 
-        await dbContext.SaveChangesAsync(ct);
+            await dbContext.SaveChangesAsync(ct);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(ct);
+            }
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(ct);
+            }
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
+
         return pendingMessages.Count;
     }
 }
