@@ -5,14 +5,10 @@ namespace PaymentGateway.Infrastructure.Fx;
 
 /// <summary>
 /// In-memory reference FX rate provider with normalized USD baseline rates.
-/// In Phase 17 MVP, this serves as a static reference/cached rate provider.
-/// Rates can be updated dynamically via <see cref="SetRateToUsd"/> (e.g. by integration tests or future live feed workers).
+/// Serves as the primary reference and cached rate provider for currency conversion and quotes.
+/// Rates are dynamically updated via <see cref="SetRateToUsd"/>, fed periodically by <c>FxRateRefreshWorker</c>
+/// and synchronized across API instances via MassTransit event broadcast.
 /// </summary>
-/// <remarks>
-/// TODO: In subsequent phases (e.g., Phase 18+), integrate a background hosted service/worker
-/// that periodically fetches live reference rates from central banks (ECB) and crypto oracles (CoinGecko/Binance),
-/// updating this provider or a Redis-backed distributed cache.
-/// </remarks>
 public sealed class CachedFxRateProvider : IFxRateProvider
 {
     // Rates normalized against USD: 1 unit of Currency = X units of USD

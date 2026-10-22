@@ -14,9 +14,21 @@ public sealed class FxRateRefreshWorker(
     IOptions<FxRateRefreshOptions> options,
     ILogger<FxRateRefreshWorker> logger,
     IDistributedLockProvider? lockProvider = null,
-    IPublishEndpoint? publishEndpoint = null) : BackgroundService
+    IPublishEndpoint? publishEndpoint = null,
+    PaymentGateway.Application.Fx.Ports.IExternalFxFeedClient? feedClient = null) : BackgroundService
 {
     private readonly FxRateRefreshOptions _options = options.Value;
+
+    private static readonly Dictionary<string, decimal> BaselineRates = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["USD"] = 1.0000m,
+        ["USDC"] = 1.0000m,
+        ["USDT"] = 1.0000m,
+        ["EUR"] = 1.0850m,
+        ["GBP"] = 1.2800m,
+        ["PLN"] = 0.2520m,
+        ["CHF"] = 1.1300m
+    };
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -74,19 +86,28 @@ public sealed class FxRateRefreshWorker(
 
     public async Task ProcessCycleAsync(CancellationToken ct = default)
     {
-        // Reference baseline rates verification and refreshment
-        // Can be extended to fetch from ECB/live oracles.
         logger.LogDebug("Refreshing reference FX rates.");
-        var freshRates = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        var freshRates = new Dictionary<string, decimal>(BaselineRates, StringComparer.OrdinalIgnoreCase);
+
+        if (feedClient is not null)
         {
-            ["USD"] = 1.0000m,
-            ["USDC"] = 1.0000m,
-            ["USDT"] = 1.0000m,
-            ["EUR"] = 1.0850m,
-            ["GBP"] = 1.2800m,
-            ["PLN"] = 0.2520m,
-            ["CHF"] = 1.1300m
-        };
+            try
+            {
+                var liveRates = await feedClient.FetchRatesToUsdAsync(ct);
+                if (liveRates is not null)
+                {
+                    foreach (var (currency, rate) in liveRates)
+                    {
+                        freshRates[currency] = rate;
+                    }
+                    logger.LogInformation("Applied {Count} live FX rates from external feed.", liveRates.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to retrieve live FX rates from external feed. Using baseline fallback.");
+            }
+        }
 
         foreach (var (currency, rate) in freshRates)
         {
