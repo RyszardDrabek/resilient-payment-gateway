@@ -84,9 +84,31 @@ Write-Host "====================================================================
 
 $scenarioList = @()
 if ($Scenario -eq "All") {
-    $scenarioList = @("AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "MerchantWebhooks", "RiskDisposition", "MerchantApiKeys", "WebhookDlq", "Volume")
+    $scenarioList = @("HealthProbes", "AdyenHappyPath", "AdyenCancel", "AdyenDecline", "Web3HappyPath", "Web3Cancel", "Web3Decline", "PartialSettlement", "UnresolvedQuery", "MerchantWebhooks", "RiskDisposition", "MerchantApiKeys", "WebhookDlq", "FxLiveRates", "Volume")
 } else {
     $scenarioList = @($Scenario)
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 0: Standard Kubernetes Probes (/health/live, /health/ready, /healthz, /health)
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "HealthProbes") {
+    Write-Host "`n[SCENARIO 0] Kubernetes Probes: Liveness & Readiness Verification" -ForegroundColor Magenta
+    
+    $liveRes = Send-GatewayRequest -Method "Get" -Path "/health/live" -NoAuth
+    $readyRes = Send-GatewayRequest -Method "Get" -Path "/health/ready" -NoAuth
+    
+    if ($liveRes.Success -and $liveRes.Data.status -eq "Healthy") {
+        Write-Host "  1. Liveness Probe (/health/live): OK (Healthy)" -ForegroundColor Green
+    } else {
+        Write-Host "  1. Liveness Probe (/health/live): FAIL" -ForegroundColor Red
+    }
+
+    if ($readyRes.Success -and $readyRes.Data.status -eq "Healthy") {
+        Write-Host "  2. Readiness Probe (/health/ready): OK (Healthy, OutboxLag: $($readyRes.Data.outboxLagSeconds)s)" -ForegroundColor Green
+    } else {
+        Write-Host "  2. Readiness Probe (/health/ready): FAIL" -ForegroundColor Red
+    }
 }
 
 # -----------------------------------------------------------------------------
@@ -626,7 +648,38 @@ if ($scenarioList -contains "WebhookDlq") {
 }
 
 # -----------------------------------------------------------------------------
-# Scenario 13: Mixed Traffic Batch
+# Scenario 13: Live FX Rates & Guaranteed Currency Quoting
+# -----------------------------------------------------------------------------
+if ($scenarioList -contains "FxLiveRates") {
+    Write-Host "`n[SCENARIO 13] FX Engine: Live Spot Rates & Guaranteed Quoting" -ForegroundColor Magenta
+    
+    Write-Host "  1. Querying live spot rates for EUR..." -ForegroundColor Yellow
+    $ratesRes = Send-GatewayRequest -Method "Get" -Path "/fx/rates?baseCurrency=EUR"
+    if ($ratesRes.Success) {
+        Write-Host "     -> EUR/USD: $($ratesRes.Data.rates.USD) | EUR/PLN: $($ratesRes.Data.rates.PLN) | EUR/GBP: $($ratesRes.Data.rates.GBP)" -ForegroundColor Green
+    } else {
+        Write-Host "     -> Query spot rates FAIL: $($ratesRes.Error)" -ForegroundColor Red
+    }
+
+    Write-Host "  2. Generating guaranteed FX quote (100.00 EUR -> USD)..." -ForegroundColor Yellow
+    $quoteRes = Send-GatewayRequest -Method "Post" -Path "/fx/quotes" -Body @{
+        baseCurrency = "EUR"
+        baseAmount = 10000
+        targetCurrency = "USD"
+        partyId = "merchant_fx_demo"
+        ttlMinutes = 15
+    }
+
+    if ($quoteRes.Success) {
+        $q = $quoteRes.Data
+        Write-Host "     -> QuoteId: $($q.quoteId) | Guaranteed Rate: $($q.exchangeRate) | Target Amount: $($q.targetAmount) cents USD | ExpiresAt: $($q.expiresAt)" -ForegroundColor Green
+    } else {
+        Write-Host "     -> Create FX quote FAIL: $($quoteRes.Error)" -ForegroundColor Red
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Scenario 14: Mixed Traffic Batch
 # -----------------------------------------------------------------------------
 if ($scenarioList -contains "Volume") {
     Write-Host "`n[SCENARIO 13] Generating Mixed Traffic Batch ($VolumeCount payments)..." -ForegroundColor Magenta

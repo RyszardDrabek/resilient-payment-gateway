@@ -114,6 +114,10 @@ public static class DependencyInjection
             configuration.GetSection(PaymentGateway.Infrastructure.Options.FxQuoteExpirationOptions.SectionName));
         services.Configure<PaymentGateway.Infrastructure.Options.FxRateRefreshOptions>(
             configuration.GetSection(PaymentGateway.Infrastructure.Options.FxRateRefreshOptions.SectionName));
+        services.AddHttpClient<PaymentGateway.Application.Fx.Ports.IExternalFxFeedClient, PaymentGateway.Infrastructure.Fx.NbpFxFeedClient>(client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("ResilientPaymentGateway/1.0");
+        });
         services.AddSingleton<PaymentGateway.Infrastructure.Fx.CachedFxRateProvider>();
         services.AddSingleton<PaymentGateway.Application.Fx.Ports.IFxRateProvider>(sp => sp.GetRequiredService<PaymentGateway.Infrastructure.Fx.CachedFxRateProvider>());
         services.AddScoped<PaymentGateway.Domain.Ports.IFxQuoteRepository, PaymentGateway.Infrastructure.Repositories.FxQuoteRepository>();

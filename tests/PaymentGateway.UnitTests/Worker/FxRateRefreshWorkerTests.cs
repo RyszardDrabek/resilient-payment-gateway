@@ -56,6 +56,41 @@ public sealed class FxRateRefreshWorkerTests
         published!.RatesToUsd["EUR"].Should().Be(1.0850m);
     }
 
+    [Fact]
+    public async Task ProcessCycleAsync_WhenFeedClientReturnsLiveRates_AppliesLiveRatesAndPublishes()
+    {
+        var provider = new CachedFxRateProvider();
+        var fakePublishEndpoint = new FakePublishEndpoint();
+        var fakeFeed = new FakeFxFeedClient(new Dictionary<string, decimal>
+        {
+            ["EUR"] = 1.1200m,
+            ["PLN"] = 0.2700m
+        });
+        var options = Options.Create(new FxRateRefreshOptions { IntervalSeconds = 60 });
+        var worker = new FxRateRefreshWorker(
+            provider,
+            options,
+            NullLogger<FxRateRefreshWorker>.Instance,
+            publishEndpoint: fakePublishEndpoint,
+            feedClient: fakeFeed);
+
+        await worker.ProcessCycleAsync(CancellationToken.None);
+
+        var eurRate = await provider.GetSpotRateAsync("EUR", "USD");
+        eurRate.Should().Be(1.1200m);
+
+        fakePublishEndpoint.PublishedEvents.Should().ContainSingle();
+        var published = fakePublishEndpoint.PublishedEvents[0] as PaymentGateway.Application.Events.FxRatesRefreshedEvent;
+        published!.RatesToUsd["EUR"].Should().Be(1.1200m);
+        published.RatesToUsd["PLN"].Should().Be(0.2700m);
+    }
+
+    private sealed class FakeFxFeedClient(IReadOnlyDictionary<string, decimal>? rates) : PaymentGateway.Application.Fx.Ports.IExternalFxFeedClient
+    {
+        public Task<IReadOnlyDictionary<string, decimal>?> FetchRatesToUsdAsync(CancellationToken ct = default) =>
+            Task.FromResult(rates);
+    }
+
     private sealed class FakePublishEndpoint : IPublishEndpoint
     {
         public List<object> PublishedEvents { get; } = [];
