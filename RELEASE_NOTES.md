@@ -1,3 +1,42 @@
+# Release Notes
+
+## Release v1.1.0 - Operational Hardening & External FX Rates Feed
+
+**Resilient Payment Gateway v1.1.0** introduces cluster operational hardening, single-leader distributed locking, live foreign exchange rates feed integration, and standardized Kubernetes lifecycle probes.
+
+### Highlights in v1.1.0
+
+#### 1. Cluster Scalability & Distributed Locking (Advisory Locks)
+- **Cluster Single-Leader Scheduling**: Background workers now utilize PostgreSQL Advisory Locks (`IDistributedLockProvider`) to safely scale worker pods (`HorizontalPodAutoscaler` > 1) without concurrent cycle overlaps:
+  - `IdempotencyRetentionCleanupWorker`
+  - `OutboxRetentionCleanupWorker`
+  - `MerchantWebhookRetentionCleanupWorker`
+  - `FxQuoteExpirationWorker`
+  - `FxRateRefreshWorker`
+  - `DailyReconciliationWorker`
+  - `SubscriptionBillingWorker`
+- **Clean Worker Separation**: Clear separation of responsibilities between API and Worker pods (`Outbox:Enabled = false` on API, `true` on Worker), removing database outbox polling contention.
+
+#### 2. Live Foreign Exchange (FX) Engine & Synchronized Caching
+- **NBP Live Feed Integration**: Added `NbpFxFeedClient` consuming public NBP Table A API with automatic normalization to USD baseline and dedicated `User-Agent` protection.
+- **Fail-Open Resilience**: Automatic fallback to normalized baseline rates on network degradation.
+- **Cross-Node Cache Synchronization**: `FxRateRefreshWorker` broadcasts `FxRatesRefreshedEvent` via MassTransit, ensuring all stateless API instances immediately synchronize their local in-memory rates (`CachedFxRateProvider`).
+- **Guaranteed FX Quoting API**: `POST /fx/quotes` and `GET /fx/rates` endpoints for multi-currency settlement.
+
+#### 3. Kubernetes Probes & Operational Standards
+- **Standard Probes**: Added `/health/live` (liveness) and `/health/ready` (readiness with outbox queue lag inspection).
+- **Backward Compatibility**: Fully preserved existing `/healthz` and `/health` aliases.
+- **Rate Limiting Hardening**: Added RFC 7807 compliant 429 Too Many Requests responses including `Retry-After: 60` HTTP headers.
+
+#### 4. Expanded Verification & Quality Metrics
+- **Unit Tests**: 539 / 539 passing tests (0 failures, 0 skipped).
+- **Architecture Tests**: 3 / 3 Clean Architecture boundary tests passed.
+- **Portal E2E Tests**: 22 / 22 Playwright tests passing across all operator consoles.
+- **k6 Load Tests**: Rate limiting suite updated to assert `Retry-After` header presence.
+- **PowerShell E2E Suite**: Added Kubernetes health probe and live FX quoting verification scenarios.
+
+---
+
 # Release v1.0.0 - Resilient Payment Gateway
 
 **Resilient Payment Gateway v1.0.0** marks the first stable production release of an enterprise-grade FinTech payment processing engine built with .NET 10 (C# 13), React 19, PostgreSQL (with pgvector), RabbitMQ, and full OpenTelemetry distributed observability.
