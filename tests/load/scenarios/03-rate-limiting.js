@@ -41,6 +41,7 @@ export default function () {
     const isProblemJson = check(res, {
       '429 returned when over limit': (r) => r.status === 429,
       '429 content-type is problem+json': (r) => r.headers['Content-Type'] && r.headers['Content-Type'].includes('problem+json'),
+      '429 includes Retry-After header': (r) => r.headers['Retry-After'] !== undefined,
       '429 has RFC 7807 structure': (r) => {
         try {
           const body = JSON.parse(r.body);
