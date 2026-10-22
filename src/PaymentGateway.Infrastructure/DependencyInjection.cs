@@ -126,6 +126,7 @@ public static class DependencyInjection
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.PaymentLifecycleRiskConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.MerchantWebhookDispatcherConsumer>();
             x.AddConsumer<PaymentGateway.Infrastructure.Consumers.MerchantWebhookDeadLetterConsumer>();
+            x.AddConsumer<PaymentGateway.Infrastructure.Consumers.FxRatesUpdatedConsumer>();
 
             if (useInMemory)
             {
