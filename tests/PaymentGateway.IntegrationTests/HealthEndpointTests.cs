@@ -78,6 +78,10 @@ public sealed class HealthEndpointTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, because: await response.Content.ReadAsStringAsync());
         (await response.Content.ReadAsStringAsync()).Should().Contain("Healthy");
+
+        var readyResponse = await client.GetAsync("/health/ready");
+        readyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await readyResponse.Content.ReadAsStringAsync()).Should().Contain("Healthy");
     }
 
     [Fact]
@@ -98,7 +102,12 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("Healthy");
-        content.Should().Contain("PaymentGateway.Api");
+
+        var liveResponse = await client.GetAsync("/health/live");
+        liveResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var liveContent = await liveResponse.Content.ReadAsStringAsync();
+        liveContent.Should().Contain("Healthy");
+        liveContent.Should().Contain("PaymentGateway.Api");
     }
 
     [Fact]

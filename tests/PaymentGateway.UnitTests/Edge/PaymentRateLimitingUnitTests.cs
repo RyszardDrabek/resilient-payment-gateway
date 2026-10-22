@@ -23,6 +23,7 @@ public sealed class PaymentRateLimitingUnitTests
         context.Response.StatusCode.Should().Be(429);
         context.Response.ContentType.Should().Be("application/problem+json");
         context.Response.Headers["X-Correlation-Id"].ToString().Should().Be("rate-limit-trace-999");
+        context.Response.Headers["Retry-After"].ToString().Should().Be("60");
 
         context.Response.Body.Seek(0, System.IO.SeekOrigin.Begin);
         using var reader = new System.IO.StreamReader(context.Response.Body);

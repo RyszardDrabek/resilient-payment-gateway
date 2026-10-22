@@ -79,6 +79,7 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
                 builder.UseSetting("ConnectionStrings:RiskDb", connectionString);
                 builder.UseSetting("RabbitMq:UseInMemory", "true");
                 builder.UseSetting("Auth:JwtSigningKey", JwtKey);
+                builder.UseSetting("Outbox:Enabled", "true");
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -87,7 +88,8 @@ public sealed class PaymentLifecycleEventPublicationTests : IAsyncLifetime
                         ["ConnectionStrings:RiskDb"] = connectionString,
                         ["RabbitMq:UseInMemory"] = "true",
                         ["Auth:JwtSigningKey"] = JwtKey,
-                        ["PaymentGateway:ActiveChannel"] = "MOCK"
+                        ["PaymentGateway:ActiveChannel"] = "MOCK",
+                        ["Outbox:Enabled"] = "true"
                     });
                 });
             });
